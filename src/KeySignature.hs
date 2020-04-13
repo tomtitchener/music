@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 
 module KeySignature (KeySignature (..)
                     ,toLily
@@ -6,7 +5,6 @@ module KeySignature (KeySignature (..)
                     ,parseKeySignature
                     ) where
 
-import GHC.Generics
 import Mode
 import Pitch
 import Text.Parsec
@@ -16,7 +14,7 @@ import Utils
 import Lily
 
 data KeySignature = KeySignature { _kspit :: Pitch, _ksmode :: Mode }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show)
 
 instance ToLily KeySignature where
   toLily (KeySignature pit mode) = "\\key " <> toLily pit <> " " <> toLily mode

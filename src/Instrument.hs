@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 
 module Instrument (Instrument (..)
               ,lilySyms
@@ -12,7 +11,6 @@ module Instrument (Instrument (..)
 
 import Data.List
 import Data.Maybe
-import GHC.Generics
 import Text.Parsec
 import Text.Parsec.String
 import Utils
@@ -64,7 +62,7 @@ data Instrument =
        Violin |                  LeadChiff |          Applause |
        Viola |                   LeadCharang |        Gunshot |
        Cello |                   LeadVoice
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- parse order
 lilySyms :: [String]

@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 
 module Pitch (Pitch (..)
               ,lilySyms
@@ -7,7 +6,6 @@ module Pitch (Pitch (..)
               ,parsePitch
               ) where
 
-import GHC.Generics
 import Text.Parsec
 import Text.Parsec.String
 import Utils
@@ -22,7 +20,7 @@ data Pitch = Bs | C   | Bss | Dff | Cs
            | Gf | Fss | G   | Aff | Gs
            | Af | Gss | A   | Bff | As
            | Bf | Cff | Ass | B   | Cf
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- parse order
 lilySyms :: [String]

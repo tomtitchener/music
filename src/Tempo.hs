@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 
 -- Tempo numerator / denominator
 -- where numerator is integral duration WDur, HDur, QDur, EDur, SDur, TSDur, SFDur,
@@ -15,7 +14,6 @@ module Tempo (Tempo (..)
              ) where
 
 import Duration
-import GHC.Generics
 import Text.Parsec
 import Text.Parsec.String
 import Utils
@@ -23,7 +21,7 @@ import Utils
 import Lily
 
 data Tempo = Tempo { _tnum :: Int, _tdenom :: Duration }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show)
 
 instance ToLily Tempo where
   toLily (Tempo num denom) = "\\tempo " <> show num <> " = " <> toLily denom

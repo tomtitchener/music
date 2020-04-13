@@ -1,6 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-
--- list of (pitch, octave) pairs with duration, dynamic, accent, tie flag
 
 module Chord (Chord (..)
             ,toLily
@@ -11,7 +8,6 @@ module Chord (Chord (..)
 import Accent
 import Duration
 import Dynamic
-import GHC.Generics
 import Lily
 import Octave
 import Pitch
@@ -21,7 +17,7 @@ import Utils
 
 -- PercussionInstrumentChord e.g. "cl" == ClavesChord
 data Chord = Chord { _chordPitchOctavePairs :: [(Pitch, Octave)] , _chordDuration :: Duration, _chordDynamic :: Dynamic, _chordAccent :: Accent, _chordSlur :: Bool }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show)
 
 pairToLily :: (Pitch,Octave) -> String
 pairToLily (p,o) = Pitch.toLily p <> Octave.toLily o

@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 
 module VoiceEvent (VoiceEvent (..)
                   ,toLily
@@ -8,7 +7,6 @@ module VoiceEvent (VoiceEvent (..)
 
 import Chord
 import Clef
-import GHC.Generics
 import KeySignature
 import Lily
 import Note
@@ -27,7 +25,7 @@ data VoiceEvent =
   | VoiceEventTempo { _voiceEventTempo :: Tempo.Tempo }
   | VoiceEventKeySignature { _voiceEventKeySignature :: KeySignature }
   | VoiceEventTimeSignature { _voiceEventTimeSignature :: TimeSignature }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show)
 
 instance ToLily VoiceEvent where
   toLily (VoiceEventClef clef) = toLily clef

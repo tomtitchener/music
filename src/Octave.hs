@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 
 module Octave (Octave (..)
               ,lilySyms
@@ -9,7 +8,6 @@ module Octave (Octave (..)
               ,decrOct
               ) where
 
-import GHC.Generics
 import Text.Parsec
 import Text.Parsec.String
 import Utils
@@ -18,7 +16,7 @@ import Lily
 
 -- Ord order
 data Octave = TwentyTwoVBOct | FifteenVBOct | EightVBOct | COct | EightVAOct | FifteenVAOct | TwentyTwoVAOct | TwentyNineVAOct
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- parse order
 lilyVals :: [Octave]

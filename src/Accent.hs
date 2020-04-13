@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 
 module Accent (Accent (..)
               ,lilySyms
@@ -7,7 +6,6 @@ module Accent (Accent (..)
               ,parseAccent
               ) where
 
-import GHC.Generics
 import Text.Parsec
 import Text.Parsec.String
 import Utils
@@ -16,7 +14,7 @@ import Lily
 
 -- Ord order
 data Accent = Marcato | Tenuto | Staccatissimo | Staccato | Accent | Portato | Espressivo | NoAccent
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- parse order
 lilySyms :: [String]

@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Duration (Duration (..)
@@ -18,7 +17,6 @@ module Duration (Duration (..)
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
-import GHC.Generics
 import Text.Parsec
 import Text.Parsec.String
 import Utils
@@ -27,7 +25,7 @@ import Lily
 
 -- Ord order
 data Duration = HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur | DEDur | QDur | DQDur | HDur | DHDur | WDur | DWDur
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- parse order
 lilyVals :: [Duration]

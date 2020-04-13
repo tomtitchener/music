@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Main (
@@ -17,6 +18,7 @@ import qualified Accent as Acc
 import qualified Chord
 import qualified Duration as Dur
 import qualified Dynamic as Dyn
+import GHC.Generics
 import qualified KeySignature as KeySig
 import qualified Mode as Mod
 import qualified Note
@@ -58,6 +60,28 @@ tests =
   ,testProperty "parseLily . toLily Chord == id" propParseLilytoLilyChord
   ,testProperty "toLily parseLily Chord == id" propToLilyparseLilyChord
   ]
+
+deriving instance Generic Acc.Accent
+
+deriving instance Generic Chord.Chord
+
+deriving instance Generic Dur.Duration
+
+deriving instance Generic Dyn.Dynamic
+
+deriving instance Generic KeySig.KeySignature
+
+deriving instance Generic Mod.Mode
+
+deriving instance Generic Note.Note
+
+deriving instance Generic Oct.Octave
+
+deriving instance Generic Pit.Pitch
+
+deriving instance Generic Rest.Rest
+
+deriving instance Generic Temp.Tempo
 
 instance Arbitrary Dur.Duration where
   arbitrary = genericArbitrary
@@ -102,6 +126,8 @@ instance Arbitrary KeySig.KeySignature where
 instance Arbitrary Temp.Tempo where
   arbitrary = liftM2 Temp.Tempo (elements [1..10]) (elements Dur.integralDurations)
   shrink = genericShrink
+
+deriving instance Generic TSig.TimeSignature
 
 instance Arbitrary TSig.TimeSignature where
   arbitrary = liftM2 TSig.TimeSignature (elements [1..10]) (elements Dur.integralDurations)

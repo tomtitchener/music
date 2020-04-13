@@ -1,10 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
-
--- Time signature numerator/denominator
--- where denominator is integral duration WDur, HDur, QDur, EDur, SDur, TSDur, SFDur,
--- numerator is count of ingtegral durations in a measure
---  1) beats per measure: \time 2/4
---  2) groupings and beats per measure \time #'(2 2 3) 7/8
+--  TODO: groupings and beats per measure \time #'(2 2 3) 7/8
 
 module TimeSignature (TimeSignature (..)
                      ,toLily
@@ -13,7 +7,6 @@ module TimeSignature (TimeSignature (..)
                      ) where
 
 import Duration
-import GHC.Generics
 import Text.Parsec
 import Text.Parsec.String
 import Utils
@@ -21,7 +14,7 @@ import Utils
 import Lily
 
 data TimeSignature = TimeSignature { _tsnum :: Int, _tsdenom :: Duration }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show)
 
 instance ToLily TimeSignature where
   toLily (TimeSignature num denom) = "\\time " <> show num <> "/" <> toLily denom

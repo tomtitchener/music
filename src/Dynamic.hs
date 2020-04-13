@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 
 module Dynamic (Dynamic (..)
               ,lilySyms
@@ -7,7 +6,6 @@ module Dynamic (Dynamic (..)
               ,parseDynamic
               ) where
 
-import GHC.Generics
 import Text.Parsec
 import Text.Parsec.String
 import Utils
@@ -16,7 +14,7 @@ import Lily
 
 -- Ord order
 data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FFFF | FFFFF | FP | SF | SFF | SP | SPP | SFZ | RFZ | NoDynamic
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- parse order
 lilySyms :: [String]

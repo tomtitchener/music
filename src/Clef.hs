@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 
 module Clef (Clef (..)
               ,lilySyms
@@ -7,7 +6,6 @@ module Clef (Clef (..)
               ,parseClef
               ) where
 
-import GHC.Generics
 import Text.Parsec
 import Text.Parsec.String
 import Utils
@@ -16,7 +14,7 @@ import Lily
 
 -- Ord order
 data Clef = Bass8VB | Bass | Tenor | Alto | Treble | Treble8VA
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- parse order
 lilySyms :: [String]

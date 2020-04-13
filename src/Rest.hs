@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 
 module Rest (Rest (..)
             ,toLily
@@ -8,14 +7,13 @@ module Rest (Rest (..)
 
 import Accent
 import Duration
-import GHC.Generics
 import Lily
 import Text.Parsec
 import Text.Parsec.String
 import Utils
 
 newtype Rest = Rest { _rdur :: Duration }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show)
 
 instance ToLily Rest where
   toLily (Rest dur) = "r" <> toLily dur
