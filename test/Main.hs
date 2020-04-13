@@ -83,6 +83,8 @@ deriving instance Generic Rest.Rest
 
 deriving instance Generic Temp.Tempo
 
+deriving instance Generic TSig.TimeSignature
+
 instance Arbitrary Dur.Duration where
   arbitrary = genericArbitrary
   shrink = genericShrink
@@ -126,8 +128,6 @@ instance Arbitrary KeySig.KeySignature where
 instance Arbitrary Temp.Tempo where
   arbitrary = liftM2 Temp.Tempo (elements [1..10]) (elements Dur.integralDurations)
   shrink = genericShrink
-
-deriving instance Generic TSig.TimeSignature
 
 instance Arbitrary TSig.TimeSignature where
   arbitrary = liftM2 TSig.TimeSignature (elements [1..10]) (elements Dur.integralDurations)

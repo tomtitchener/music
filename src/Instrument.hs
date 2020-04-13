@@ -177,6 +177,6 @@ shortName :: Instrument -> String
 shortName = (shortNames !!) . fromEnum
 
 shortName2LongName :: String -> String
-shortName2LongName = (lilySyms !!) . fromJust . (flip elemIndex) shortNames
+shortName2LongName = (lilySyms !!) . fromJust . flip elemIndex shortNames
 
 
