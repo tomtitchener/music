@@ -1,0 +1,11 @@
+** TODO Tempo variants
+** TODO TimeSignature variants
+** TODO Hand-written tests for Voice
+** TODO Hand-written tests for Score
+** TODO Interactive (ghci) validation of toLily Score with Lilypond
+** TODO App infrastructure:
+*** TODO Applicative OptParse for command-line args starting with YAML config
+*** TODO Driver free monad with Env for config YAML, State for random generator
+**** TODO IO verb with no return type for toLily output via putStrLn to start
+**** TODO Generic verb for return value with list randomization example
+**** TODO Sample app to generate score with simple voice.
