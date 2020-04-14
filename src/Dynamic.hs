@@ -1,6 +1,5 @@
 
 module Dynamic (Dynamic (..)
-              ,lilySyms
               ,toLily
               ,parseLily
               ,parseDynamic

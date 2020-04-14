@@ -1,6 +1,5 @@
 
 module Mode (Mode (..)
-              ,lilySyms
               ,toLily
               ,parseLily
               ,parseMode

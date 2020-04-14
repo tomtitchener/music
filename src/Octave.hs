@@ -1,6 +1,5 @@
 
 module Octave (Octave (..)
-              ,lilySyms
               ,toLily
               ,parseLily
               ,parseOct

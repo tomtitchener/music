@@ -6,7 +6,6 @@ module Duration (Duration (..)
                 ,zDurSum
                 ,sumDurs
                 ,durSum2Durs
-                ,lilySyms
                 ,toLily
                 ,parseLily
                 ,parseDuration

@@ -1,6 +1,5 @@
 
 module Pitch (Pitch (..)
-              ,lilySyms
               ,toLily
               ,parseLily
               ,parsePitch

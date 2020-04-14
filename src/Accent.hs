@@ -1,6 +1,5 @@
 
 module Accent (Accent (..)
-              ,lilySyms
               ,toLily
               ,parseLily
               ,parseAccent

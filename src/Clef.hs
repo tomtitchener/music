@@ -1,6 +1,5 @@
 
 module Clef (Clef (..)
-              ,lilySyms
               ,toLily
               ,parseLily
               ,parseClef

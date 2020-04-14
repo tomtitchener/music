@@ -1,6 +1,5 @@
 
 module Instrument (Instrument (..)
-              ,lilySyms
               ,toLily
               ,parseLily
               ,parseInstrument
