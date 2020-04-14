@@ -1,0 +1,554 @@
+
+./Setup.hs,15
+main main1,2
+
+./test/Main.hs,2687
+module Main Main6,7
+main main30,31
+tests tests33,34
+instance Arbitrary Arbitrary Dur-Duration85,86
+  arbitrary arbitrary86,87
+  shrink shrink87,88
+instance Arbitrary Arbitrary Note-Note89,90
+  arbitrary arbitrary90,91
+  shrink shrink91,92
+instance Arbitrary Arbitrary Rest-Rest93,94
+  arbitrary arbitrary94,95
+  shrink shrink95,96
+instance Arbitrary Arbitrary Chord-Chord97,98
+  arbitrary arbitrary98,99
+  shrink shrink99,100
+instance Arbitrary Arbitrary Oct-Octave101,102
+  arbitrary arbitrary102,103
+  shrink shrink103,104
+instance Arbitrary Arbitrary Acc-Accent105,106
+  arbitrary arbitrary106,107
+  shrink shrink107,108
+instance Arbitrary Arbitrary Dyn-Dynamic109,110
+  arbitrary arbitrary110,111
+  shrink shrink111,112
+instance Arbitrary Arbitrary Pit-Pitch113,114
+  arbitrary arbitrary114,115
+  shrink shrink115,116
+instance Arbitrary Arbitrary Mod-Mode117,118
+  arbitrary arbitrary118,119
+  shrink shrink119,120
+instance Arbitrary Arbitrary KeySig-KeySignature121,122
+  arbitrary arbitrary122,123
+  shrink shrink123,124
+instance Arbitrary Arbitrary Temp-Tempo125,126
+  arbitrary arbitrary126,127
+instance Arbitrary Arbitrary TSig-TimeSignature132,133
+  arbitrary arbitrary133,134
+  shrink shrink134,135
+propParseLilytoLilyOct propParseLilytoLilyOct136,137
+propToLilyparseLilyOct propToLilyparseLilyOct139,140
+propParseLilytoLilyDur propParseLilytoLilyDur142,143
+propToLilyparseLilyDur propToLilyparseLilyDur145,146
+propDurSum2Durs propDurSum2Durs148,149
+propParseLilytoLilyPit propParseLilytoLilyPit151,152
+propToLilyparseLilyPit propToLilyparseLilyPit154,155
+propParseLilytoLilyAcc propParseLilytoLilyAcc157,158
+propToLilyparseLilyAcc propToLilyparseLilyAcc160,161
+propParseLilytoLilyDyn propParseLilytoLilyDyn163,164
+propToLilyparseLilyDyn propToLilyparseLilyDyn166,167
+propParseLilytoLilyNote propParseLilytoLilyNote169,170
+propToLilyparseLilyNote propToLilyparseLilyNote172,173
+propParseLilytoLilyRest propParseLilytoLilyRest178,179
+propToLilyparseLilyRest propToLilyparseLilyRest181,182
+propParseLilytoLilyChord propParseLilytoLilyChord186,187
+propToLilyparseLilyChord propToLilyparseLilyChord189,190
+propParseLilytoLilyMode propParseLilytoLilyMode197,198
+propToLilyparseLilyMode propToLilyparseLilyMode200,201
+propParseLilytoLilyKeySig propParseLilytoLilyKeySig203,204
+propToLilyparseLilyKeySig propToLilyparseLilyKeySig206,207
+propParseLilytoLilyTemp propParseLilytoLilyTemp211,212
+propToLilyparseLilyTemp propToLilyparseLilyTemp214,215
+propParseLilytoLilyTSig propParseLilytoLilyTSig219,220
+propToLilyparseLilyTSig propToLilyparseLilyTSig222,223
+
+./exec/Main.hs,37
+module Main Main1,2
+main main3,4
+
+./src/Utils.hs,384
+module Utils Utils0,1
+parseInt parseInt16,17
+parseNatural parseNatural19,20
+parseBool parseBool22,23
+mkParser mkParser25,26
+mkToLily mkToLily28,29
+mkParseLily mkParseLily31,32
+whitespace whitespace36,37
+lexeme lexeme39,40
+symbol symbol42,43
+identifier identifier45,46
+parseQuotedString parseQuotedString51,52
+parseQuotedIdentifier parseQuotedIdentifier54,55
+
+./src/Voice.hs,875
+data Voice Voice14,15
+  SingleVoice SingleVoice15,16
+  SingleVoice { _singleVoiceInstrument _singleVoiceInstrument15,16
+  SingleVoice { _singleVoiceInstrument :: Instrument, _singleVoiceVoiceEvents _singleVoiceVoiceEvents15,16
+  | VoiceGroup VoiceGroup16,17
+  | VoiceGroup { _voiceGroupVoices _voiceGroupVoices16,17
+  | PolyVoice PolyVoice17,18
+  | PolyVoice { _polyVoiceInstrument _polyVoiceInstrument17,18
+  | PolyVoice { _polyVoiceInstrument :: Instrument, _polyVoiceVoiceEvents _polyVoiceVoiceEvents17,18
+instance ToLily ToLily Voice20,21
+  toLily toLily21,22
+toSingleVoice toSingleVoice25,26
+toVoiceGroup toVoiceGroup33,34
+eventsToPolyVoice eventsToPolyVoice39,40
+toPolyVoice toPolyVoice47,48
+parsePolyVoiceEvents parsePolyVoiceEvents56,57
+parseVoice parseVoice59,60
+instance FromLily FromLily Voice68,69
+  parseLily parseLily69,70
+
+./src/Dynamic.hs,2064
+data Dynamic Dynamic15,16
+data Dynamic = PPPPP PPPPP15,16
+data Dynamic = PPPPP | PPPP PPPP15,16
+data Dynamic = PPPPP | PPPP | PPP PPP15,16
+data Dynamic = PPPPP | PPPP | PPP | PP PP15,16
+data Dynamic = PPPPP | PPPP | PPP | PP | Piano Piano15,16
+data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP MP15,16
+data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF MF15,16
+data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte Forte15,16
+data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF FF15,16
+data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF FFF15,16
+data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FFFF FFFF15,16
+data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FFFF | FFFFF FFFFF15,16
+data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FFFF | FFFFF | FP FP15,16
+data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FFFF | FFFFF | FP | SF SF15,16
+data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FFFF | FFFFF | FP | SF | SFF SFF15,16
+data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FFFF | FFFFF | FP | SF | SFF | SP SP15,16
+data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FFFF | FFFFF | FP | SF | SFF | SP | SPP SPP15,16
+data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FFFF | FFFFF | FP | SF | SFF | SP | SPP | SFZ SFZ15,16
+data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FFFF | FFFFF | FP | SF | SFF | SP | SPP | SFZ | RFZ RFZ15,16
+data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FFFF | FFFFF | FP | SF | SFF | SP | SPP | SFZ | RFZ | NoDynamicNoDynamic15,16
+lilySyms lilySyms19,20
+lilyVals lilyVals23,24
+instance ToLily ToLily Dynamic26,27
+  toLily toLily27,28
+parseDynamic parseDynamic29,30
+instance FromLily FromLily Dynamic32,33
+  parseLily parseLily33,34
+
+./src/Tempo.hs,940
+data Tempo Tempo16,17
+data Tempo = TempoText TempoText16,17
+data Tempo = TempoText   { _ttText _ttText16,17
+           | Tempo Tempo17,18
+           | Tempo       { _tDur _tDur17,18
+           | Tempo       { _tDur :: Duration, _tPerMin _tPerMin17,18
+           | TempoLong TempoLong18,19
+           | TempoLong   { _tlText _tlText18,19
+           | TempoLong   { _tlText :: String, _tlDur _tlDur18,19
+           | TempoLong   { _tlText :: String, _tlDur :: Duration, _tlPerMin _tlPerMin18,19
+           | TempoRange TempoRange19,20
+           | TempoRange  { _trDur _trDur19,20
+           | TempoRange  { _trDur :: Duration, _trPerMinLo _trPerMinLo19,20
+           | TempoRange  { _trDur :: Duration, _trPerMinLo :: Natural, _trPerMinHi _trPerMinHi19,20
+instance ToLily ToLily Tempo22,23
+  toLily toLily23,24
+parseTempo parseTempo28,29
+instance FromLily FromLily Tempo34,35
+  parseLily parseLily35,36
+
+./src/Mode.hs,294
+data Mode Mode15,16
+data Mode = Major Major15,16
+data Mode = Major | MinorMinor15,16
+lilySyms lilySyms19,20
+lilyVals lilyVals23,24
+instance ToLily ToLily Mode26,27
+  toLily toLily27,28
+parseMode parseMode29,30
+instance FromLily FromLily Mode32,33
+  parseLily parseLily33,34
+
+./src/Score.hs,348
+data Score Score11,12
+data Score = Score Score11,12
+data Score = Score { _scoreComment _scoreComment11,12
+data Score = Score { _scoreComment :: String, _scoreVoices _scoreVoices11,12
+instance ToLily ToLily Score14,15
+  toLily toLily15,16
+parseScore parseScore28,29
+instance FromLily FromLily Score32,33
+  parseLily parseLily33,34
+
+./src/Octave.hs,1030
+data Octave Octave17,18
+data Octave = TwentyTwoVBOct TwentyTwoVBOct17,18
+data Octave = TwentyTwoVBOct | FifteenVBOct FifteenVBOct17,18
+data Octave = TwentyTwoVBOct | FifteenVBOct | EightVBOct EightVBOct17,18
+data Octave = TwentyTwoVBOct | FifteenVBOct | EightVBOct | COct COct17,18
+data Octave = TwentyTwoVBOct | FifteenVBOct | EightVBOct | COct | EightVAOct EightVAOct17,18
+data Octave = TwentyTwoVBOct | FifteenVBOct | EightVBOct | COct | EightVAOct | FifteenVAOct FifteenVAOct17,18
+data Octave = TwentyTwoVBOct | FifteenVBOct | EightVBOct | COct | EightVAOct | FifteenVAOct | TwentyTwoVAOct TwentyTwoVAOct17,18
+data Octave = TwentyTwoVBOct | FifteenVBOct | EightVBOct | COct | EightVAOct | FifteenVAOct | TwentyTwoVAOct | TwentyNineVAOctTwentyNineVAOct17,18
+lilyVals lilyVals21,22
+lilySyms lilySyms25,26
+instance ToLily ToLily Octave35,36
+  toLily toLily36,37
+parseOct parseOct38,39
+instance FromLily FromLily Octave41,42
+  parseLily parseLily42,43
+incrOct incrOct44,45
+decrOct decrOct47,48
+
+./src/Note.hs,865
+data Note Note17,18
+data Note = Note Note17,18
+data Note = Note { _notePitch _notePitch17,18
+data Note = Note { _notePitch :: Pitch, _noteoOctave _noteoOctave17,18
+data Note = Note { _notePitch :: Pitch, _noteoOctave :: Octave, _noteDuration _noteDuration17,18
+data Note = Note { _notePitch :: Pitch, _noteoOctave :: Octave, _noteDuration :: Duration, _notedDynamic _notedDynamic17,18
+data Note = Note { _notePitch :: Pitch, _noteoOctave :: Octave, _noteDuration :: Duration, _notedDynamic :: Dynamic, _noteAccent _noteAccent17,18
+data Note = Note { _notePitch :: Pitch, _noteoOctave :: Octave, _noteDuration :: Duration, _notedDynamic :: Dynamic, _noteAccent :: Accent, _noteSlur _noteSlur17,18
+instance ToLily ToLily Note20,21
+  toLily toLily21,22
+parseNote parseNote23,24
+instance FromLily FromLily Note26,27
+  parseLily parseLily27,28
+
+./src/Instrument.hs,8102
+data Instrument Instrument20,21
+       AcousticGrand AcousticGrand21,22
+       AcousticGrand |           Contrabass Contrabass21,22
+       AcousticGrand |           Contrabass |         LeadFfths LeadFfths21,22
+       BrightAcoustic BrightAcoustic22,23
+       BrightAcoustic |          TremoloStrings TremoloStrings22,23
+       BrightAcoustic |          TremoloStrings |     LeadBassPlusLead LeadBassPlusLead22,23
+       ElectricGrand ElectricGrand23,24
+       ElectricGrand |           PizzicatoStrings PizzicatoStrings23,24
+       ElectricGrand |           PizzicatoStrings |   PadNewAge PadNewAge23,24
+       HonkyTonk HonkyTonk24,25
+       HonkyTonk |               OrchestralHarp OrchestralHarp24,25
+       HonkyTonk |               OrchestralHarp |     PadWarm PadWarm24,25
+       ElectricPiano1 ElectricPiano125,26
+       ElectricPiano1 |          Timpani Timpani25,26
+       ElectricPiano1 |          Timpani |            PadPolysynth PadPolysynth25,26
+       ElectricPiano2 ElectricPiano226,27
+       ElectricPiano2 |          StringEnsemble1 StringEnsemble126,27
+       ElectricPiano2 |          StringEnsemble1 |    PadChoir PadChoir26,27
+       Harpsichord Harpsichord27,28
+       Harpsichord |             StringEnsemble2 StringEnsemble227,28
+       Harpsichord |             StringEnsemble2 |    PadBowed PadBowed27,28
+       Clav Clav28,29
+       Clav |                    Synthstrings1 Synthstrings128,29
+       Clav |                    Synthstrings1 |      PadMetallic PadMetallic28,29
+       Celesta Celesta29,30
+       Celesta |                 Synthstrings2 Synthstrings229,30
+       Celesta |                 Synthstrings2 |      Halo Halo29,30
+       Glockenspiel Glockenspiel30,31
+       Glockenspiel |            ChoirAahs ChoirAahs30,31
+       Glockenspiel |            ChoirAahs |          Sweep Sweep30,31
+       MusicBox MusicBox31,32
+       MusicBox |                VoiceOohs VoiceOohs31,32
+       MusicBox |                VoiceOohs |          Rain Rain31,32
+       Vibraphone Vibraphone32,33
+       Vibraphone |              SynthVoice SynthVoice32,33
+       Vibraphone |              SynthVoice |         Soundtrack Soundtrack32,33
+       Marimba Marimba33,34
+       Marimba |                 OrchestraHit OrchestraHit33,34
+       Marimba |                 OrchestraHit |       Crystal Crystal33,34
+       Xylophone Xylophone34,35
+       Xylophone |               Trumpet Trumpet34,35
+       Xylophone |               Trumpet |            Atmosphere Atmosphere34,35
+       TubularTells TubularTells35,36
+       TubularTells |            Trombone Trombone35,36
+       TubularTells |            Trombone |           Bbrightness Bbrightness35,36
+       Dulcimer Dulcimer36,37
+       Dulcimer |                Tuba Tuba36,37
+       Dulcimer |                Tuba |               Goblins Goblins36,37
+       DrawbarOrgan DrawbarOrgan37,38
+       DrawbarOrgan |            MutedTrumpet MutedTrumpet37,38
+       DrawbarOrgan |            MutedTrumpet |       Echoes Echoes37,38
+       PercussiveOrgan PercussiveOrgan38,39
+       PercussiveOrgan |         FrenchHorn FrenchHorn38,39
+       PercussiveOrgan |         FrenchHorn |         SciFi SciFi38,39
+       RockOrgan RockOrgan39,40
+       RockOrgan |               BrassSection BrassSection39,40
+       RockOrgan |               BrassSection |       Sitar Sitar39,40
+       ChurchOrgan ChurchOrgan40,41
+       ChurchOrgan |             Synthbrass1 Synthbrass140,41
+       ChurchOrgan |             Synthbrass1 |        Banjo Banjo40,41
+       ReedOrgan ReedOrgan41,42
+       ReedOrgan |               Synthbrass2 Synthbrass241,42
+       ReedOrgan |               Synthbrass2 |        Shamisen Shamisen41,42
+       Accordion Accordion42,43
+       Accordion |               SopranoSax SopranoSax42,43
+       Accordion |               SopranoSax |         Koto Koto42,43
+       Harmonica Harmonica43,44
+       Harmonica |               AltoSax AltoSax43,44
+       Harmonica |               AltoSax |            Kalimba Kalimba43,44
+       Concertina Concertina44,45
+       Concertina |              TenorSax TenorSax44,45
+       Concertina |              TenorSax |           Bagpipe Bagpipe44,45
+       AcousticGuitarNylon AcousticGuitarNylon45,46
+       AcousticGuitarNylon |     BaritoneSax BaritoneSax45,46
+       AcousticGuitarNylon |     BaritoneSax |        Fiddle Fiddle45,46
+       AcousticGuitarSteel AcousticGuitarSteel46,47
+       AcousticGuitarSteel |     Oboe Oboe46,47
+       AcousticGuitarSteel |     Oboe |               Shanai Shanai46,47
+       ElectricGuitarJazz ElectricGuitarJazz47,48
+       ElectricGuitarJazz |      EnglishHorn EnglishHorn47,48
+       ElectricGuitarJazz |      EnglishHorn |        TinkleBell TinkleBell47,48
+       ElectricGuitarClean ElectricGuitarClean48,49
+       ElectricGuitarClean |     Bassoon Bassoon48,49
+       ElectricGuitarClean |     Bassoon |            Agogo Agogo48,49
+       ElectricGuitarMuted ElectricGuitarMuted49,50
+       ElectricGuitarMuted |     Clarinet Clarinet49,50
+       ElectricGuitarMuted |     Clarinet |           SteelDrums SteelDrums49,50
+       OverdrivenGuitar OverdrivenGuitar50,51
+       OverdrivenGuitar |        Piccolo Piccolo50,51
+       OverdrivenGuitar |        Piccolo |            Woodblock Woodblock50,51
+       DistortedGuitar DistortedGuitar51,52
+       DistortedGuitar |         Flute Flute51,52
+       DistortedGuitar |         Flute |              TaikoDrum TaikoDrum51,52
+       GuitarHarmonics GuitarHarmonics52,53
+       GuitarHarmonics |         Recorder Recorder52,53
+       GuitarHarmonics |         Recorder |           MelodicTom MelodicTom52,53
+       AcousticBass AcousticBass53,54
+       AcousticBass |            PanFlute PanFlute53,54
+       AcousticBass |            PanFlute |           SynthDrum SynthDrum53,54
+       ElectricBassFinger ElectricBassFinger54,55
+       ElectricBassFinger |      BlownBottle BlownBottle54,55
+       ElectricBassFinger |      BlownBottle |        ReverseCymbal ReverseCymbal54,55
+       ElectricBassPick ElectricBassPick55,56
+       ElectricBassPick |        Shakuhachi Shakuhachi55,56
+       ElectricBassPick |        Shakuhachi |         GuitarFretNoise GuitarFretNoise55,56
+       FretlessBass FretlessBass56,57
+       FretlessBass |            Whistle Whistle56,57
+       FretlessBass |            Whistle |            BreathNoise BreathNoise56,57
+       SlapBass1 SlapBass157,58
+       SlapBass1 |               Ocarina Ocarina57,58
+       SlapBass1 |               Ocarina |            Seashore Seashore57,58
+       SlapBass2 SlapBass258,59
+       SlapBass2 |               LeadSquare LeadSquare58,59
+       SlapBass2 |               LeadSquare |         BirdTweet BirdTweet58,59
+       SynthBass1 SynthBass159,60
+       SynthBass1 |              LeadSawtooth LeadSawtooth59,60
+       SynthBass1 |              LeadSawtooth |       TelephoneRing TelephoneRing59,60
+       SynthBass2 SynthBass260,61
+       SynthBass2 |              LeadCalliope LeadCalliope60,61
+       SynthBass2 |              LeadCalliope |       Helicopter Helicopter60,61
+       Violin Violin61,62
+       Violin |                  LeadChiff LeadChiff61,62
+       Violin |                  LeadChiff |          Applause Applause61,62
+       Viola Viola62,63
+       Viola |                   LeadCharang LeadCharang62,63
+       Viola |                   LeadCharang |        Gunshot Gunshot62,63
+       Cello Cello63,64
+       Cello |                   LeadVoiceLeadVoice63,64
+lilySyms lilySyms67,68
+shortNames shortNames113,114
+lilyVals lilyVals160,161
+instance ToLily ToLily Instrument163,164
+  toLily toLily164,165
+parseInstrument parseInstrument166,167
+instance FromLily FromLily Instrument169,170
+  parseLily parseLily170,171
+midiName midiName172,173
+shortName shortName175,176
+shortName2LongName shortName2LongName178,179
+
+./src/TimeSignature.hs,420
+data TimeSignature TimeSignature15,16
+data TimeSignature = TimeSignature TimeSignature15,16
+data TimeSignature = TimeSignature { _tsnum _tsnum15,16
+data TimeSignature = TimeSignature { _tsnum :: Int, _tsdenom _tsdenom15,16
+instance ToLily ToLily TimeSignature18,19
+  toLily toLily19,20
+parseTimeSignature parseTimeSignature21,22
+instance FromLily FromLily TimeSignature24,25
+  parseLily parseLily25,26
+
+./src/Pitch.hs,1540
+data Pitch Pitch15,16
+data Pitch = Bs Bs15,16
+data Pitch = Bs | C C15,16
+data Pitch = Bs | C   | Bss Bss15,16
+data Pitch = Bs | C   | Bss | Dff Dff15,16
+data Pitch = Bs | C   | Bss | Dff | CsCs15,16
+           | Df Df16,17
+           | Df | Css Css16,17
+           | Df | Css | D D16,17
+           | Df | Css | D   | Eff Eff16,17
+           | Df | Css | D   | Eff | DsDs16,17
+           | Ef Ef17,18
+           | Ef | Fff Fff17,18
+           | Ef | Fff | Dss Dss17,18
+           | Ef | Fff | Dss | E E17,18
+           | Ef | Fff | Dss | E   | FfFf17,18
+           | Es Es18,19
+           | Es | F F18,19
+           | Es | F   | Gff Gff18,19
+           | Es | F   | Gff | Ess Ess18,19
+           | Es | F   | Gff | Ess | FsFs18,19
+           | Gf Gf19,20
+           | Gf | Fss Fss19,20
+           | Gf | Fss | G G19,20
+           | Gf | Fss | G   | Aff Aff19,20
+           | Gf | Fss | G   | Aff | GsGs19,20
+           | Af Af20,21
+           | Af | Gss Gss20,21
+           | Af | Gss | A A20,21
+           | Af | Gss | A   | Bff Bff20,21
+           | Af | Gss | A   | Bff | AsAs20,21
+           | Bf Bf21,22
+           | Bf | Cff Cff21,22
+           | Bf | Cff | Ass Ass21,22
+           | Bf | Cff | Ass | B B21,22
+           | Bf | Cff | Ass | B   | CfCf21,22
+lilySyms lilySyms25,26
+lilyVals lilyVals35,36
+instance ToLily ToLily Pitch44,45
+  toLily toLily45,46
+parsePitch parsePitch47,48
+instance FromLily FromLily Pitch50,51
+  parseLily parseLily51,52
+
+./src/Chord.hs,965
+data Chord Chord18,19
+data Chord = Chord Chord18,19
+data Chord = Chord { _chordPitchOctavePairs _chordPitchOctavePairs18,19
+data Chord = Chord { _chordPitchOctavePairs :: [(Pitch, Octave)] , _chordDuration _chordDuration18,19
+data Chord = Chord { _chordPitchOctavePairs :: [(Pitch, Octave)] , _chordDuration :: Duration, _chordDynamic _chordDynamic18,19
+data Chord = Chord { _chordPitchOctavePairs :: [(Pitch, Octave)] , _chordDuration :: Duration, _chordDynamic :: Dynamic, _chordAccent _chordAccent18,19
+data Chord = Chord { _chordPitchOctavePairs :: [(Pitch, Octave)] , _chordDuration :: Duration, _chordDynamic :: Dynamic, _chordAccent :: Accent, _chordSlur _chordSlur18,19
+pairToLily pairToLily21,22
+pairsToLily pairsToLily24,25
+instance ToLily ToLily Chord27,28
+  toLily toLily28,29
+parsePair parsePair30,31
+parsePairs parsePairs33,34
+parseChord parseChord36,37
+instance FromLily FromLily Chord39,40
+  parseLily parseLily40,41
+
+./src/Clef.hs,545
+data Clef Clef15,16
+data Clef = Bass8VB Bass8VB15,16
+data Clef = Bass8VB | Bass Bass15,16
+data Clef = Bass8VB | Bass | Tenor Tenor15,16
+data Clef = Bass8VB | Bass | Tenor | Alto Alto15,16
+data Clef = Bass8VB | Bass | Tenor | Alto | Treble Treble15,16
+data Clef = Bass8VB | Bass | Tenor | Alto | Treble | Treble8VATreble8VA15,16
+lilySyms lilySyms19,20
+lilyVals lilyVals23,24
+instance ToLily ToLily Clef26,27
+  toLily toLily27,28
+parseClef parseClef29,30
+instance FromLily FromLily Clef32,33
+  parseLily parseLily33,34
+
+./src/Types.hs,24
+module Types Types1,2
+
+./src/VoiceEvent.hs,1013
+data VoiceEvent VoiceEvent19,20
+    VoiceEventClef VoiceEventClef20,21
+    VoiceEventClef { _voiceEventClef _voiceEventClef20,21
+  | VoiceEventNote VoiceEventNote21,22
+  | VoiceEventNote { _voiceEventNote _voiceEventNote21,22
+  | VoiceEventRest VoiceEventRest22,23
+  | VoiceEventRest { _voiceEventRest _voiceEventRest22,23
+  | VoiceEventChord VoiceEventChord23,24
+  | VoiceEventChord { _voiceEventChord _voiceEventChord23,24
+  | VoiceEventTempo VoiceEventTempo24,25
+  | VoiceEventTempo { _voiceEventTempo _voiceEventTempo24,25
+  | VoiceEventKeySignature VoiceEventKeySignature25,26
+  | VoiceEventKeySignature { _voiceEventKeySignature _voiceEventKeySignature25,26
+  | VoiceEventTimeSignature VoiceEventTimeSignature26,27
+  | VoiceEventTimeSignature { _voiceEventTimeSignature _voiceEventTimeSignature26,27
+instance ToLily ToLily VoiceEvent29,30
+  toLily toLily30,31
+parseVoiceEvent parseVoiceEvent38,39
+instance FromLily FromLily VoiceEvent47,48
+  parseLily parseLily48,49
+
+./src/Duration.hs,1974
+data Duration Duration26,27
+data Duration = HTEDur HTEDur26,27
+data Duration = HTEDur | SFDur SFDur26,27
+data Duration = HTEDur | SFDur | DSFDur DSFDur26,27
+data Duration = HTEDur | SFDur | DSFDur | TSDur TSDur26,27
+data Duration = HTEDur | SFDur | DSFDur | TSDur | DTSDur DTSDur26,27
+data Duration = HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur SDur26,27
+data Duration = HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur DSDur26,27
+data Duration = HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur EDur26,27
+data Duration = HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur | DEDur DEDur26,27
+data Duration = HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur | DEDur | QDur QDur26,27
+data Duration = HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur | DEDur | QDur | DQDur DQDur26,27
+data Duration = HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur | DEDur | QDur | DQDur | HDur HDur26,27
+data Duration = HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur | DEDur | QDur | DQDur | HDur | DHDur DHDur26,27
+data Duration = HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur | DEDur | QDur | DQDur | HDur | DHDur | WDur WDur26,27
+data Duration = HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur | DEDur | QDur | DQDur | HDur | DHDur | WDur | DWDurDWDur26,27
+lilyVals lilyVals30,31
+lilySyms lilySyms34,35
+instance ToLily ToLily Duration37,38
+  toLily toLily38,39
+parseDuration parseDuration40,41
+instance FromLily FromLily Duration43,44
+  parseLily parseLily44,45
+integralDurations integralDurations46,47
+integralDurationSyms integralDurationSyms49,50
+newtype DurationSum DurationSum52,53
+newtype DurationSum = DurationSum { getDurSum getDurSum52,53
+durVals durVals56,57
+durVal2Duration durVal2Duration59,60
+addDur addDur62,63
+zDurSum zDurSum65,66
+sumDurs sumDurs68,69
+durSum2Durs durSum2Durs83,84
+
+./src/Rest.hs,219
+newtype Rest Rest14,15
+newtype Rest = Rest { _rdur _rdur14,15
+instance ToLily ToLily Rest17,18
+  toLily toLily18,19
+parseRest parseRest20,21
+instance FromLily FromLily Rest23,24
+  parseLily parseLily24,25
+
+./src/Lily.hs,126
+module Lily Lily2,3
+class ToLily ToLily4,5
+  toLily toLily6,7
+class FromLily FromLily8,9
+  parseLily parseLily10,11
+
+./src/KeySignature.hs,407
+data KeySignature KeySignature15,16
+data KeySignature = KeySignature KeySignature15,16
+data KeySignature = KeySignature { _kspit _kspit15,16
+data KeySignature = KeySignature { _kspit :: Pitch, _ksmode _ksmode15,16
+instance ToLily ToLily KeySignature18,19
+  toLily toLily19,20
+parseKeySignature parseKeySignature21,22
+instance FromLily FromLily KeySignature24,25
+  parseLily parseLily25,26
+
+./src/Accent.hs,858
+data Accent Accent15,16
+data Accent = Marcato Marcato15,16
+data Accent = Marcato | Tenuto Tenuto15,16
+data Accent = Marcato | Tenuto | Staccatissimo Staccatissimo15,16
+data Accent = Marcato | Tenuto | Staccatissimo | Staccato Staccato15,16
+data Accent = Marcato | Tenuto | Staccatissimo | Staccato | Accent Accent15,16
+data Accent = Marcato | Tenuto | Staccatissimo | Staccato | Accent | Portato Portato15,16
+data Accent = Marcato | Tenuto | Staccatissimo | Staccato | Accent | Portato | Espressivo Espressivo15,16
+data Accent = Marcato | Tenuto | Staccatissimo | Staccato | Accent | Portato | Espressivo | NoAccentNoAccent15,16
+lilySyms lilySyms19,20
+lilyVals lilyVals23,24
+instance ToLily ToLily Accent26,27
+  toLily toLily27,28
+parseAccent parseAccent29,30
+instance FromLily FromLily Accent32,33
+  parseLily parseLily33,34

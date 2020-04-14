@@ -8,11 +8,11 @@ module Main (
     main
   ) where
 
+import Control.Monad
+import Test.QuickCheck
 import Test.QuickCheck.Arbitrary.Generic
 import Test.Tasty
 import Test.Tasty.QuickCheck
-
-import Control.Monad
 
 import qualified Accent as Acc
 import qualified Chord
@@ -81,8 +81,6 @@ deriving instance Generic Pit.Pitch
 
 deriving instance Generic Rest.Rest
 
-deriving instance Generic Temp.Tempo
-
 deriving instance Generic TSig.TimeSignature
 
 instance Arbitrary Dur.Duration where
@@ -126,8 +124,11 @@ instance Arbitrary KeySig.KeySignature where
   shrink = genericShrink
 
 instance Arbitrary Temp.Tempo where
-  arbitrary = liftM2 Temp.Tempo (elements [1..10]) (elements Dur.integralDurations)
-  shrink = genericShrink
+  arbitrary = oneof [Temp.TempoText <$> elements ["Presto","Vivace","Meno Mosso"]
+                    ,Temp.Tempo <$> arbitrary <*> arbitrarySizedNatural
+                    ,Temp.TempoLong <$> elements ["Presto","Vivace","Meno Mosso", ""] <*> arbitrary <*> arbitrarySizedNatural
+                    ,Temp.TempoRange <$> arbitrary <*> arbitrarySizedNatural <*> arbitrarySizedNatural
+                    ]
 
 instance Arbitrary TSig.TimeSignature where
   arbitrary = liftM2 TSig.TimeSignature (elements [1..10]) (elements Dur.integralDurations)
@@ -223,3 +224,32 @@ propToLilyparseLilyTSig :: Property
 propToLilyparseLilyTSig = forAll
                           (elements [ "\\time " <> i <> "/" <> dur | i <- ["1","2","3","4","5","6","7","8","9"], dur <- Dur.integralDurationSyms])
                           (\s -> s == TSig.toLily (TSig.parseLily s::TSig.TimeSignature))
+
+{--
+--import Test.QuickCheck.Classes
+--import Test.QuickCheck.Property
+
+-- From https://hackage.haskell.org/package/quickcheck-classes-0.6.4.0/docs/src/Test.QuickCheck.Classes.Json.html#jsonLaws :: jsonEncodingPartialIsomorphism
+lilyEncodingPartialIsomorphism :: forall a. (ToLily a, FromLily a, Show a, Eq a, Arbitrary a) => Proxy a -> Property
+lilyEncodingPartialIsomorphism _ =
+  MkProperty $
+    arbitrary >>= \(x :: a) ->
+      unProperty $
+      shrinking shrink x $ \x' ->
+        let desc1 = "Just"
+            desc2 = "Lily.parseLily . Lily.toLily"
+            name1 = "Lily.toLily a"
+            name2 = "Lily.parseLily (Lily.toLily a)"
+            b1  = toLily x'
+            b2  = parseLily (toLily x')::a
+            sb1 = show b1
+            sb2 = show b2
+            description = "  Description: " ++ desc1 ++ " == " ++ desc2
+            err = description ++ "\n" ++ unlines (map ("  " ++) ["a = " ++ show x']) ++ "  " ++ name1 ++ " = " ++ sb1 ++ "\n  " ++ name2 ++ " = " ++ sb2
+        in counterexample err (x' == b2)
+
+lilyLaws :: (ToLily a, FromLily a, Show a, Arbitrary a, Eq a) => Proxy a -> Laws
+lilyLaws p = Laws "ToLily/FromLily"
+  [ ("Partial Isomorphism", lilyEncodingPartialIsomorphism p)
+  ]
+--}

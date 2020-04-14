@@ -1,11 +1,4 @@
-
--- Tempo numerator / denominator
--- where numerator is integral duration WDur, HDur, QDur, EDur, SDur, TSDur, SFDur,
--- denominator is
---  1) beats per second:  \tempo 4 = 128
---  2) low and high beats per second: \tempo 4 = 120 - 128
---  3) Text: \tempo "Allegretto" | "Faster" | "Slower" | "Meno Mosso" ... etc.
---  3) Text plus numerator denominator: \tempo "Allegro" (4 = 160) where text can be empty
+{-# LANGUAGE QuasiQuotes #-}
 
 module Tempo (Tempo (..)
              ,toLily
@@ -13,21 +6,31 @@ module Tempo (Tempo (..)
              ,parseTempo
              ) where
 
+import Data.Natural
+import Data.String.Interpolation
 import Duration
+import Lily
 import Text.Parsec
 import Text.Parsec.String
 import Utils
 
-import Lily
-
-data Tempo = Tempo { _tnum :: Int, _tdenom :: Duration }
+data Tempo = TempoText   { _ttText :: String }
+           | Tempo       { _tDur :: Duration, _tPerMin :: Natural }
+           | TempoLong   { _tlText :: String, _tlDur :: Duration, _tlPerMin :: Natural  }
+           | TempoRange  { _trDur :: Duration, _trPerMinLo :: Natural, _trPerMinHi :: Natural  }
   deriving (Eq, Ord, Show)
 
 instance ToLily Tempo where
-  toLily (Tempo num denom) = "\\tempo " <> show num <> " = " <> toLily denom
+  toLily (TempoText txt) = [str|\tempo $txt$|]
+  toLily (Tempo dur perMin) =  [str|\tempo $toLily dur$ = $:perMin$|]
+  toLily (TempoLong txt dur perMin) = [str|\tempo $txt$ ($toLily dur$ = $:perMin$)|]
+  toLily (TempoRange dur loPerMin hiPerMin) = [str|\tempo $toLily dur$ = $:loPerMin$ - $:hiPerMin$|]
 
 parseTempo :: Parser Tempo
-parseTempo = Tempo <$> (string "\\tempo " *> parseInt) <*> (string " = " *> parseDuration)
+parseTempo = choice [try (TempoRange <$> (string "\\tempo " *> parseDuration) <*> (string " = " *> parseNatural) <*> (string " - " *> parseNatural))
+                    ,try (TempoLong <$> (string "\\tempo " *> manyTill anyChar (try (string " ("))) <*> parseDuration <*> (string " = " *> parseNatural <* char ')'))
+                    ,try (Tempo <$> (string "\\tempo " *> parseDuration) <*> (string " = " *> parseNatural))
+                    ,try (TempoText <$> (string "\\tempo " *> manyTill anyChar eof))]
 
 instance FromLily Tempo where
   parseLily = mkParseLily parseTempo

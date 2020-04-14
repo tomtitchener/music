@@ -1,4 +1,5 @@
 module Utils (parseInt
+             ,parseNatural
              ,parseBool
              ,mkParser
              ,mkToLily
@@ -9,11 +10,15 @@ module Utils (parseInt
 import Control.Monad
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Natural
 import Text.Parsec
 import Text.Parsec.String
 
 parseInt :: Parser Int
 parseInt = read <$> many1 digit
+
+parseNatural :: Parser Natural
+parseNatural = read <$> many1 digit
 
 parseBool :: Parser Bool
 parseBool = (string "~" >> pure True) <|> pure False
