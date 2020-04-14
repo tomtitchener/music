@@ -1,4 +1,4 @@
-** TODO Tempo variants
+** DONE Tempo variants
 ** TODO TimeSignature variants
 ** TODO Hand-written tests for Voice
 ** TODO Hand-written tests for Score
