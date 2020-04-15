@@ -1,26 +1,28 @@
---  TODO: groupings and beats per measure \time #'(2 2 3) 7/8
 
-module TimeSignature (TimeSignature (..)
-                     ,toLily
-                     ,parseLily
-                     ,parseTimeSignature
-                     ) where
+module TimeSignature (TimeSignature (..),parseTimeSignature) where
 
-import Duration
+import Data.List
 import Text.Parsec
 import Text.Parsec.String
+
+import Duration
+import Lily
 import Utils
 
-import Lily
-
-data TimeSignature = TimeSignature { _tsnum :: Int, _tsdenom :: Duration }
+data TimeSignature = TimeSignature { _tsNum :: Int, _tsDenom :: Duration }
+                   | TimeSignatureGrouping { _tsgGroups :: [Int], tsgNum :: Int, tsgDenom :: Duration }
   deriving (Eq, Ord, Show)
 
 instance ToLily TimeSignature where
   toLily (TimeSignature num denom) = "\\time " <> show num <> "/" <> toLily denom
+  toLily (TimeSignatureGrouping nums num denom) = "\\time #'(" <>  intercalate "," (map show nums) <> ")"  <> " " <> show num <> "/" <> toLily denom
 
 parseTimeSignature :: Parser TimeSignature
-parseTimeSignature = TimeSignature <$> (string "\\time " *> parseInt) <*> (string "/" *> parseDuration)
+parseTimeSignature = choice [try (TimeSignatureGrouping <$> (string "\\time #'" *> parseIntList) <*> parseInt  <*> (string "/" *> parseDuration))
+                            ,try (TimeSignature <$> (string "\\time " *> parseInt) <*> (string "/" *> parseDuration))]
+
+parseIntList :: Parser [Int]
+parseIntList = between (symbol '(') (symbol ')') (parseInt `sepBy` char ',')
 
 instance FromLily TimeSignature where
   parseLily = mkParseLily parseTimeSignature

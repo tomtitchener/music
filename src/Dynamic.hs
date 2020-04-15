@@ -1,15 +1,11 @@
 
-module Dynamic (Dynamic (..)
-              ,toLily
-              ,parseLily
-              ,parseDynamic
-              ) where
+module Dynamic (Dynamic (..), parseDynamic) where
 
 import Text.Parsec
 import Text.Parsec.String
-import Utils
 
 import Lily
+import Utils
 
 -- Ord order
 data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FFFF | FFFFF | FP | SF | SFF | SP | SPP | SFZ | RFZ | NoDynamic

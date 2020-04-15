@@ -121,7 +121,7 @@ instance Arbitrary Tempo where
                     ]
 
 instance Arbitrary TimeSignature where
-  arbitrary = TimeSignature <$> elements [1..10] <*> elements integralDurations
+  arbitrary = TimeSignature <$> elements [1..10] <*> elements [WDur, HDur, QDur, EDur, SDur, SFDur, HTEDur]
   shrink = genericShrink
 
 propParseLilytoLilyVal :: (Eq a, ToLily a, FromLily a) => a -> Bool

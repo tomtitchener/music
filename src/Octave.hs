@@ -1,7 +1,5 @@
 
 module Octave (Octave (..)
-              ,toLily
-              ,parseLily
               ,parseOct
               ,incrOct
               ,decrOct
@@ -9,9 +7,9 @@ module Octave (Octave (..)
 
 import Text.Parsec
 import Text.Parsec.String
-import Utils
 
 import Lily
+import Utils
 
 -- Ord order
 data Octave = TwentyTwoVBOct | FifteenVBOct | EightVBOct | COct | EightVAOct | FifteenVAOct | TwentyTwoVAOct | TwentyNineVAOct

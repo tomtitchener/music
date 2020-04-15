@@ -1,15 +1,11 @@
 
-module Rest (Rest (..)
-            ,toLily
-            ,parseLily
-            ,parseRest
-            ) where
+module Rest (Rest (..),parseRest) where
 
-import Accent
-import Duration
-import Lily
 import Text.Parsec
 import Text.Parsec.String
+
+import Duration
+import Lily
 import Utils
 
 newtype Rest = Rest { _rdur :: Duration }

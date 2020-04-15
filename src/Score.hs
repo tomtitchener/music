@@ -3,9 +3,10 @@
 module Score (Score (..)) where
 
 import Data.String.Interpolation
-import Lily
 import Text.Parsec
 import Text.Parsec.String
+
+import Lily
 import Utils
 import Voice
 

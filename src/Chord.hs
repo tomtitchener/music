@@ -1,9 +1,8 @@
 
-module Chord (Chord (..)
-            ,toLily
-            ,parseLily
-            ,parseChord
-            ) where
+module Chord (Chord (..), parseChord) where
+
+import Text.Parsec
+import Text.Parsec.String
 
 import Accent
 import Duration
@@ -11,8 +10,6 @@ import Dynamic
 import Lily
 import Octave
 import Pitch
-import Text.Parsec
-import Text.Parsec.String
 import Utils
 
 -- PercussionInstrumentChord e.g. "cl" == ClavesChord
@@ -20,7 +17,7 @@ data Chord = Chord { _chordPitchOctavePairs :: [(Pitch, Octave)] , _chordDuratio
   deriving (Eq, Ord, Show)
 
 pairToLily :: (Pitch,Octave) -> String
-pairToLily (p,o) = Pitch.toLily p <> Octave.toLily o
+pairToLily (p,o) = toLily p <> toLily o
 
 pairsToLily :: [(Pitch,Octave)] -> String
 pairsToLily = unwords . map pairToLily

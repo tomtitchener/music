@@ -1,4 +1,6 @@
-module Utils (parseInt
+
+module Utils (symbol
+             ,parseInt
              ,parseNatural
              ,parseBool
              ,mkParser

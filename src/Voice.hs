@@ -1,14 +1,13 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module Voice (Voice (..)
-             ,parseVoice
-             ) where
+module Voice (Voice (..), parseVoice) where
 
 import Data.String.Interpolation
-import Instrument
-import Lily
 import Text.Parsec
 import Text.Parsec.String
+
+import Instrument
+import Lily
 import Utils
 import VoiceEvent
 

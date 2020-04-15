@@ -1,15 +1,11 @@
 
-module Pitch (Pitch (..)
-              ,toLily
-              ,parseLily
-              ,parsePitch
-              ) where
+module Pitch (Pitch (..), parsePitch) where
 
 import Text.Parsec
 import Text.Parsec.String
-import Utils
 
 import Lily
+import Utils
 
 -- Ord order
 data Pitch = Bs | C   | Bss | Dff | Cs

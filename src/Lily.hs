@@ -1,4 +1,3 @@
--- ToLily and FromLily type classes
 
 module Lily where
 

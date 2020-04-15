@@ -1,17 +1,12 @@
 
-module Mode (Mode (..)
-              ,toLily
-              ,parseLily
-              ,parseMode
-              ) where
+module Mode (Mode (..), parseMode) where
 
 import Text.Parsec
 import Text.Parsec.String
-import Utils
 
 import Lily
+import Utils
 
--- Ord order
 data Mode = Major | Minor
   deriving (Eq, Ord, Show, Enum, Bounded)
 

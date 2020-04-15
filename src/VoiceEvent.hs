@@ -1,9 +1,8 @@
 
-module VoiceEvent (VoiceEvent (..)
-                  ,toLily
-                  ,parseLily
-                  ,parseVoiceEvent
-                  ) where
+module VoiceEvent (VoiceEvent (..), parseVoiceEvent) where
+
+import Text.Parsec
+import Text.Parsec.String
 
 import Chord
 import Clef
@@ -12,8 +11,6 @@ import Lily
 import Note
 import Rest
 import Tempo
-import Text.Parsec
-import Text.Parsec.String
 import TimeSignature
 import Utils
 

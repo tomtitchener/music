@@ -23,8 +23,6 @@ module Types (Accent (..)
              ,TimeSignature (..)
              ,Voice (..)
              ,VoiceEvent (..)
-             ,toLily
-             ,parseLily
              ) where
 
 import Accent

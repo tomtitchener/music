@@ -6,11 +6,7 @@ module Duration (Duration (..)
                 ,zDurSum
                 ,sumDurs
                 ,durSum2Durs
-                ,toLily
-                ,parseLily
                 ,parseDuration
-                ,integralDurations
-                ,integralDurationSyms
                 ) where
 
 import Data.List
@@ -18,9 +14,9 @@ import qualified Data.Map as M
 import Data.Maybe
 import Text.Parsec
 import Text.Parsec.String
-import Utils
 
 import Lily
+import Utils
 
 -- Ord order
 data Duration = HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur | DEDur | QDur | DQDur | HDur | DHDur | WDur | DWDur
@@ -42,12 +38,6 @@ parseDuration = choice $ zipWith mkParser lilySyms lilyVals
 
 instance FromLily Duration  where
   parseLily = mkParseLily parseDuration
-
-integralDurations :: [Duration]
-integralDurations = [WDur, HDur, QDur, EDur, SDur, SFDur, HTEDur]
-
-integralDurationSyms :: [String]
-integralDurationSyms = ["1","2","4","8","16","32","64","128"]
 
 newtype DurationSum = DurationSum { getDurSum :: Int }
   deriving (Eq, Ord, Show, Num)

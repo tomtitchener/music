@@ -1,17 +1,14 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module Tempo (Tempo (..)
-             ,toLily
-             ,parseLily
-             ,parseTempo
-             ) where
+module Tempo (Tempo (..), parseTempo) where
 
 import Data.Natural
 import Data.String.Interpolation
-import Duration
-import Lily
 import Text.Parsec
 import Text.Parsec.String
+
+import Duration
+import Lily
 import Utils
 
 data Tempo = TempoText   { _ttText :: String }

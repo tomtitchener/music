@@ -1,20 +1,18 @@
 
 module Instrument (Instrument (..)
-              ,toLily
-              ,parseLily
-              ,parseInstrument
-              ,midiName
-              ,shortName
-              ,shortName2LongName
-              ) where
+                  ,parseInstrument
+                  ,midiName
+                  ,shortName
+                  ,shortName2LongName
+                  ) where
 
 import Data.List
 import Data.Maybe
 import Text.Parsec
 import Text.Parsec.String
-import Utils
 
 import Lily
+import Utils
 
 -- Ord order
 data Instrument =

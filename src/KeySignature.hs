@@ -1,17 +1,13 @@
 
-module KeySignature (KeySignature (..)
-                    ,toLily
-                    ,parseLily
-                    ,parseKeySignature
-                    ) where
+module KeySignature (KeySignature (..), parseKeySignature) where
 
-import Mode
-import Pitch
 import Text.Parsec
 import Text.Parsec.String
-import Utils
 
 import Lily
+import Mode
+import Pitch
+import Utils
 
 data KeySignature = KeySignature { _kspit :: Pitch, _ksmode :: Mode }
   deriving (Eq, Ord, Show)

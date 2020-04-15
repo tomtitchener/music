@@ -1,9 +1,7 @@
 
-module Note (Note (..)
-            ,toLily
-            ,parseLily
-            ,parseNote
-            ) where
+module Note (Note (..), parseNote) where
+
+import Text.Parsec.String
 
 import Accent
 import Duration
@@ -11,7 +9,6 @@ import Dynamic
 import Lily
 import Octave
 import Pitch
-import Text.Parsec.String
 import Utils
 
 -- PercussionInstrumentNote e.g. "cl" == ClavesNote
