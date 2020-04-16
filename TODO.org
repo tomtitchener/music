@@ -1,5 +1,6 @@
 ** DONE Tempo variants
-** TODO TimeSignature variants
+** DONE TimeSignature variants
+** DONE Simplify tests
 ** TODO Hand-written tests for Voice
 ** TODO Hand-written tests for Score
 ** TODO Interactive (ghci) validation of toLily Score with Lilypond

@@ -28,8 +28,8 @@ instance ToLily Score where
         |]
 
 parseScore :: Parser Score
-parseScore = Score <$> (string "% " *> parseQuotedString <* string "\n\\include \"articulate.ly\"\n\\version \"2.18.2\"\nstructure = {\n<<\n")
-                   <*> parseVoice `sepBy` space <* string ">>\n}\n\\score {\\structure  \\layout { \\context { \\Voice \\remove \"Note_heads_engraver\" \\consists \"Completion_heads_engraver\" \\remove \"Rest_engraver\" \\consists \"Completion_rest_engraver\" } } }\n\\score { \\unfoldRepeats \\articulate \\structure \\midi {  } }\n"
-
+parseScore = Score <$> (string "% " *> parseQuotedString <* string [str|$endline$\include "articulate.ly"$endline$\version "2.18.2"$endline$ structure = {$endline$<<$endline$|])
+                   <*> parseVoice `sepBy` space <* string [str|>>$endline$\score {\structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }$endline$\score { \unfoldRepeats \articulate \structure \midi { } }$endline$|]
+                       
 instance FromLily Score where
   parseLily = mkParseLily parseScore
