@@ -1,58 +1,49 @@
+module Utils (addDur
+             ,zDurSum
+             ,sumDurs
+             ,durSum2Durs
+             ) where
 
-module Utils (symbol
-             ,parseInt
-             ,parseNatural
-             ,parseBool
-             ,mkParser
-             ,mkToLily
-             ,mkParseLily
-             ,parseQuotedString
-             ,parseQuotedIdentifier) where
-
-import Control.Monad
-import qualified Data.Map as M
+import Data.List
+import Data.Map
 import Data.Maybe
-import Data.Natural
-import Text.Parsec
-import Text.Parsec.String
 
-parseInt :: Parser Int
-parseInt = read <$> many1 digit
+import Types
 
-parseNatural :: Parser Natural
-parseNatural = read <$> many1 digit
+-- in terms of 128ths, same order as Duration
+durVals :: [Int]
+durVals = [1, 2, 2 + 1, 4, 4 + 2, 8, 8 + 4, 16, 16 + 8, 32, 32 + 16, 64, 64 + 32, 128, 128 + 64]
 
-parseBool :: Parser Bool
-parseBool = (string "~" >> pure True) <|> pure False
+durVal2Duration :: Map Int Duration
+durVal2Duration = fromList (zip durVals [HTEDur .. DWDur])
 
-mkParser :: String -> a -> Parser a
-mkParser s d = try (string s >> pure d)
+addDur :: Duration -> DurationSum -> DurationSum
+addDur d ds = DurationSum $ (durVals !! fromEnum d) + getDurSum ds
 
-mkToLily :: (Show a, Ord a) => String -> [a] -> [String] -> a -> String
-mkToLily name vals syms v = fromMaybe (error $ "Invalid " <> name <> " val " <> show v <> " not in " <> show vals) $ M.lookup v (M.fromList (zip vals syms))
+zDurSum :: DurationSum
+zDurSum = 0
 
-mkParseLily :: Parser a -> String -> a
-mkParseLily parser  = either (error . show) id . parse parser ""
+sumDurs :: [Duration] -> DurationSum
+sumDurs = Data.List.foldr addDur zDurSum
 
--- https://jakewheat.github.io/intro_to_parsing
-
-whitespace :: Parser ()
-whitespace = void $ many $ oneOf " \n\t"
-
-lexeme :: Parser a -> Parser a
-lexeme p = p <* whitespace
-
-symbol :: Char -> Parser ()
-symbol = void . lexeme . char
-
-identifier :: Parser String
-identifier = lexeme ((:) <$> firstChar <*> many nonFirstChar)
+-- Simple-minded disaggregation, will prefer dotted durations, e.g.:
+-- > durSum2Durs (addDur WDur (addDur WDur (addDur WDur zDurSum)))
+--  [DWDur,DWDur]
+-- Shows way to disaggregation in the presence of:
+--   * DurationSum that is total distance from downbeat
+--   * Meter
+-- With those, compute:
+--   * Duration to next downbeat, small to large
+--   * Duration from there to end of current measure
+--   * Durations to cover remaining whole measures, if any
+--   * Duration in final measure to start of partial beat
+--   * Durations to remainder of total large to small
+durSum2Durs :: DurationSum -> [Duration]
+durSum2Durs = unfoldr f
   where
-    firstChar = letter <|> char '_'
-    nonFirstChar = digit <|> firstChar
-
-parseQuotedString :: Parser String
-parseQuotedString = lexeme (char '\"' *> manyTill anyChar (char '\"'))
-
-parseQuotedIdentifier :: Parser String
-parseQuotedIdentifier = between (symbol '"') (symbol '"') identifier
+    f (DurationSum 0) = Nothing
+    f (DurationSum i) = Just (d, ds)
+      where
+        v = fromJust $ find (i >=) (reverse durVals)
+        d = durVal2Duration ! v
+        ds = DurationSum (i - v)

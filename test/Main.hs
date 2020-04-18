@@ -1,5 +1,7 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
@@ -16,19 +18,8 @@ import Test.Tasty
 import Test.Tasty.QuickCheck
 
 import Lily
-
-import Accent
-import Chord
-import Duration
-import Dynamic
-import KeySignature
-import Mode
-import Note
-import Octave
-import Pitch
-import Rest
-import Tempo
-import TimeSignature
+import Types
+import Utils
 
 main :: IO ()
 main = defaultMain tests
