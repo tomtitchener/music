@@ -57,11 +57,9 @@ instance FromLily Pitch  where
 -- Octave --
 ------------
 
--- parse order
 octaveVals :: [Octave]
 octaveVals = [TwentyTwoVBOct,FifteenVBOct,EightVBOct,TwentyNineVAOct,TwentyTwoVAOct,FifteenVAOct,EightVAOct,COct]
 
--- parse order
 octaveSyms :: [String]
 octaveSyms = [",,,"
              ,",,"
@@ -85,11 +83,9 @@ instance FromLily Octave  where
 -- Duration --
 --------------
 
--- parse order
 durationVals :: [Duration]
 durationVals = [HTEDur,DSFDur,SFDur,DTSDur,TSDur,DSDur,SDur,DEDur,EDur,DQDur,QDur,DHDur,HDur,DWDur,WDur]
 
--- parse order
 durationSyms :: [String]
 durationSyms = ["128","64.","64","32.","32","16.","16","8.","8","4.","4","2.","2","1.","1"]
 
@@ -109,11 +105,9 @@ newtype DurationSum = DurationSum { getDurSum :: Int }
 -- Accent --
 ------------
 
--- parse order
 accentSyms :: [String]
 accentSyms = ["-^", "--", "-!", "-.",  "->", "-_", "\\espressivo", ""]
 
--- parse order
 accentVals :: [Accent]
 accentVals = [Marcato .. NoAccent]
 
@@ -133,7 +127,6 @@ instance FromLily Accent  where
 dynamicSyms :: [String]
 dynamicSyms = ["\\ppppp", "\\pppp", "\\ppp", "\\pp", "\\p", "\\mp", "\\mf", "\\fffff", "\\ffff", "\\fff", "\\ff", "\\fp", "\\f", "\\sff", "\\sfz", "\\sf", "\\spp", "\\sp", "\\rfz", ""]
 
--- parse order
 dynamicVals :: [Dynamic]
 dynamicVals = [PPPPP, PPPP, PPP, PP, Piano, MP, MF, FFFFF, FFFF, FFF, FF, FP, Forte, SFF, SFZ, SF, SPP, SP, RFZ, NoDynamic]
 
@@ -204,7 +197,6 @@ instance FromLily Chord  where
 clefSyms :: [String]
 clefSyms = ["\\clef treble^8", "\\clef treble", "\\clef alto", "\\clef tenor", "\\clef bass", "\\clef bass_8"]
 
--- parse order
 clefVals :: [Clef]
 clefVals = [Bass8VB .. Treble8VA]
 
@@ -236,7 +228,6 @@ parseTempo = choice [try (TempoRange <$> (string "\\tempo " *> parseDuration) <*
 instance FromLily Tempo where
   parseLily = mkParseLily parseTempo
 
-
 ----------
 -- Mode --
 ----------
@@ -244,7 +235,6 @@ instance FromLily Tempo where
 modeSyms :: [String]
 modeSyms = ["\\major", "\\minor"]
 
--- parse order
 modeVals :: [Mode]
 modeVals = [Major .. Minor]
 
@@ -484,6 +474,31 @@ parseVoice = choice [
 
 instance FromLily Voice where
   parseLily = mkParseLily parseVoice
+
+-----------
+-- Score --
+-----------
+
+instance ToLily Score where
+  toLily (Score comment voices) =
+    [str|% "$comment$"$endline$
+        \include "articulate.ly"$endline$
+        \version "2.18.2"$endline$
+        structure = {$endline$
+        <<$endline$
+        $unwords (map toLily voices)$
+        >>$endline$
+        }$endline$
+        \score {\structure  \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }$endline$
+        \score { \unfoldRepeats \articulate \structure \midi {  } }$endline$
+        |]
+
+parseScore :: Parser Score
+parseScore = Score <$> (string "% " *> parseQuotedString <* string [str|$endline$\include "articulate.ly"$endline$\version "2.18.2"$endline$ structure = {$endline$<<$endline$|])
+                   <*> parseVoice `sepBy` space <* string [str|>>$endline$\score {\structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }$endline$\score { \unfoldRepeats \articulate \structure \midi { } }$endline$|]
+
+instance FromLily Score where
+  parseLily = mkParseLily parseScore
 
 -----------
 -- Utils --
