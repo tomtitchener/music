@@ -13,7 +13,7 @@ data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FF
 
 -- parse order
 lilySyms :: [String]
-lilySyms = ["\\ppppp", "\\pppp", "\\ppp", "\\pp", "\\piano", "\\mp", "\\mf", "\\fffff", "\\ffff", "\\fff", "\\ff", "\\fp", "\\forte", "\\sff", "\\sfz", "\\sf", "\\spp", "\\sp", "\\rfz", ""]
+lilySyms = ["\\ppppp", "\\pppp", "\\ppp", "\\pp", "\\p", "\\mp", "\\mf", "\\fffff", "\\ffff", "\\fff", "\\ff", "\\fp", "\\f", "\\sff", "\\sfz", "\\sf", "\\spp", "\\sp", "\\rfz", ""]
 
 -- parse order
 lilyVals :: [Dynamic]
