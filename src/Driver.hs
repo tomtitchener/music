@@ -67,3 +67,6 @@ runDriver (Pure k) = pure k
 -- 	  r <- shuffle (take i x ++ drop (i+1) x)
 -- 	  return (x!!i : r)
 
+-----------------------------
+-- Many thanks to Dan Choi --
+-----------------------------
