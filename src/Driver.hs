@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
@@ -10,6 +11,8 @@ import Control.Monad.Free
 import Control.Monad.Random.Class
 import Control.Monad.Reader
 import Control.Monad.State
+import Data.Aeson
+import Protolude
 import System.Random
 import System.Random.Shuffle
 
@@ -20,7 +23,7 @@ import Lily
 --randomSt :: (RandomGen g, Random a) => State g a
 --randomSt = State random
 
-data DriverState = DriverState {
+newtype DriverState = DriverState {
     _randGen :: StdGen
   } deriving (Show)
 
@@ -28,15 +31,14 @@ initState :: DriverState
 initState = DriverState (mkStdGen 5)
 
 data DriverEnv = DriverEnv {
-    _foo               :: Int
-  , _bar               :: Int
+    _config :: Value
   } deriving Show
 
-initEnv :: DriverEnv
-initEnv = DriverEnv 1 2
+initEnv :: Value -> DriverEnv
+initEnv = DriverEnv
 
 data ActionNoValue where
-  WriteLily :: (ToLily a) => a -> ActionNoValue
+  PrintLily :: (ToLily a) => a -> ActionNoValue
 
 data ActionWithValue a where
   RandomizeList :: [b] -> ActionWithValue [b]
@@ -57,8 +59,14 @@ runDriver (Free (DoActionThen act k)) =
       runDriver $ k l'
 runDriver (Free (DoAction act k)) =
   case act of
-    WriteLily l -> liftIO (putStrLn (toLily l)) *> runDriver k
+    PrintLily l -> liftIO (putStrLn (toLily l)) *> runDriver k
 runDriver (Pure k) = pure k
+
+printLily :: ToLily a => a -> Driver ()
+printLily l = liftF $ DoAction (PrintLily l) ()
+
+randomizeList :: ToLily a => [a] -> Driver [a]
+randomizeList ls = liftF $ DoActionThen (RandomizeList ls) identity
 
 -- https://www.programming-idioms.org/idiom/10/shuffle-a-list/826/haskell
 -- shuffle :: [a] -> IO [a]
@@ -70,3 +78,4 @@ runDriver (Pure k) = pure k
 -----------------------------
 -- Many thanks to Dan Choi --
 -----------------------------
+
