@@ -24,6 +24,8 @@ library
                      , containers
                      , free
                      , Interpolation
+                     , lens
+                     , lens-aeson
                      , mtl
                      , MonadRandom
                      , natural-numbers

@@ -2,16 +2,22 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 module Driver where
 
+import Control.Lens
 import Control.Monad.Free
 import Control.Monad.Random.Class
 import Control.Monad.Reader
 import Control.Monad.State
 import Data.Aeson
+import Data.Aeson.Lens
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
+import Prelude (foldl1)
 import Protolude
 import System.Random
 import System.Random.Shuffle
@@ -44,8 +50,10 @@ data ActionWithValue a where
   RandomizeList :: [b] -> ActionWithValue [b]
 
 data DriverF next where
-  DoAction     :: ActionNoValue -> next -> DriverF next
-  DoActionThen :: ActionWithValue a -> (a -> next) -> DriverF next
+  DoAction       :: ActionNoValue -> next -> DriverF next
+  DoActionThen   :: ActionWithValue a -> (a -> next) -> DriverF next
+  GetConfigParam :: Text -> (Value -> next) -> DriverF next
+  Print          :: Text -> next -> DriverF next
 
 deriving instance Functor DriverF
 
@@ -60,13 +68,40 @@ runDriver (Free (DoActionThen act k)) =
 runDriver (Free (DoAction act k)) =
   case act of
     PrintLily l -> liftIO (putStrLn (toLily l)) *> runDriver k
+runDriver (Free (GetConfigParam path k)) = do
+  conf <- asks _config
+  let r = lookupConfig path conf
+  case r of
+    Right val -> runDriver $ k val
+    Left err  -> panic err
+runDriver (Free (Print s k)) = do
+  liftIO $ T.putStrLn s
+  runDriver k
 runDriver (Pure k) = pure k
+
+lookupConfig :: Text -> Value -> Either Text Value
+lookupConfig path config =
+  let segments = T.splitOn "." path
+      mval = preview (foldl1 (.) (map key segments)) config
+    in case mval of
+        Nothing -> Left $
+            "Could not find value for path: " <>
+            path <> "\nin values:\n" <>
+            (toS . encode $ config)
+        Just val -> Right val
+
 
 printLily :: ToLily a => a -> Driver ()
 printLily l = liftF $ DoAction (PrintLily l) ()
 
 randomizeList :: ToLily a => [a] -> Driver [a]
 randomizeList ls = liftF $ DoActionThen (RandomizeList ls) identity
+
+getConfigParam :: Text -> Driver Value
+getConfigParam path = liftF $ GetConfigParam path identity
+
+print :: Show a => a -> Driver ()
+print s = liftF (Print (T.pack . show $ s) ())
 
 -- https://www.programming-idioms.org/idiom/10/shuffle-a-list/826/haskell
 -- shuffle :: [a] -> IO [a]

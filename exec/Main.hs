@@ -1,4 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Main where
@@ -10,7 +11,7 @@ import Control.Monad.Trans.State
 import Data.Aeson hiding (Options)
 import qualified Data.Yaml as Y
 import Options.Applicative
-import Protolude
+import Protolude hiding (print)
 import System.Directory (doesFileExist)
 
 import Driver
@@ -38,7 +39,7 @@ main =  do
     if e
     then either (panic.show) identity <$> Y.decodeFileEither _optConfigYaml
     else pure Null
-  void . liftIO $ execStateT (runReaderT (runDriver exComb) (initEnv config)) initState
+  void . liftIO $ execStateT (runReaderT (runDriver exEnv) (initEnv config)) initState
 
 exAction :: Driver ()
 exAction = printLily (Note C COct QDur Accent Forte False)
@@ -46,3 +47,5 @@ exAction = printLily (Note C COct QDur Accent Forte False)
 exComb :: Driver ()
 exComb = randomizeList [C,D,E,F,G,A,B] >>= mapM_ printLily
 
+exEnv :: Driver ()
+exEnv = getConfigParam "example_param.pitch_list" >>= print
