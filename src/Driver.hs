@@ -45,15 +45,15 @@ initEnv = DriverEnv
 
 data ActionNoValue where
   PrintLily :: (ToLily a) => a -> ActionNoValue
+  Print     :: Text -> ActionNoValue
 
 data ActionWithValue a where
   RandomizeList :: [b] -> ActionWithValue [b]
+  GetConfigParam :: Text -> ActionWithValue Value
 
 data DriverF next where
   DoAction       :: ActionNoValue -> next -> DriverF next
   DoActionThen   :: ActionWithValue a -> (a -> next) -> DriverF next
-  GetConfigParam :: Text -> (Value -> next) -> DriverF next
-  Print          :: Text -> next -> DriverF next
 
 deriving instance Functor DriverF
 
@@ -65,18 +65,16 @@ runDriver (Free (DoActionThen act k)) =
     RandomizeList l -> do
       l' <- shuffleM l
       runDriver $ k l'
+    GetConfigParam path -> do
+      conf <- asks _config
+      let r = lookupConfig path conf
+      case r of
+        Right val -> runDriver $ k val
+        Left err  -> panic err
 runDriver (Free (DoAction act k)) =
   case act of
     PrintLily l -> liftIO (putStrLn (toLily l)) *> runDriver k
-runDriver (Free (GetConfigParam path k)) = do
-  conf <- asks _config
-  let r = lookupConfig path conf
-  case r of
-    Right val -> runDriver $ k val
-    Left err  -> panic err
-runDriver (Free (Print s k)) = do
-  liftIO $ T.putStrLn s
-  runDriver k
+    Print t -> liftIO (T.putStrLn t) *> runDriver k
 runDriver (Pure k) = pure k
 
 lookupConfig :: Text -> Value -> Either Text Value
@@ -90,7 +88,6 @@ lookupConfig path config =
             (toS . encode $ config)
         Just val -> Right val
 
-
 printLily :: ToLily a => a -> Driver ()
 printLily l = liftF $ DoAction (PrintLily l) ()
 
@@ -98,10 +95,10 @@ randomizeList :: ToLily a => [a] -> Driver [a]
 randomizeList ls = liftF $ DoActionThen (RandomizeList ls) identity
 
 getConfigParam :: Text -> Driver Value
-getConfigParam path = liftF $ GetConfigParam path identity
+getConfigParam path = liftF $ DoActionThen (GetConfigParam path) identity
 
 print :: Show a => a -> Driver ()
-print s = liftF (Print (T.pack . show $ s) ())
+print s = liftF $ DoAction (Print (T.pack . show $ s)) ()
 
 -- https://www.programming-idioms.org/idiom/10/shuffle-a-list/826/haskell
 -- shuffle :: [a] -> IO [a]
