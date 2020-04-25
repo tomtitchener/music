@@ -539,6 +539,13 @@ identifier = lexeme ((:) <$> firstChar <*> many nonFirstChar)
     firstChar = letter <|> char '_'
     nonFirstChar = digit <|> firstChar
 
+{--
+parseString :: Parser String
+parseString = many lilyChar
+  where
+    lilyChar = letter <|> digit <|> oneOf "',."
+--}
+
 parseQuotedString :: Parser String
 parseQuotedString = lexeme (char '\"' *> manyTill anyChar (char '\"'))
 

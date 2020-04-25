@@ -1,6 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Main where
 
@@ -11,7 +12,7 @@ import Control.Monad.Trans.State
 import Data.Aeson hiding (Options)
 import qualified Data.Yaml as Y
 import Options.Applicative
-import Protolude hiding (print)
+import Protolude hiding (print, to)
 import System.Directory (doesFileExist)
 
 import Driver
@@ -48,4 +49,11 @@ exComb :: Driver ()
 exComb = randomizeList [C,D,E,F,G,A,B] >>= mapM_ printLily
 
 exEnv :: Driver ()
-exEnv = getConfigParam "example_param.pitch_list" >>= print
+exEnv = getConfigParam "example_param.durs" >>= print
+
+{--
+exEnv :: Driver ()
+exEnv = do
+  pitches::[Pitch] <- getConfigData "example_param.pits"
+  mapM_ print pitches
+--}

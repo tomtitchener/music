@@ -1,6 +1,3 @@
 example_param:
-  pitch_list:
-    - c
-    - d
-    - e
-    - f
+  pits: pitches c des eisis f g
+  durs: durations 1 2 4. 8 16

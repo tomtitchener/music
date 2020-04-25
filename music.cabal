@@ -21,6 +21,7 @@ library
   other-modules:      
   build-depends:       base
                      , aeson
+                     , attoparsec
                      , containers
                      , free
                      , Interpolation
@@ -33,6 +34,7 @@ library
                      , protolude
                      , random
                      , random-shuffle
+                     , split
                      , text
   ghc-options:         -Wall -Werror -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns -fno-warn-orphans
 
@@ -44,9 +46,12 @@ executable music
                      , aeson
                      , directory
                      , free
+                     , lens
+                     , lens-aeson
                      , music
                      , optparse-applicative
                      , protolude
+                     , text
                      , transformers
                      , yaml
   ghc-options:         -Wall -Werror -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns -fno-warn-orphans
