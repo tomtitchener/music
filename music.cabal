@@ -64,7 +64,9 @@ test-suite tests
   build-depends:      base
                     , containers
                     , parsec
+                    , process
                     , HUnit
+                    , Interpolation
                     , QuickCheck
                     , tasty
                     , tasty-hunit

@@ -1,12 +1,21 @@
 ** DONE Tempo variants
 ** DONE TimeSignature variants
 ** DONE Simplify tests
+** DONE Generic verb for return value with list randomization example
+** DONE IO verb with no return type for toLily output via putStrLn to start
 ** DONE App infrastructure:
 *** DONE Applicative OptParse for command-line args starting with YAML config
 *** DONE Driver free monad with Env for config YAML, State for random generator
-**** TODO IO verb with no return type for toLily output via putStrLn to start
-**** TODO Generic verb for return value with list randomization example
-**** TODO Sample app to generate score with simple voice.
-** TODO Hand-written tests for Voice
-** TODO Hand-written tests for Score
-** TODO Interactive (ghci) validation of toLily Score with Lilypond
+*** DONE Helpers for consuming config YAML.  
+** TODO Test Infrastructure
+*** DONE Integration test infrastructure
+ 1) generate score with single voice
+ 2) run lilypond -- can just do "import System.Process .. exitCode <- system $ "lilypond " <> filename ... assert ExistSuccess == exitCode
+ 3) verify success via exit code (see above)
+*** TODO Integration tests
+ 1) poly voices
+ 2) voice groups
+ 3) mixed single, poly, and group voices
+** TODO Sample app to generate score with simple voice.
+** TODO Non-pitched Percussion Voices
+

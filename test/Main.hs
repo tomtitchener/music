@@ -10,9 +10,12 @@ module Main (
   ) where
 
 import GHC.Generics
+import System.Exit
+import System.Process
 import Test.QuickCheck
 import Test.QuickCheck.Arbitrary.Generic
 import Test.Tasty
+import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
 import Lily
@@ -38,6 +41,7 @@ tests =
   ,testProperty "parseLily . toLily Tempo == id" (propParseLilytoLilyVal @Tempo)
   ,testProperty "parseLily . toLily TimeSignature == id" (propParseLilytoLilyVal @TimeSignature)
   ,testProperty "parseLily . toLily Chord == id" (propParseLilytoLilyVal @Chord)
+  ,testCase     "lilypond example" testLilypond
   ]
 
 deriving instance Generic Accent
@@ -118,4 +122,7 @@ propParseLilytoLilyVal v = v == (parseLily . toLily) v
 
 propDurSum2Durs :: [Duration] -> Bool
 propDurSum2Durs durs = sumDurs durs == (sumDurs . durSum2Durs . sumDurs) durs
+
+testLilypond :: Assertion
+testLilypond = system "lilypond test.ly" >>= \code -> assertEqual "lilypond exit code" ExitSuccess code >> pure ()
 
