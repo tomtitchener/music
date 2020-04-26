@@ -31,7 +31,7 @@ data Pitch = Bs | C   | Bss | Dff | Cs
            | Bf | Cff | Ass | B   | Cf
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-data Octave = TwentyTwoVBOct | FifteenVBOct | EightVBOct | COct | EightVAOct | FifteenVAOct | TwentyTwoVAOct | TwentyNineVAOct
+data Octave = TwentyNineVBOct | TwentyTwoVBOct | FifteenVBOct | EightVBOct | COct | EightVAOct | FifteenVAOct | TwentyTwoVAOct
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 data Duration = HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur | DEDur | QDur | DQDur | HDur | DHDur | WDur | DWDur

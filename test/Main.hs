@@ -9,6 +9,11 @@ module Main (
     main
   ) where
 
+import Control.Monad
+import Control.Monad.IO.Class
+import Control.Monad.Trans.Reader
+import Control.Monad.Trans.State
+import Data.Aeson
 import GHC.Generics
 import System.Exit
 import System.Process
@@ -18,6 +23,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
+import Driver
 import Lily
 import Types
 import Utils
@@ -41,7 +47,7 @@ tests =
   ,testProperty "parseLily . toLily Tempo == id" (propParseLilytoLilyVal @Tempo)
   ,testProperty "parseLily . toLily TimeSignature == id" (propParseLilytoLilyVal @TimeSignature)
   ,testProperty "parseLily . toLily Chord == id" (propParseLilytoLilyVal @Chord)
-  ,testCase     "lilypond example" testLilypond
+  ,testCase     "lilypond example" (testLilypond "example.ly" minScore)
   ]
 
 deriving instance Generic Accent
@@ -123,6 +129,24 @@ propParseLilytoLilyVal v = v == (parseLily . toLily) v
 propDurSum2Durs :: [Duration] -> Bool
 propDurSum2Durs durs = sumDurs durs == (sumDurs . durSum2Durs . sumDurs) durs
 
-testLilypond :: Assertion
-testLilypond = system "lilypond test.ly" >>= \code -> assertEqual "lilypond exit code" ExitSuccess code >> pure ()
+runTestDriver :: MonadIO m => Driver a -> m DriverState
+runTestDriver action = liftIO $ execStateT (runReaderT (runDriver action) (initEnv Null)) initState
+
+minVEvents :: [VoiceEvent]
+minVEvents = [VoiceEventClef Treble
+             ,VoiceEventTempo (Tempo QDur 120)
+             ,VoiceEventTimeSignature (TimeSignature 4 QDur)
+             ,(VoiceEventNote (Note C COct QDur Staccato Forte False))
+             ,(VoiceEventNote (Note G COct QDur NoAccent NoDynamic False))
+             ,(VoiceEventNote (Note C COct QDur NoAccent NoDynamic False))]
+
+minScore :: Score
+minScore = Score "comment" $ [SingleVoice AcousticGrand minVEvents]
+
+testLilypond :: FilePath -> Score -> Assertion
+testLilypond path score = do
+  void $ runTestDriver (writeLily ("test/"<>path) score)
+  (code, _, stderr) <- readProcessWithExitCode "lilypond" ["-s","-o test", "test/"<>path] ""
+  unless (ExitSuccess == code) (putStr $ "\n" <> stderr)
+  assertEqual "lilypond exit code" ExitSuccess code
 

@@ -17,7 +17,7 @@ library
   ghc-options:         -Wall
   default-language:    Haskell2010
   hs-source-dirs:      src
-  exposed-modules:     Types, Lily, Utils, Driver
+  exposed-modules:     Driver, Lily, Types, Utils
   other-modules:      
   build-depends:       base
                      , aeson
@@ -62,17 +62,29 @@ test-suite tests
   main-is:            Main.hs
   default-extensions: 
   build-depends:      base
+                    , aeson
                     , containers
-                    , parsec
-                    , process
+                    , free
+                    , music
+                    , generic-arbitrary
                     , HUnit
                     , Interpolation
+                    , lens
+                    , lens-aeson
+                    , mtl
+                    , MonadRandom
+                    , natural-numbers
+                    , parsec
+                    , process
                     , QuickCheck
+                    , random
+                    , random-shuffle
+                    , split
                     , tasty
                     , tasty-hunit
                     , tasty-quickcheck
-                    , generic-arbitrary
-                    , natural-numbers
+                    , text
+                    , transformers
   default-language:   Haskell2010
   ghc-options:        -Wall -Werror -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns -fno-warn-orphans
-  other-modules:     Types, Lily, Utils
+  other-modules:     Driver, Lily, Types, Utils

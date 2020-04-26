@@ -25,3 +25,6 @@ cabal.sandbox.config
 cabal.project.local
 Contact GitHub API Training Shop Blog About
 *~
+*.pdf
+*.ly
+*.midi

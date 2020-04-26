@@ -58,7 +58,7 @@ instance FromLily Pitch  where
 ------------
 
 octaveVals :: [Octave]
-octaveVals = [TwentyTwoVBOct,FifteenVBOct,EightVBOct,TwentyNineVAOct,TwentyTwoVAOct,FifteenVAOct,EightVAOct,COct]
+octaveVals = [TwentyNineVBOct,TwentyTwoVBOct,FifteenVBOct,TwentyTwoVAOct,FifteenVAOct,EightVAOct,COct,EightVBOct]
 
 octaveSyms :: [String]
 octaveSyms = [",,,"
@@ -67,14 +67,14 @@ octaveSyms = [",,,"
              ,"''''"
              ,"'''"
              ,"''"
-             ,"'"
-             ,""]
+             ,"'"    -- COct
+             ,""]    -- EightVBOct
 
 instance ToLily Octave where
   toLily = mkToLily "octave" octaveVals octaveSyms
 
 parseOctave :: Parser Octave
-parseOctave = choice (zipWith mkParser (init octaveSyms) (init octaveVals)) <|> pure COct
+parseOctave = choice (zipWith mkParser (init octaveSyms) (init octaveVals)) <|> pure EightVBOct
 
 instance FromLily Octave  where
   parseLily = mkParseLily parseOctave
@@ -195,7 +195,7 @@ instance FromLily Chord  where
 ----------
 
 clefSyms :: [String]
-clefSyms = ["\\clef treble^8", "\\clef treble", "\\clef alto", "\\clef tenor", "\\clef bass", "\\clef bass_8"]
+clefSyms = ["\\clef bass_8", "\\clef bass", "\\clef tenor", "\\clef alto", "\\clef treble", "\\clef treble^8"]
 
 clefVals :: [Clef]
 clefVals = [Bass8VB .. Treble8VA]

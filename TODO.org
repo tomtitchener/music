@@ -8,6 +8,12 @@
 *** DONE Driver free monad with Env for config YAML, State for random generator
 *** DONE Helpers for consuming config YAML.  
 ** TODO Test Infrastructure
+*** DONE Verb to write toLily ouput to file
+*** DONE Integrate driver with unit test
+ 1) get runDriver from Main in exec to Main in text to compile
+ 2) simple test that fails running lilypond
+ 3) fix failing test
+ 4) capture LilyPond stderr and show on failure
 *** DONE Integration test infrastructure
  1) generate score with single voice
  2) run lilypond -- can just do "import System.Process .. exitCode <- system $ "lilypond " <> filename ... assert ExistSuccess == exitCode
