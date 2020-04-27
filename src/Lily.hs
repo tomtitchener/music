@@ -215,14 +215,14 @@ instance FromLily Clef  where
 
 instance ToLily Tempo where
   toLily (TempoText txt) = [str|\tempo $txt$|]
-  toLily (Tempo dur perMin) =  [str|\tempo $toLily dur$ = $:perMin$|]
+  toLily (TempoDur dur perMin) =  [str|\tempo $toLily dur$ = $:perMin$|]
   toLily (TempoLong txt dur perMin) = [str|\tempo $txt$ ($toLily dur$ = $:perMin$)|]
   toLily (TempoRange dur loPerMin hiPerMin) = [str|\tempo $toLily dur$ = $:loPerMin$ - $:hiPerMin$|]
 
 parseTempo :: Parser Tempo
 parseTempo = choice [try (TempoRange <$> (string "\\tempo " *> parseDuration) <*> (string " = " *> parseNatural) <*> (string " - " *> parseNatural))
                     ,try (TempoLong <$> (string "\\tempo " *> manyTill anyChar (try (string " ("))) <*> parseDuration <*> (string " = " *> parseNatural <* char ')'))
-                    ,try (Tempo <$> (string "\\tempo " *> parseDuration) <*> (string " = " *> parseNatural))
+                    ,try (TempoDur <$> (string "\\tempo " *> parseDuration) <*> (string " = " *> parseNatural))
                     ,try (TempoText <$> (string "\\tempo " *> manyTill anyChar eof))]
 
 instance FromLily Tempo where
@@ -283,22 +283,22 @@ instance FromLily TimeSignature where
 ----------------
 
 instance ToLily VoiceEvent where
-  toLily (VoiceEventNote note) = toLily note
-  toLily (VoiceEventRest rest) = toLily rest
-  toLily (VoiceEventChord chord) = toLily chord
-  toLily (VoiceEventClef clef) = toLily clef
-  toLily (VoiceEventTempo tempo) = toLily tempo
-  toLily (VoiceEventKeySignature keySignature) = toLily keySignature
-  toLily (VoiceEventTimeSignature timeSignature) = toLily timeSignature
+  toLily (VeNote note) = toLily note
+  toLily (VeRest rest) = toLily rest
+  toLily (VeChord chord) = toLily chord
+  toLily (VeClef clef) = toLily clef
+  toLily (VeTempo tempo) = toLily tempo
+  toLily (VeKeySignature keySignature) = toLily keySignature
+  toLily (VeTimeSignature timeSignature) = toLily timeSignature
 
 parseVoiceEvent :: Parser VoiceEvent
-parseVoiceEvent = choice [try (VoiceEventClef <$> parseClef)
-                         ,try (VoiceEventNote <$> parseNote)
-                         ,try (VoiceEventRest <$> parseRest)
-                         ,try (VoiceEventChord <$> parseChord)
-                         ,try (VoiceEventTempo <$> parseTempo)
-                         ,try (VoiceEventKeySignature <$> parseKeySignature)
-                         ,try (VoiceEventTimeSignature <$> parseTimeSignature)]
+parseVoiceEvent = choice [try (VeClef <$> parseClef)
+                         ,try (VeNote <$> parseNote)
+                         ,try (VeRest <$> parseRest)
+                         ,try (VeChord <$> parseChord)
+                         ,try (VeTempo <$> parseTempo)
+                         ,try (VeKeySignature <$> parseKeySignature)
+                         ,try (VeTimeSignature <$> parseTimeSignature)]
 
 instance FromLily VoiceEvent where
   parseLily = mkParseLily parseVoiceEvent

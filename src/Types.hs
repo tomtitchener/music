@@ -46,22 +46,23 @@ data Accent = Marcato | Tenuto | Staccatissimo | Staccato | Accent | Portato | E
 data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FFFF | FFFFF | FP | SF | SFF | SP | SPP | SFZ | RFZ | NoDynamic
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-data Note = Note { _notePitch :: Pitch, _noteoOctave :: Octave, _noteDuration :: Duration, _noteAccent :: Accent, _notedDynamic :: Dynamic, _noteSlur :: Bool }
+data Note = Note { _notePit :: Pitch, _noteoOct :: Octave, _noteDur :: Duration, _noteAcc :: Accent, _notedDyn :: Dynamic, _noteSlur :: Bool }
   deriving (Eq, Ord, Show)
 
 newtype Rest = Rest { _rdur :: Duration }
   deriving (Eq, Ord, Show)
 
-data Chord = Chord { _chordPitchOctavePairs :: [(Pitch, Octave)] , _chordDuration :: Duration, _chordDynamic :: Dynamic, _chordAccent :: Accent, _chordSlur :: Bool }
+data Chord = Chord { _chordPitOctPairs :: [(Pitch, Octave)] , _chordDur :: Duration, _chordDyn :: Dynamic, _chordAcc :: Accent, _chordSlur :: Bool }
   deriving (Eq, Ord, Show)
 
 data Clef = Bass8VB | Bass | Tenor | Alto | Treble | Treble8VA
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-data Tempo = TempoText   { _ttText :: String }
-           | Tempo       { _tDur :: Duration, _tPerMin :: Natural }
-           | TempoLong   { _tlText :: String, _tlDur :: Duration, _tlPerMin :: Natural  }
-           | TempoRange  { _trDur :: Duration, _trPerMinLo :: Natural, _trPerMinHi :: Natural  }
+data Tempo =
+    TempoText   { _ttText :: String }
+  | TempoDur    { _tdDur :: Duration, _tdPerMin :: Natural }
+  | TempoLong   { _tlText :: String, _tlDur :: Duration, _tlPerMin :: Natural  }
+  | TempoRange  { _trDur :: Duration, _trPerMinLo :: Natural, _trPerMinHi :: Natural  }
   deriving (Eq, Ord, Show)
 
 data Mode = Major | Minor
@@ -75,14 +76,14 @@ data TimeSignature = TimeSignature { _tsNum :: Int, _tsDenom :: Duration }
   deriving (Eq, Ord, Show)
 
 data VoiceEvent =
-    VoiceEventNote { _voiceEventNote :: Note }
-  | VoiceEventRest { _voiceEventRest :: Rest }
-  | VoiceEventChord { _voiceEventChord :: Chord }
-  | VoiceEventClef { _voiceEventClef :: Clef }
-  | VoiceEventTempo { _voiceEventTempo :: Tempo }
-  | VoiceEventKeySignature { _voiceEventKeySignature :: KeySignature }
-  | VoiceEventTimeSignature { _voiceEventTimeSignature :: TimeSignature }
-  deriving (Eq, Ord, Show)
+    VeNote { _veNote :: Note }
+  | VeRest { _veRest :: Rest }
+  | VeChord { _veChord :: Chord }
+  | VeClef { _veClef :: Clef }
+  | VeTempo { _veTempo :: Tempo }
+  | VeKeySignature { _veKeySig :: KeySignature }
+  | VeTimeSignature { _veTimeSig :: TimeSignature }
+   deriving (Eq, Ord, Show)
 
 data Instrument =
        AcousticGrand |           Contrabass |         LeadFfths |
@@ -131,9 +132,9 @@ data Instrument =
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 data Voice =
-  SingleVoice { _singleVoiceInstrument :: Instrument, _singleVoiceVoiceEvents :: [VoiceEvent] }
-  | VoiceGroup { _voiceGroupVoices :: [Voice] }
-  | PolyVoice { _polyVoiceInstrument :: Instrument, _polyVoiceVoiceEvents :: [[VoiceEvent]] }
+  SingleVoice { _svInstrument :: Instrument, _svVoiceEvents :: [VoiceEvent] }
+  | VoiceGroup { _vgVoices :: [Voice] }
+  | PolyVoice { _pvInstrument :: Instrument, _pvVoiceEvents :: [[VoiceEvent]] }
   deriving (Eq, Ord, Show)
 
 data Score = Score { _scoreComment :: String, _scoreVoices :: [Voice] }

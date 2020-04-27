@@ -47,7 +47,7 @@ tests =
   ,testProperty "parseLily . toLily Tempo == id" (propParseLilytoLilyVal @Tempo)
   ,testProperty "parseLily . toLily TimeSignature == id" (propParseLilytoLilyVal @TimeSignature)
   ,testProperty "parseLily . toLily Chord == id" (propParseLilytoLilyVal @Chord)
-  ,testCase     "lilypond example" (testLilypond "example.ly" minScore)
+  ,testCase     "single-voice score" (testLilypond "example.ly" minScore)
   ]
 
 deriving instance Generic Accent
@@ -114,7 +114,7 @@ instance Arbitrary KeySignature where
 
 instance Arbitrary Tempo where
   arbitrary = oneof [TempoText <$> elements ["Presto","Vivace","Meno Mosso"]
-                    ,Tempo <$> arbitrary <*> arbitrarySizedNatural
+                    ,TempoDur <$> arbitrary <*> arbitrarySizedNatural
                     ,TempoLong <$> elements ["Presto","Vivace","Meno Mosso", ""] <*> arbitrary <*> arbitrarySizedNatural
                     ,TempoRange <$> arbitrary <*> arbitrarySizedNatural <*> arbitrarySizedNatural
                     ]
@@ -133,12 +133,12 @@ runTestDriver :: MonadIO m => Driver a -> m DriverState
 runTestDriver action = liftIO $ execStateT (runReaderT (runDriver action) (initEnv Null)) initState
 
 minVEvents :: [VoiceEvent]
-minVEvents = [VoiceEventClef Treble
-             ,VoiceEventTempo (Tempo QDur 120)
-             ,VoiceEventTimeSignature (TimeSignature 4 QDur)
-             ,(VoiceEventNote (Note C COct QDur Staccato Forte False))
-             ,(VoiceEventNote (Note G COct QDur NoAccent NoDynamic False))
-             ,(VoiceEventNote (Note C COct QDur NoAccent NoDynamic False))]
+minVEvents = [VeClef Treble
+             ,VeTempo (TempoDur QDur 120)
+             ,VeTimeSignature (TimeSignature 4 QDur)
+             ,(VeNote (Note C COct QDur Staccato Forte False))
+             ,(VeNote (Note G COct QDur NoAccent NoDynamic False))
+             ,(VeNote (Note C COct QDur NoAccent NoDynamic False))]
 
 minScore :: Score
 minScore = Score "comment" $ [SingleVoice AcousticGrand minVEvents]
