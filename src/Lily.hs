@@ -462,16 +462,52 @@ toPolyVoice instr eventss =
       |]
 
 parsePolyVoiceEvents :: Parser [VoiceEvent]
-parsePolyVoiceEvents = string "\\new Staff{\nnew Voice {\n" *> parseVoiceEvent `sepBy` space <* spaces <* string "\\bar \"|.\"\n}\n"
+parsePolyVoiceEvents = string "\\new Staff{\nnew Voice {\n"
+                       *> parseVoiceEvent `sepBy` space
+                       <* spaces
+                       <* string "\\bar \"|.\"\n}\n"
 
 parseVoice :: Parser Voice
 parseVoice = choice [
-  try (SingleVoice <$> (string "\\new Voice\n{\\set Staff.instrumentName = #" *> parseQuotedIdentifier *> string "\\set Voice.midiInstrument = #" *> parseInstrument <* string "\n")
-                   <*> (parseVoiceEvent `sepBy` space <* (spaces <* string "\\bar \"|.\"\n}\n")))
-  ,try (VoiceGroup <$> (string "\\new StaffGroup\n<<\n" *> parseVoice `sepBy` space <* string ">>\n"))
-  ,try (PolyVoice <$> (string "\\new PianoStaff {\n<<\n\\set PianoStaff.instrumentName = #" *> parseQuotedIdentifier *> string "\\set PianoStaff.midiInstrument = #" *> parseInstrument <* string "\n")
-                  <*> (parsePolyVoiceEvents `sepBy` space) <* string ">>\n")
+  try (SingleVoice <$> (string [str|\new Voice
+                                   {\set Staff.instrumentName = ##|]
+                        *> parseQuotedIdentifier
+                        *> string [str| \set Voice.midiInstrument = ##"|]
+                        *> parseInstrument <* string "\"\n")
+                   <*> (parseVoiceEvent `sepBy` space
+                        <* spaces
+                        <* string "\\bar \"|.\"\n}\n"))
+  ,try (VoiceGroup <$> (string "\\new StaffGroup\n<<\n"
+                        *> parseVoice `endBy` space
+                        <* string ">>\n"))
+  ,try (PolyVoice <$> (string "\\new PianoStaff {\n<<\n\\set PianoStaff.instrumentName = #"
+                         *> parseQuotedIdentifier
+                         *> string "\\set PianoStaff.midiInstrument = #"
+                         *> parseInstrument <* string "\n")
+                       <*> (parsePolyVoiceEvents `sepBy` space)
+                       <* string ">>\n")
   ]
+
+parseVoice' :: Parser Voice
+parseVoice' = choice [
+  try (SingleVoice <$> (string "\\new Voice\n{\\set Staff.instrumentName = #"
+                        *> parseQuotedIdentifier
+                        *> string "\\set Voice.midiInstrument = #"
+                        *> parseInstrument <* string "\n")
+                   <*> (parseVoiceEvent `sepBy` space <*
+                        (spaces <*
+                         string "\\bar \"|.\"\n}\n")))
+  ,try (VoiceGroup <$> (string "\\new StaffGroup\n<<\n"
+                        *> parseVoice `sepBy` space
+                        <* string ">>\n"))
+  ,try (PolyVoice <$> (string "\\new PianoStaff {\n<<\n\\set PianoStaff.instrumentName = #"
+                         *> parseQuotedIdentifier
+                         *> string "\\set PianoStaff.midiInstrument = #"
+                         *> parseInstrument <* string "\n")
+                       <*> (parsePolyVoiceEvents `sepBy` space)
+                       <* string ">>\n")
+  ]
+  
 
 instance FromLily Voice where
   parseLily = mkParseLily parseVoice
