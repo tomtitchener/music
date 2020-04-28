@@ -433,14 +433,14 @@ toSingleVoice :: Instrument -> [VoiceEvent] -> String
 toSingleVoice instr events =
   [str|\new Voice
       {\set Staff.instrumentName = ##"$shortInstrName instr$" \set Voice.midiInstrument = ##"$midiName instr$"
-      $unwords (map toLily events)$ \bar "|."}
+      $unwords (map toLily events)$ \bar "|."
+      }
       |]
 
 toVoiceGroup :: [Voice] -> String
 toVoiceGroup voices = [str|\new StaffGroup
                           <<
-                          $unwords (map toLily voices)$
-                          >>
+                          $mconcat (map toLily voices)$>>
                           |]
 
 eventsToPolyVoice :: [VoiceEvent] -> String
@@ -449,14 +449,15 @@ eventsToPolyVoice events  =
       \new Voice {
       $unwords (map toLily events)$ \bar "|."
       }
-      }|]
+      }
+      |]
 
 toPolyVoice :: Instrument -> [[VoiceEvent]] -> String
 toPolyVoice instr eventss =
   [str|\new PianoStaff {
       <<
-      \set PianoStaff.instrumentName = ##"$shortInstrName instr$"\set PianoStaff.midiInstrument = ##"$midiName instr$"$unwords (map eventsToPolyVoice eventss)$
-      >>
+      \set PianoStaff.instrumentName = ##"$shortInstrName instr$"\set PianoStaff.midiInstrument = ##"$midiName instr$"
+      $mconcat (map eventsToPolyVoice eventss)$>>
       }
       |]
 
