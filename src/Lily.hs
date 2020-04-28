@@ -446,8 +446,8 @@ toVoiceGroup voices = [str|\new StaffGroup
 eventsToPolyVoice :: [VoiceEvent] -> String
 eventsToPolyVoice events  =
   [str|\new Staff {
-      new Voice {
-      $unwords (map toLily events)$"\bar "|."
+      \new Voice {
+      $unwords (map toLily events)$ \bar "|."
       }
       }|]
 

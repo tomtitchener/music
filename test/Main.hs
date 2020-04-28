@@ -48,8 +48,9 @@ tests =
   ,testProperty "parseLily . toLily TimeSignature == id" (propParseLilytoLilyVal @TimeSignature)
   ,testProperty "parseLily . toLily Chord == id" (propParseLilytoLilyVal @Chord)
   ,testCase     "single-voice score" (testLilypond "single-voice.ly" minScore)
-  ,testCase     "multi-voice score" (testLilypond "multi-voice.ly" multiScore)
-  ,testCase     "poly-voice score" (testLilypond "poly-voice.ly" polyScore)
+  ,testCase     "multi-voice score"  (testLilypond "multi-voice.ly" multiScore)
+  ,testCase     "poly-voice score"   (testLilypond "poly-voice.ly" polyScore)
+  ,testCase     "group-voice score"  (testLilypond "group-voice.ly" groupScore)
   ]
 
 deriving instance Generic Accent
@@ -150,6 +151,15 @@ multiScore = Score "comment" $ [SingleVoice AcousticGrand minVEvents, SingleVoic
 
 polyScore :: Score
 polyScore = Score "comment" $ [PolyVoice AcousticGrand [minVEvents,minVEvents]]
+
+groupScore :: Score
+groupScore = Score "comment" $ [VoiceGroup [SingleVoice AcousticGrand minVEvents
+                                           ,SingleVoice AcousticGrand minVEvents
+                                           ,PolyVoice AcousticGrand [minVEvents,minVEvents]],
+                               VoiceGroup [SingleVoice AcousticGrand minVEvents
+                                           ,SingleVoice AcousticGrand minVEvents
+                                           ,PolyVoice AcousticGrand [minVEvents,minVEvents]]]
+
 
 testLilypond :: FilePath -> Score -> Assertion
 testLilypond path score = do
