@@ -22,7 +22,7 @@
  1) poly voices
  2) voice groups
  3) mixed single, poly, and group voices
-** TODO Try consolidating types e.g. VoiceEventList
+** DONE Try consolidating types e.g. VoiceEventList
 Failed mainly on simple wrappers for sum types Clef and Tempo,
 also for sum types of products, e.g. TimeSignature.  Best solution
 would be a mix of singletons Note, Rest, Chord, KeySignature, with

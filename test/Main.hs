@@ -47,7 +47,9 @@ tests =
   ,testProperty "parseLily . toLily Tempo == id" (propParseLilytoLilyVal @Tempo)
   ,testProperty "parseLily . toLily TimeSignature == id" (propParseLilytoLilyVal @TimeSignature)
   ,testProperty "parseLily . toLily Chord == id" (propParseLilytoLilyVal @Chord)
-  ,testCase     "single-voice score" (testLilypond "example.ly" minScore)
+  ,testCase     "single-voice score" (testLilypond "single-voice.ly" minScore)
+  ,testCase     "multi-voice score" (testLilypond "multi-voice.ly" multiScore)
+  ,testCase     "poly-voice score" (testLilypond "poly-voice.ly" polyScore)
   ]
 
 deriving instance Generic Accent
@@ -143,10 +145,16 @@ minVEvents = [VeClef Treble
 minScore :: Score
 minScore = Score "comment" $ [SingleVoice AcousticGrand minVEvents]
 
+multiScore :: Score
+multiScore = Score "comment" $ [SingleVoice AcousticGrand minVEvents, SingleVoice AcousticGrand minVEvents]
+
+polyScore :: Score
+polyScore = Score "comment" $ [PolyVoice AcousticGrand [minVEvents,minVEvents]]
+
 testLilypond :: FilePath -> Score -> Assertion
 testLilypond path score = do
   void $ runTestDriver (writeLily ("test/"<>path) score)
-  (code, _, stderr) <- readProcessWithExitCode "lilypond" ["-s","-o test", "test/"<>path] ""
+  (code, _, stderr) <- readProcessWithExitCode "lilypond" ["-s","-o","test", "test/"<>path] ""
   unless (ExitSuccess == code) (putStr $ "\n" <> stderr)
   assertEqual "lilypond exit code" ExitSuccess code
 

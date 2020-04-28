@@ -425,39 +425,39 @@ shortInstrName = (shortInstrNames !!) . fromEnum
 -----------
 
 instance ToLily Voice where
-  toLily (SingleVoice instr events) =  toSingleVoice instr events
+  toLily (SingleVoice instr events) = toSingleVoice instr events
   toLily (VoiceGroup voices) = toVoiceGroup voices
   toLily (PolyVoice instr eventss) = toPolyVoice instr eventss
 
 toSingleVoice :: Instrument -> [VoiceEvent] -> String
 toSingleVoice instr events =
-  [str|\new Voice$endline$
-      {\set Staff.instrumentName = ##"$shortInstrName instr$" \set Voice.midiInstrument = ##"$midiName instr$"$endline$
-      $unwords (map toLily events)$ \bar "|."$endline$
-      }$endline$
+  [str|\new Voice
+      {\set Staff.instrumentName = ##"$shortInstrName instr$" \set Voice.midiInstrument = ##"$midiName instr$"
+      $unwords (map toLily events)$ \bar "|."}
       |]
 
 toVoiceGroup :: [Voice] -> String
-toVoiceGroup voices = [str|\new StaffGroup$endline$<<$endline$
+toVoiceGroup voices = [str|\new StaffGroup
+                          <<
                           $unwords (map toLily voices)$
-                          >>$endline$
+                          >>
                           |]
 
 eventsToPolyVoice :: [VoiceEvent] -> String
 eventsToPolyVoice events  =
-  [str|\new Staff {$endline$
-      new Voice {$endline$
-      $unwords (map toLily events)$"\bar "|."$endline$
-      }$endline$
+  [str|\new Staff {
+      new Voice {
+      $unwords (map toLily events)$"\bar "|."
+      }
       }|]
 
 toPolyVoice :: Instrument -> [[VoiceEvent]] -> String
 toPolyVoice instr eventss =
-  [str|\new PianoStaff {$endline$
-      <<$endline$
+  [str|\new PianoStaff {
+      <<
       \set PianoStaff.instrumentName = ##"$shortInstrName instr$"\set PianoStaff.midiInstrument = ##"$midiName instr$"$unwords (map eventsToPolyVoice eventss)$
-      >>$endline$
-      }$endline$
+      >>
+      }
       |]
 
 parsePolyVoiceEvents :: Parser [VoiceEvent]
@@ -481,16 +481,15 @@ instance FromLily Voice where
 
 instance ToLily Score where
   toLily (Score comment voices) =
-    [str|% "$comment$"$endline$
-        \include "articulate.ly"$endline$
-        \version "2.18.2"$endline$
-        structure = {$endline$
-        <<$endline$
-        $unwords (map toLily voices)$
-        >>$endline$
-        }$endline$
-        \score {\structure  \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }$endline$
-        \score { \unfoldRepeats \articulate \structure \midi {  } }$endline$
+    [str|% "$comment$"
+        \include "articulate.ly"
+        \version "2.18.2"
+        structure = {
+        <<
+        $mconcat (map toLily voices)$>>
+        }
+        \score {\structure  \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }
+        \score { \unfoldRepeats \articulate \structure \midi {  } }
         |]
 
 parseScore :: Parser Score
