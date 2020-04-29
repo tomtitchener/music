@@ -53,6 +53,9 @@ tests =
   ,testCase     "group-voice score"  (testLilypond "group-voice.ly" groupScore)
   ,testCase     "parseLily . toLily SingleVoice" (testVoice (SingleVoice AcousticGrand minVEvents))
   ,testCase     "parseLily . toLily PolyVoice" (testVoice (PolyVoice AcousticGrand [minVEvents,minVEvents]))
+  ,testCase     "parseLily . toLily VoiceGroup" (testVoice (VoiceGroup [SingleVoice AcousticGrand minVEvents
+                                                                       ,SingleVoice AcousticGrand minVEvents
+                                                                       ,PolyVoice AcousticGrand [minVEvents,minVEvents]]))
   ]
 
 deriving instance Generic Accent
@@ -158,7 +161,7 @@ groupScore :: Score
 groupScore = Score "comment" $ [VoiceGroup [SingleVoice AcousticGrand minVEvents
                                            ,SingleVoice AcousticGrand minVEvents
                                            ,PolyVoice AcousticGrand [minVEvents,minVEvents]],
-                               VoiceGroup [SingleVoice AcousticGrand minVEvents
+                                VoiceGroup [SingleVoice AcousticGrand minVEvents
                                            ,SingleVoice AcousticGrand minVEvents
                                            ,PolyVoice AcousticGrand [minVEvents,minVEvents]]]
 

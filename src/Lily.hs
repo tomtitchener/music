@@ -479,11 +479,12 @@ parseVoice = choice [
                            *> parseInstrument <* string "\"\n")
                    <*> (parseVoiceEvent `endBy` space
                          <* string [str|\bar "|."
-                                       }
-                                       |]))
-  ,try (VoiceGroup <$> (string "\\new StaffGroup\n<<\n"
-                        *> parseVoice `endBy` space
-                        <* string ">>\n"))
+                                       }|]))
+  ,try (VoiceGroup <$> (string [str|\new StaffGroup
+                                   <<
+                                   |]
+                        *> (parseVoice `endBy` newline
+                            <* string ">>\n")))
   ,try (PolyVoice <$> (string [str|\new PianoStaff {
                                   <<
                                   \set PianoStaff.instrumentName = ##|]
@@ -492,8 +493,7 @@ parseVoice = choice [
                           *> parseInstrument <* string "\"\n")
                       <*> (parsePolyVoiceEvents `endBy` newline
                            <* string [str|>>
-                                         }
-                                         |]))
+                                         }|]))
   ]
 
 instance FromLily Voice where
