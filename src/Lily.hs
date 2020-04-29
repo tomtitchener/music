@@ -474,9 +474,10 @@ parseVoice = choice [
                         *> parseQuotedIdentifier
                         *> string [str| \set Voice.midiInstrument = ##"|]
                         *> parseInstrument <* string "\"\n")
-                   <*> (parseVoiceEvent `sepBy` space
-                        <* spaces
-                        <* string "\\bar \"|.\"\n}\n"))
+                   <*> (parseVoiceEvent `endBy` space
+                        <* string [str|\bar "|."
+                                      }
+                                      |]))
   ,try (VoiceGroup <$> (string "\\new StaffGroup\n<<\n"
                         *> parseVoice `endBy` space
                         <* string ">>\n"))
@@ -488,15 +489,18 @@ parseVoice = choice [
                        <* string ">>\n")
   ]
 
+{--
 parseVoice' :: Parser Voice
 parseVoice' = choice [
-  try (SingleVoice <$> (string "\\new Voice\n{\\set Staff.instrumentName = #"
+  try (SingleVoice <$> (string [str|
+                                   \new Voice
+                                   {\set Staff.instrumentName = ##|]
                         *> parseQuotedIdentifier
-                        *> string "\\set Voice.midiInstrument = #"
-                        *> parseInstrument <* string "\n")
-                   <*> (parseVoiceEvent `sepBy` space <*
-                        (spaces <*
-                         string "\\bar \"|.\"\n}\n")))
+                        *> string [str| \set Voice.midiInstrument = ##"|]
+                        *> parseInstrument
+                        <* string "\"\n")
+                   <*> (parseVoiceEvent `endBy` space
+                        <*  string "\\bar \"|.\"\n}\n")
   ,try (VoiceGroup <$> (string "\\new StaffGroup\n<<\n"
                         *> parseVoice `sepBy` space
                         <* string ">>\n"))
@@ -507,7 +511,7 @@ parseVoice' = choice [
                        <*> (parsePolyVoiceEvents `sepBy` space)
                        <* string ">>\n")
   ]
-  
+--}
 
 instance FromLily Voice where
   parseLily = mkParseLily parseVoice
@@ -530,8 +534,19 @@ instance ToLily Score where
         |]
 
 parseScore :: Parser Score
-parseScore = Score <$> (string "% " *> parseQuotedString <* string [str|$endline$\include "articulate.ly"$endline$\version "2.18.2"$endline$ structure = {$endline$<<$endline$|])
-                   <*> parseVoice `sepBy` space <* string [str|>>$endline$\score {\structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }$endline$\score { \unfoldRepeats \articulate \structure \midi { } }$endline$|]
+parseScore = Score <$> (string "% "
+                        *> parseQuotedString
+                        <* string [str|
+                                      \include "articulate.ly"
+                                      \version "2.18.2"
+                                      structure = {
+                                      <<
+                                      |])
+                   <*> parseVoice `sepBy` newline
+                   <* string [str|>>
+                                 \score {\structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }
+                                 \score { \unfoldRepeats \articulate \structure \midi { } }
+                                 |]
 
 instance FromLily Score where
   parseLily = mkParseLily parseScore
