@@ -432,7 +432,7 @@ instance ToLily Voice where
 toSingleVoice :: Instrument -> [VoiceEvent] -> String
 toSingleVoice instr events =
   [str|\new Voice
-      {\set Staff.instrumentName = ##"$shortInstrName instr$" \set Voice.midiInstrument = ##"$midiName instr$"
+      {\set Staff.instrumentName = ##"$shortInstrName instr$"\set Voice.midiInstrument = ##"$midiName instr$"
       $unwords (map toLily events)$ \bar "|."
       }
       |]
@@ -462,56 +462,39 @@ toPolyVoice instr eventss =
       |]
 
 parsePolyVoiceEvents :: Parser [VoiceEvent]
-parsePolyVoiceEvents = string "\\new Staff{\nnew Voice {\n"
-                       *> parseVoiceEvent `sepBy` space
-                       <* spaces
-                       <* string "\\bar \"|.\"\n}\n"
+parsePolyVoiceEvents = string [str|\new Staff {
+                                  \new Voice {
+                                  |]
+                       *> parseVoiceEvent `endBy` space
+                       <* string [str|\bar "|."
+                                     }
+                                     }|]
 
 parseVoice :: Parser Voice
 parseVoice = choice [
   try (SingleVoice <$> (string [str|\new Voice
                                    {\set Staff.instrumentName = ##|]
-                        *> parseQuotedIdentifier
-                        *> string [str| \set Voice.midiInstrument = ##"|]
-                        *> parseInstrument <* string "\"\n")
+                           *> parseQuotedIdentifier
+                           *> string [str|\set Voice.midiInstrument = ##"|]
+                           *> parseInstrument <* string "\"\n")
                    <*> (parseVoiceEvent `endBy` space
-                        <* string [str|\bar "|."
-                                      }
-                                      |]))
+                         <* string [str|\bar "|."
+                                       }
+                                       |]))
   ,try (VoiceGroup <$> (string "\\new StaffGroup\n<<\n"
                         *> parseVoice `endBy` space
                         <* string ">>\n"))
-  ,try (PolyVoice <$> (string "\\new PianoStaff {\n<<\n\\set PianoStaff.instrumentName = #"
-                         *> parseQuotedIdentifier
-                         *> string "\\set PianoStaff.midiInstrument = #"
-                         *> parseInstrument <* string "\n")
-                       <*> (parsePolyVoiceEvents `sepBy` space)
-                       <* string ">>\n")
+  ,try (PolyVoice <$> (string [str|\new PianoStaff {
+                                  <<
+                                  \set PianoStaff.instrumentName = ##|]
+                          *> parseQuotedIdentifier
+                          *> string [str|\set PianoStaff.midiInstrument = ##"|]
+                          *> parseInstrument <* string "\"\n")
+                      <*> (parsePolyVoiceEvents `endBy` newline
+                           <* string [str|>>
+                                         }
+                                         |]))
   ]
-
-{--
-parseVoice' :: Parser Voice
-parseVoice' = choice [
-  try (SingleVoice <$> (string [str|
-                                   \new Voice
-                                   {\set Staff.instrumentName = ##|]
-                        *> parseQuotedIdentifier
-                        *> string [str| \set Voice.midiInstrument = ##"|]
-                        *> parseInstrument
-                        <* string "\"\n")
-                   <*> (parseVoiceEvent `endBy` space
-                        <*  string "\\bar \"|.\"\n}\n")
-  ,try (VoiceGroup <$> (string "\\new StaffGroup\n<<\n"
-                        *> parseVoice `sepBy` space
-                        <* string ">>\n"))
-  ,try (PolyVoice <$> (string "\\new PianoStaff {\n<<\n\\set PianoStaff.instrumentName = #"
-                         *> parseQuotedIdentifier
-                         *> string "\\set PianoStaff.midiInstrument = #"
-                         *> parseInstrument <* string "\n")
-                       <*> (parsePolyVoiceEvents `sepBy` space)
-                       <* string ">>\n")
-  ]
---}
 
 instance FromLily Voice where
   parseLily = mkParseLily parseVoice

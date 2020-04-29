@@ -52,6 +52,7 @@ tests =
   ,testCase     "poly-voice score"   (testLilypond "poly-voice.ly" polyScore)
   ,testCase     "group-voice score"  (testLilypond "group-voice.ly" groupScore)
   ,testCase     "parseLily . toLily SingleVoice" (testVoice (SingleVoice AcousticGrand minVEvents))
+  ,testCase     "parseLily . toLily PolyVoice" (testVoice (PolyVoice AcousticGrand [minVEvents,minVEvents]))
   ]
 
 deriving instance Generic Accent
@@ -161,9 +162,6 @@ groupScore = Score "comment" $ [VoiceGroup [SingleVoice AcousticGrand minVEvents
                                            ,SingleVoice AcousticGrand minVEvents
                                            ,PolyVoice AcousticGrand [minVEvents,minVEvents]]]
 
-testVoice :: Voice -> Assertion
-testVoice v = assertEqual "voice" v ((parseLily . toLily $ v)::Voice)
-
 testLilypond :: FilePath -> Score -> Assertion
 testLilypond path score = do
   void $ runTestDriver (writeLily ("test/"<>path) score)
@@ -171,3 +169,5 @@ testLilypond path score = do
   unless (ExitSuccess == code) (putStr $ "\n" <> stderr)
   assertEqual "lilypond exit code" ExitSuccess code
 
+testVoice :: Voice -> Assertion
+testVoice v = assertEqual "voice" v ((parseLily . toLily $ v)::Voice)
