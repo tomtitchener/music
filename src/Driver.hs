@@ -121,7 +121,7 @@ pConfigSelector =
   ]
 
 parseIntMotto :: Parser (Maybe Int)
-parseIntMotto = (int >>= pure . Just) <|> (char 'r' >> pure Nothing)
+parseIntMotto = (Just <$> int) <|> (char 'r' >> pure Nothing)
 
 -- https://www.programming-idioms.org/idiom/10/shuffle-a-list/826/haskell
 -- shuffle :: [a] -> IO [a]
