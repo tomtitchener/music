@@ -1,3 +1,4 @@
 example_param:
   pits: pitches c des eisis f g
   durs: durations 1 2 4. 8 16
+  ints: intmotto r -3 5 7 r 0

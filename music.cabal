@@ -21,7 +21,6 @@ library
   other-modules:      
   build-depends:       base
                      , aeson
-                     , attoparsec
                      , containers
                      , free
                      , Interpolation
@@ -31,6 +30,7 @@ library
                      , MonadRandom
                      , natural-numbers
                      , parsec
+                     , parsec3-numbers
                      , protolude
                      , random
                      , random-shuffle

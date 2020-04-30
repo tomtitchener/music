@@ -18,6 +18,13 @@ packages:
       sha256: bd4beb677280f4586265c5657ab4e4a599c16f9e624df43d8edda6bf1e46dcdf
   original:
     hackage: natural-numbers-0.1.2.0@sha256:0fcbe1220979b83fa612fca73a1adb1a99ff43c84f9652b3ff32b2323309b43c,1407
+- completed:
+    hackage: parsec3-numbers-0.1.0@sha256:2f32295f9f4023f7f97da851549aaaf5e72866e98bf016a1ac3c6e8715bbaf8a,685
+    pantry-tree:
+      size: 264
+      sha256: a3d23f56cc2a9d17ed24ac5119a7b2102d40c0afeed5271f6b41b7597f181df0
+  original:
+    hackage: parsec3-numbers-0.1.0@sha256:2f32295f9f4023f7f97da851549aaaf5e72866e98bf016a1ac3c6e8715bbaf8a,685
 snapshots:
 - completed:
     size: 491372

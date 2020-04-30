@@ -42,6 +42,7 @@ packages:
 extra-deps: 
   - Interpolation-0.3.0@sha256:b0381214e6036ed2b6a0a04b7e4ec89736ca531ef03e315a3ec2c494059ff8fb,1319
   - natural-numbers-0.1.2.0@sha256:0fcbe1220979b83fa612fca73a1adb1a99ff43c84f9652b3ff32b2323309b43c,1407
+  - parsec3-numbers-0.1.0@sha256:2f32295f9f4023f7f97da851549aaaf5e72866e98bf016a1ac3c6e8715bbaf8a,685
 # Override default flag values for local packages and extra-deps
 # flags: {}
 

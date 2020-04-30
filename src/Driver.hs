@@ -19,6 +19,7 @@ import qualified Data.Text as T
 import System.Random
 import System.Random.Shuffle
 import Text.Parsec
+import Text.Parsec.Number
 import Text.Parsec.String
 
 import Lily
@@ -105,6 +106,7 @@ print s = liftF $ DoAction (Print (show s)) ()
 data ConfigSelector =
   SelPitches [Pitch]
   | SelDurations [Duration]
+  | SelIntervalMotto [Maybe Int]
   deriving (Eq, Show)
 
 parseConfigSelector :: String -> ConfigSelector
@@ -115,7 +117,11 @@ pConfigSelector =
   choice [
     SelPitches <$> (string "pitches" *> spaces *> parsePitch `sepBy` space)  -- "c d e"
   , SelDurations <$> (string "durations" *> spaces *> parseDuration `sepBy` space) -- "4 2. 2 16 32"
+  , SelIntervalMotto <$> (string "intmotto" *> spaces *> parseIntMotto `sepBy` space) -- "1 r 2 -3 4 r"
   ]
+
+parseIntMotto :: Parser (Maybe Int)
+parseIntMotto = (int >>= pure . Just) <|> (char 'r' >> pure Nothing)
 
 -- https://www.programming-idioms.org/idiom/10/shuffle-a-list/826/haskell
 -- shuffle :: [a] -> IO [a]
