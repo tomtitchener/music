@@ -1,15 +1,24 @@
-module Utils (addDur
+module Utils (incrOct
+             ,decrOct
+             ,addDur
              ,zDurSum
              ,sumDurs
              ,durSum2Durs
+             ,transpose
              ) where
 
 import Control.Monad.State
-import Data.List
+import Data.List hiding (transpose)
 import Data.Map
 import Data.Maybe
 
 import Types
+
+incrOct :: Octave -> Octave
+incrOct o = toEnum $ min (1 + fromEnum o) (fromEnum (maxBound::Octave))
+
+decrOct :: Octave -> Octave
+decrOct o = toEnum $ max (fromEnum o - 1) (fromEnum (minBound::Octave))
 
 -- in terms of 128ths, same order as Duration
 durVals :: [Int]
@@ -49,15 +58,23 @@ durSum2Durs = unfoldr f
         d = durVal2Duration ! v
         ds = DurationSum (i - v)
 
-
---Given list list of Pitch, a (Pitch,Octave) pair, and a list of Int
---answer the list of (Pitch,Octave) that corresponds to the transposition
---by interval item in [Int].  Note this is a pure routine.
 transpose :: [Pitch] -> [Int] -> (Pitch,Octave) -> [(Pitch,Octave)]
 transpose scale intervals = evalState (traverse f intervals)
   where
     f :: Int -> State (Pitch,Octave) (Pitch,Octave)
-    f i = get >>= pure . (xp i) >>= \po' -> put po' >> return po'
-    xp :: Int -> (Pitch,Octave) -> (Pitch,Octave)
-    xp _ po = po
+    f i = gets (xp scale i) >>= \po' -> put po' >> return po'
 
+xp :: [Pitch] -> Int -> (Pitch,Octave) -> (Pitch,Octave)
+xp scale i (p,o) = (p',o')
+  where
+    cntSteps = length scale
+    normScale = sort scale
+    pitInt = fromMaybe (error $ "pitch " <> show p <> " not in scale " <> show scale) $ elemIndex p normScale
+    cntOcts = (pitInt + i) `div` cntSteps
+    o' = if i < 0 then fpow (abs cntOcts) decrOct o; else fpow cntOcts incrOct o
+    pitIdx = (pitInt + i) `rem` cntSteps
+    p' = if pitIdx < 0 then normScale !! (cntSteps + pitIdx); else normScale !! pitIdx
+
+-- https://stackoverflow.com/questions/7423123/how-to-call-the-same-function-n-times
+fpow :: Int -> (a -> a) -> a -> a
+fpow n f x = iterate f x !! n
