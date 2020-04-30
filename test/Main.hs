@@ -144,26 +144,26 @@ minVEvents :: [VoiceEvent]
 minVEvents = [VeClef Treble
              ,VeTempo (TempoDur QDur 120)
              ,VeTimeSignature (TimeSignature 4 QDur)
-             ,(VeNote (Note C COct QDur Staccato Forte False))
-             ,(VeNote (Note G COct QDur NoAccent NoDynamic False))
-             ,(VeNote (Note C COct QDur NoAccent NoDynamic False))]
+             ,VeNote (Note C COct QDur Staccato Forte False)
+             ,VeNote (Note G COct QDur NoAccent NoDynamic False)
+             ,VeNote (Note C COct QDur NoAccent NoDynamic False)]
 
 minScore :: Score
-minScore = Score "comment" $ [SingleVoice AcousticGrand minVEvents]
+minScore = Score "comment" [SingleVoice AcousticGrand minVEvents]
 
 multiScore :: Score
-multiScore = Score "comment" $ [SingleVoice AcousticGrand minVEvents, SingleVoice AcousticGrand minVEvents]
+multiScore = Score "comment" [SingleVoice AcousticGrand minVEvents, SingleVoice AcousticGrand minVEvents]
 
 polyScore :: Score
-polyScore = Score "comment" $ [PolyVoice AcousticGrand [minVEvents,minVEvents]]
+polyScore = Score "comment" [PolyVoice AcousticGrand [minVEvents,minVEvents]]
 
 groupScore :: Score
-groupScore = Score "comment" $ [VoiceGroup [SingleVoice AcousticGrand minVEvents
-                                           ,SingleVoice AcousticGrand minVEvents
-                                           ,PolyVoice AcousticGrand [minVEvents,minVEvents]],
-                                VoiceGroup [SingleVoice AcousticGrand minVEvents
-                                           ,SingleVoice AcousticGrand minVEvents
-                                           ,PolyVoice AcousticGrand [minVEvents,minVEvents]]]
+groupScore = Score "comment" [VoiceGroup [SingleVoice AcousticGrand minVEvents
+                                         ,SingleVoice AcousticGrand minVEvents
+                                         ,PolyVoice AcousticGrand [minVEvents,minVEvents]],
+                              VoiceGroup [SingleVoice AcousticGrand minVEvents
+                                         ,SingleVoice AcousticGrand minVEvents
+                                         ,PolyVoice AcousticGrand [minVEvents,minVEvents]]]
 
 testLilypond :: FilePath -> Score -> Assertion
 testLilypond path score = do

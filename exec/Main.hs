@@ -18,7 +18,7 @@ import System.Directory (doesFileExist)
 import Driver
 import Types
 
-data Options = Options
+newtype Options = Options
   { _optConfigYaml   :: FilePath
   } deriving Show
 
