@@ -106,7 +106,9 @@ print s = liftF $ DoAction (Print (show s)) ()
 data ConfigSelector =
   SelPitches [Pitch]
   | SelDurations [Duration]
-  | SelIntervalMotto [Maybe Int]
+  | SelDurationss [[Duration]]
+  | SelMIntervals [Maybe Int]
+  | SelMIntervalss [[Maybe Int]]
   deriving (Eq, Show)
 
 parseConfigSelector :: String -> ConfigSelector
@@ -116,8 +118,10 @@ pConfigSelector :: Parser ConfigSelector
 pConfigSelector =
   choice [
     SelPitches <$> (string "pitches" *> spaces *> parsePitch `sepBy` space)  -- "c d e"
+  , SelDurationss <$> (string "durationss" *> spaces *> (parseDuration `sepBy` space) `sepBy` char ',') -- "4 2. 2,16 32 64,4 2 1"
   , SelDurations <$> (string "durations" *> spaces *> parseDuration `sepBy` space) -- "4 2. 2 16 32"
-  , SelIntervalMotto <$> (string "intmotto" *> spaces *> parseIntMotto `sepBy` space) -- "1 r 2 -3 4 r"
+  , SelMIntervalss <$> (string "intmottos" *> spaces *> (parseIntMotto `sepBy` space) `sepBy` char ',') -- "1 r 2 -3 4 r"
+  , SelMIntervals <$> (string "intmotto" *> spaces *> parseIntMotto `sepBy` space) -- "1 r 2 -3 4 r"
   ]
 
 parseIntMotto :: Parser (Maybe Int)

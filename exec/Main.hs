@@ -55,4 +55,4 @@ exRandElems :: Int -> Driver ()
 exRandElems n = randomElements [C,D,E,F,G,A,B] >>= print . take n
 
 exEnv :: Driver ()
-exEnv = getConfigParam "example_param.ints" >>= print
+exEnv = getConfigParam "example_param.intss" >>= print
