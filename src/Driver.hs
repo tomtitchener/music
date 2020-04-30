@@ -24,11 +24,6 @@ import Text.Parsec.String
 import Lily
 import Types
 
--- https://www.parsonsmatt.org/2017/09/22/what_does_free_buy_us.html
-
---randomSt :: (RandomGen g, Random a) => State g a
---randomSt = State random
-
 newtype DriverState = DriverState {
     _randGen :: StdGen
   } deriving (Show)
@@ -128,6 +123,11 @@ pConfigSelector =
 -- 	  i <- System.Random.randomRIO (0, length(x)-1)
 -- 	  r <- shuffle (take i x ++ drop (i+1) x)
 -- 	  return (x!!i : r)
+
+-- https://www.parsonsmatt.org/2017/09/22/what_does_free_buy_us.html
+
+--randomSt :: (RandomGen g, Random a) => State g a
+--randomSt = State random
 
 -----------------------------
 -- Many thanks to Dan Choi --

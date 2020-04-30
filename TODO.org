@@ -36,6 +36,10 @@ random items from a list.  Possible to take e.g. sub-lists
 randomly, though there'll be repeats.  Good enough for 
 starters.  For lack of repeats, could shuffle first, then
 take up to n items which would be without repeats.  
+** TODO Interval 
+Given list list of Pitch, a (Pitch,Octave) pair, and a list of Int
+answer the list of (Pitch,Octave) that corresponds to the transposition
+by interval item in [Int].  Note this is a pure routine.
 ** TODO Sample app to generate score with simple voice.
 ** TODO Non-pitched Percussion Voices
 

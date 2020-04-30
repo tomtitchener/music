@@ -4,6 +4,7 @@ module Utils (addDur
              ,durSum2Durs
              ) where
 
+import Control.Monad.State
 import Data.List
 import Data.Map
 import Data.Maybe
@@ -47,3 +48,16 @@ durSum2Durs = unfoldr f
         v = fromJust $ find (i >=) (reverse durVals)
         d = durVal2Duration ! v
         ds = DurationSum (i - v)
+
+
+--Given list list of Pitch, a (Pitch,Octave) pair, and a list of Int
+--answer the list of (Pitch,Octave) that corresponds to the transposition
+--by interval item in [Int].  Note this is a pure routine.
+transpose :: [Pitch] -> [Int] -> (Pitch,Octave) -> [(Pitch,Octave)]
+transpose scale intervals = evalState (traverse f intervals)
+  where
+    f :: Int -> State (Pitch,Octave) (Pitch,Octave)
+    f i = get >>= pure . (xp i) >>= \po' -> put po' >> return po'
+    xp :: Int -> (Pitch,Octave) -> (Pitch,Octave)
+    xp _ po = po
+
