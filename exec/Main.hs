@@ -40,13 +40,19 @@ main =  do
     if e
     then either (panic.show) identity <$> Y.decodeFileEither _optConfigYaml
     else pure Null
-  void . liftIO $ execStateT (runReaderT (runDriver exAction) (initEnv config)) initState
+  void . liftIO $ execStateT (runReaderT (runDriver $ exRandElems 20) (initEnv config)) initState
 
 exAction :: Driver ()
 exAction = writeLily "example.ly" (Note C COct QDur Accent Forte False)
 
-exComb :: Driver ()
-exComb = randomizeList [C,D,E,F,G,A,B] >>= mapM_ printLily
+exRandList :: Driver ()
+exRandList = randomizeList [C,D,E,F,G,A,B] >>= mapM_ print
+
+exRandElem :: Driver ()
+exRandElem = randomElement [C,D,E,F,G,A,B] >>= print
+
+exRandElems :: Int -> Driver ()
+exRandElems n = randomElements [C,D,E,F,G,A,B] >>= print . take n
 
 exEnv :: Driver ()
 exEnv = getConfigParam "example_param.durs" >>= print

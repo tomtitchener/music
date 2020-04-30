@@ -7,7 +7,7 @@
 *** DONE Applicative OptParse for command-line args starting with YAML config
 *** DONE Driver free monad with Env for config YAML, State for random generator
 *** DONE Helpers for consuming config YAML.  
-** TODO Test Infrastructure
+** DONE Test Infrastructure
 *** DONE Verb to write toLily ouput to file
 *** DONE Integrate driver with unit test
  1) get runDriver from Main in exec to Main in text to compile
@@ -18,7 +18,7 @@
  1) generate score with single voice
  2) run lilypond -- can just do "import System.Process .. exitCode <- system $ "lilypond " <> filename ... assert ExistSuccess == exitCode
  3) verify success via exit code (see above)
-*** TODO Integration tests
+*** DONE Integration tests
  1) poly voices
  2) voice groups
  3) mixed single, poly, and group voices
@@ -29,6 +29,13 @@ would be a mix of singletons Note, Rest, Chord, KeySignature, with
 wrappers Cleff, Tempo, TimeSignature.  Seemed like a cleaner design
 to stick with uniform wrappers for voice events, maybe with simplified
 constructor names.
+** DONE Answer random elment from list*
+** DONE Answer n random elments from list no repeats
+Unless n > length list.  Easy to make infinite list of
+random items from a list.  Possible to take e.g. sub-lists
+randomly, though there'll be repeats.  Good enough for 
+starters.  For lack of repeats, could shuffle first, then
+take up to n items which would be without repeats.  
 ** TODO Sample app to generate score with simple voice.
 ** TODO Non-pitched Percussion Voices
 

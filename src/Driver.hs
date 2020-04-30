@@ -49,7 +49,9 @@ data ActionNoValue where
   Print     :: String -> ActionNoValue
 
 data ActionWithValue a where
-  RandomizeList :: [b] -> ActionWithValue [b]
+  RandomElement  :: [b] -> ActionWithValue b
+  RandomElements :: [b] -> ActionWithValue [b]
+  RandomizeList  :: [b] -> ActionWithValue [b]
   GetConfigParam :: String -> ActionWithValue ConfigSelector
 
 data DriverF next where
@@ -63,17 +65,15 @@ type Driver = Free DriverF
 runDriver :: forall a m.(MonadIO m, MonadRandom m, MonadState DriverState m, MonadReader DriverEnv m) => Driver a -> m a
 runDriver (Free (DoActionThen act k)) =
   case act of
-    RandomizeList l -> do
-      l' <- shuffleM l
-      runDriver $ k l'
-    GetConfigParam path -> do
-      val <- asks _config >>= pure . lookupConfig path
-      runDriver $ k val
+    RandomElement  l    -> getRandomR (0, (length l) - 1) >>= runDriver . k . (l !!)
+    RandomElements l    -> getRandomRs (0, (length l) - 1) >>= runDriver . k . map (l !!)
+    RandomizeList  l    -> shuffleM l >>= runDriver . k
+    GetConfigParam path -> asks _config >>= pure . lookupConfig path >>= runDriver . k
 runDriver (Free (DoAction act k)) =
   case act of
-    WriteLily fName l -> liftIO (writeFile fName (toLily l)) *> runDriver k
-    PrintLily l -> liftIO (putStrLn (toLily l)) *> runDriver k
-    Print t -> liftIO (putStrLn t) *> runDriver k
+    WriteLily fn l -> liftIO (writeFile fn (toLily l)) *> runDriver k
+    PrintLily l    -> liftIO (putStrLn (toLily l)) *> runDriver k
+    Print t        -> liftIO (putStrLn t) *> runDriver k
 runDriver (Pure k) = pure k
 
 lookupConfig :: String -> Value -> ConfigSelector
@@ -91,6 +91,12 @@ writeLily fName l = liftF $ DoAction (WriteLily fName l) ()
 
 printLily :: ToLily a => a -> Driver ()
 printLily l = liftF $ DoAction (PrintLily l) ()
+
+randomElement :: ToLily a => [a] -> Driver a
+randomElement ls = liftF $ DoActionThen (RandomElement ls) id
+
+randomElements :: ToLily a => [a] -> Driver [a]
+randomElements ls = liftF $ DoActionThen (RandomElements ls) id
 
 randomizeList :: ToLily a => [a] -> Driver [a]
 randomizeList ls = liftF $ DoActionThen (RandomizeList ls) id
@@ -126,4 +132,3 @@ pConfigSelector =
 -----------------------------
 -- Many thanks to Dan Choi --
 -----------------------------
-
