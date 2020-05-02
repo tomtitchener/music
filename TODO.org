@@ -43,6 +43,7 @@ by interval item in [Int].  Note this is a pure routine.
 ** DONE Config of interval motto
 Consist of <digit> or 'r', parses as [Maybe Int] where
 Nothing means rest, or absence of an interval.  
+** TODO Parse parseLily . toLily for Score
 ** TODO Sample app to generate score with simple voice.
 ** TODO Non-pitched Percussion Voices
 

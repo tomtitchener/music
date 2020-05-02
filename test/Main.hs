@@ -47,15 +47,15 @@ tests =
   ,testProperty "parseLily . toLily Tempo == id" (propParseLilytoLilyVal @Tempo)
   ,testProperty "parseLily . toLily TimeSignature == id" (propParseLilytoLilyVal @TimeSignature)
   ,testProperty "parseLily . toLily Chord == id" (propParseLilytoLilyVal @Chord)
+  --
+  ,testCase     "parseLily . toLily SingleVoice" (assertParseLilytoLilyVal singleVoice)
+  ,testCase     "parseLily . toLily PolyVoice"   (assertParseLilytoLilyVal polyVoice)
+  ,testCase     "parseLily . toLily VoiceGroup"  (assertParseLilytoLilyVal voiceGroup)
+  --
   ,testCase     "single-voice score" (testLilypond "single-voice.ly" minScore)
   ,testCase     "multi-voice score"  (testLilypond "multi-voice.ly" multiScore)
   ,testCase     "poly-voice score"   (testLilypond "poly-voice.ly" polyScore)
   ,testCase     "group-voice score"  (testLilypond "group-voice.ly" groupScore)
-  ,testCase     "parseLily . toLily SingleVoice" (testVoice (SingleVoice AcousticGrand minVEvents))
-  ,testCase     "parseLily . toLily PolyVoice" (testVoice (PolyVoice AcousticGrand [minVEvents,minVEvents]))
-  ,testCase     "parseLily . toLily VoiceGroup" (testVoice (VoiceGroup [SingleVoice AcousticGrand minVEvents
-                                                                       ,SingleVoice AcousticGrand minVEvents
-                                                                       ,PolyVoice AcousticGrand [minVEvents,minVEvents]]))
   ]
 
 deriving instance Generic Accent
@@ -148,22 +148,29 @@ minVEvents = [VeClef Treble
              ,VeNote (Note G COct QDur NoAccent NoDynamic False)
              ,VeNote (Note C COct QDur NoAccent NoDynamic False)]
 
+assertParseLilytoLilyVal :: (Show a, Eq a, ToLily a, FromLily a) => a -> Assertion
+assertParseLilytoLilyVal a = assertEqual "" a (parseLily (toLily a))
+
+singleVoice :: Voice
+singleVoice = SingleVoice AcousticGrand minVEvents
+
+polyVoice :: Voice
+polyVoice = PolyVoice AcousticGrand [minVEvents,minVEvents]
+
+voiceGroup :: Voice
+voiceGroup = VoiceGroup [singleVoice, singleVoice, polyVoice]
+
 minScore :: Score
-minScore = Score "comment" [SingleVoice AcousticGrand minVEvents]
+minScore = Score "comment" [singleVoice]
 
 multiScore :: Score
-multiScore = Score "comment" [SingleVoice AcousticGrand minVEvents, SingleVoice AcousticGrand minVEvents]
+multiScore = Score "comment" [singleVoice,singleVoice]
 
 polyScore :: Score
-polyScore = Score "comment" [PolyVoice AcousticGrand [minVEvents,minVEvents]]
+polyScore = Score "comment" [polyVoice]
 
 groupScore :: Score
-groupScore = Score "comment" [VoiceGroup [SingleVoice AcousticGrand minVEvents
-                                         ,SingleVoice AcousticGrand minVEvents
-                                         ,PolyVoice AcousticGrand [minVEvents,minVEvents]],
-                              VoiceGroup [SingleVoice AcousticGrand minVEvents
-                                         ,SingleVoice AcousticGrand minVEvents
-                                         ,PolyVoice AcousticGrand [minVEvents,minVEvents]]]
+groupScore = Score "comment" [voiceGroup, voiceGroup]
 
 testLilypond :: FilePath -> Score -> Assertion
 testLilypond path score = do
@@ -172,5 +179,3 @@ testLilypond path score = do
   unless (ExitSuccess == code) (putStr $ "\n" <> stderr)
   assertEqual "lilypond exit code" ExitSuccess code
 
-testVoice :: Voice -> Assertion
-testVoice v = assertEqual "voice" v ((parseLily . toLily $ v)::Voice)
