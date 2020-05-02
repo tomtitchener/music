@@ -105,6 +105,12 @@ newtype DurationSum = DurationSum { getDurSum :: Int }
 -- Accent --
 ------------
 
+accentStrs :: [String]
+accentStrs = ["^", "-", "!", ".",  ">", "_", "espressivo", ""]
+
+pAccentStr :: Parser Accent
+pAccentStr = choice (zipWith mkParser (init accentStrs) (init accentVals)) <|> pure NoAccent
+
 accentSyms :: [String]
 accentSyms = ["-^", "--", "-!", "-.",  "->", "-_", "\\espressivo", ""]
 
@@ -123,6 +129,12 @@ instance FromLily Accent  where
 -------------
 -- Dynamic --
 -------------
+
+dynamicStrs :: [String]
+dynamicStrs = ["ppppp", "pppp", "ppp", "pp", "p", "mp", "mf", "fffff", "ffff", "fff", "ff", "fp", "f", "sff", "sfz", "sf", "spp", "sp", "rfz", ""]
+
+pDynamicStr :: Parser Dynamic
+pDynamicStr = choice (zipWith mkParser (init dynamicStrs) (init dynamicVals)) <|> pure NoDynamic
 
 dynamicSyms :: [String]
 dynamicSyms = ["\\ppppp", "\\pppp", "\\ppp", "\\pp", "\\p", "\\mp", "\\mf", "\\fffff", "\\ffff", "\\fff", "\\ff", "\\fp", "\\f", "\\sff", "\\sfz", "\\sf", "\\spp", "\\sp", "\\rfz", ""]

@@ -105,12 +105,17 @@ print s = liftF $ DoAction (Print (show s)) ()
 
 data ConfigSelector =
   SelPitches [Pitch]
+  | SelAccents [Accent]
+  | SelAccentss [[Accent]]
+  | SelDynamics [Dynamic]
+  | SelDynamicss [[Dynamic]]
   | SelDurations [Duration]
   | SelDurationss [[Duration]]
   | SelMIntervals [Maybe Int]
   | SelMIntervalss [[Maybe Int]]
   | SelPitOctPr (Pitch,Octave)
   | SelPitOctPrs [(Pitch,Octave)]
+  | SelInstrument Instrument
   deriving (Eq, Show)
 
 parseConfigSelector :: String -> ConfigSelector
@@ -119,14 +124,25 @@ parseConfigSelector = either (error . show) id . parse pConfigSelector ""
 pConfigSelector :: Parser ConfigSelector
 pConfigSelector =
   choice [
-    try $ SelPitches <$> (string "pitches" *> spaces *> parsePitch `sepBy` space)          -- "c d e"
-  , try $ SelDurationss <$> (string "durationss" *> spaces *> pDurations `sepBy` char ',') -- "4 2. 2,16 32 64,4 2 1"
-  , try $ SelDurations <$> (string "durations" *> spaces *> pDurations)                    -- "4 2. 2 16 32"
-  , try $ SelMIntervalss <$> (string "intmottos" *> spaces *> pMInts `sepBy` char ',')     -- "1 r 2 -3 4 r"
-  , try $ SelMIntervals <$> (string "intmotto" *> spaces *> pMInts)                        -- "1 r 2 -3 4 r"
-  , try $ SelPitOctPrs <$> (string "pitoctprs" *> spaces *> pPitOctPr `sepBy` char ',')    -- "(c,"'"),(g,""),(d,",")
-  , try $ SelPitOctPr <$> (string "pitoctpr" *> spaces *> pPitOctPr)                       -- "(c,"'")
+    try $ SelPitches <$> (string "pitches" *> spaces *> parsePitch `sepBy` space)          -- c d e
+  , try $ SelAccentss <$> (string "accentss" *> spaces *> pAccents `sepBy` char ',')       -- _ > .,espressivo ^ -
+  , try $ SelAccents <$> (string "accents" *> spaces *> pAccents)                          -- ^ - !
+  , try $ SelDynamicss <$> (string "dynamicss" *> spaces *> pDynamics `sepBy` char ',')    -- p f pp,sf ff rfz
+  , try $ SelDynamics <$> (string "dynamics" *> spaces *> pDynamics)                       -- p f pp
+  , try $ SelDurationss <$> (string "durationss" *> spaces *> pDurations `sepBy` char ',') -- 4 2. 2,16 32 64,4 2 1
+  , try $ SelDurations <$> (string "durations" *> spaces *> pDurations)                    -- 4 2. 2 16 32
+  , try $ SelMIntervalss <$> (string "intmottos" *> spaces *> pMInts `sepBy` char ',')     -- 1 r 2 -3 4 r
+  , try $ SelMIntervals <$> (string "intmotto" *> spaces *> pMInts)                        -- 1 r 2 -3 4 r
+  , try $ SelPitOctPrs <$> (string "pitoctprs" *> spaces *> pPitOctPr `sepBy` char ',')    -- (c,"'"),(g,""),(d,",")
+  , try $ SelPitOctPr <$> (string "pitoctpr" *> spaces *> pPitOctPr)                       -- (c,"'")
+  , try $ SelInstrument <$> (string "instrument" *> spaces *> parseInstrument)             -- acoustic grand
   ]
+
+pAccents :: Parser [Accent]
+pAccents = pAccentStr `sepBy` space
+
+pDynamics :: Parser [Dynamic]
+pDynamics = pDynamicStr `sepBy` space
 
 pDurations :: Parser [Duration]
 pDurations = parseDuration `sepBy` space

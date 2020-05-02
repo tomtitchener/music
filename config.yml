@@ -1,8 +1,39 @@
 example_param:
   pits:    pitches c des eisis f g
+  accs:    accents _ "" .
+  accss:   accentss _ > .,espressivo ! > ^
+  dyns:    dynamics p f ""
+  dynss:   dynamicss p f pp,sf ff sfz
   durs:    durations 1 2 4. 8 16
   durss:   durationss 1 2 4.,8 16,8 8 8 4
   ints:    intmotto r -3 5 7 r 0
   intss:   intmottos r -3 5 7 r 0,3 2 1 r r
   pitoct:  pitoctpr (c,"'")
   pitocts: pitoctprs (c,"'"),(g,""),(d,",")
+  instrument: instrument acoustic grand
+
+example_texture:
+  voice1:
+    instr:  instrument acoustic grand
+    clef:   clef treble
+    scale:  pitches c d e f g a b
+    start:  pitoct c "''"
+  voice2:
+    instr:  instrument acoustic grand
+    clef:   clef treble
+    scale:  pitches c d e f g a b
+    start:  pitoct c "'"
+  voice3:
+    instr:  instrument acoustic grand
+    clef:   clef bass
+    scale:  pitches c d e f g a b
+    start:  pitoct c ""
+  voice4:
+    instr:  instrument acoustic grand
+    clef:   clef bass
+    scale:  pitches c d e f g a b
+    start:  pitoct c ","
+  intss:    intmottos r -3 5 7 r 0,3 2 1 r r 8
+  durss:    durationss 8 8 4 8. 16 4,2 16 16 16 16 4
+  accss:    accentss ^ ^ - - . .,_ _ ^ . ^ .
+  

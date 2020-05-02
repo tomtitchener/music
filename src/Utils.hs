@@ -5,6 +5,8 @@ module Utils (incrOct
              ,sumDurs
              ,durSum2Durs
              ,transpose
+             ,mtranspose
+             ,genNotes
              ) where
 
 import Control.Monad.State
@@ -62,13 +64,21 @@ transpose :: [Pitch] -> [Int] -> (Pitch,Octave) -> [(Pitch,Octave)]
 transpose scale intervals = evalState (traverse f intervals)
   where
     f :: Int -> State (Pitch,Octave) (Pitch,Octave)
-    f i = gets (xp scale i) >>= \po' -> put po' >> return po'
+    f i = gets (xp scale i) >>= \po' -> put po' >> pure po'
 
+mtranspose :: [Pitch] -> [Maybe Int] -> (Pitch,Octave) -> [Maybe (Pitch,Octave)]
+mtranspose scale intervals = evalState (traverse f intervals)
+  where
+    f :: Maybe Int -> State (Pitch,Octave) (Maybe (Pitch,Octave))
+    f Nothing  = pure Nothing
+    f (Just i) = gets (xp scale i) >>= \po' -> put po' >> pure (Just po')
+
+-- partial if Pitch from (Pitch,Octave) is not element of [Pitch]
 xp :: [Pitch] -> Int -> (Pitch,Octave) -> (Pitch,Octave)
 xp scale i (p,o) = (p',o')
   where
     cntSteps = length scale
-    normScale = sort scale
+    normScale = sort scale -- To [C..B] or closest enharmonic to compute new octave
     pitInt = fromMaybe (error $ "pitch " <> show p <> " not in scale " <> show scale) $ elemIndex p normScale
     cntOcts = (pitInt + i) `div` cntSteps
     o' = if i < 0 then fpow (abs cntOcts) decrOct o; else fpow cntOcts incrOct o
@@ -78,3 +88,9 @@ xp scale i (p,o) = (p',o')
 -- https://stackoverflow.com/questions/7423123/how-to-call-the-same-function-n-times
 fpow :: Int -> (a -> a) -> a -> a
 fpow n f x = iterate f x !! n
+
+genNotes :: [Maybe (Pitch,Octave)] -> [Duration] -> [Accent] -> [Dynamic] -> [VoiceEvent]
+genNotes = zipWith4 f
+  where
+    f Nothing du _ _ = VeRest $ Rest du
+    f (Just (p,o)) du a dy = VeNote (Note p o du a dy False)

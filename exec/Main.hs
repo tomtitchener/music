@@ -58,4 +58,4 @@ printConfigParam :: [Char] -> Driver ()
 printConfigParam sel = getConfigParam ("example_param." <> sel) >>= print
 
 exEnv :: Driver ()
-exEnv = mapM_ printConfigParam ["pits","durs","durss","ints","intss","pitoct","pitocts"]
+exEnv = mapM_ printConfigParam ["pits","accs","accss","dyns","dynss","durs","durss","ints","intss","pitoct","pitocts","instrument"]
