@@ -52,6 +52,11 @@ tests =
   ,testCase     "parseLily . toLily PolyVoice"   (assertParseLilytoLilyVal polyVoice)
   ,testCase     "parseLily . toLily VoiceGroup"  (assertParseLilytoLilyVal voiceGroup)
   --
+  ,testCase     "parseLily . toLily min score"   (assertParseLilytoLilyVal minScore)
+  ,testCase     "parseLily . toLily multi score" (assertParseLilytoLilyVal multiScore)
+  ,testCase     "parseLily . toLily poly score"  (assertParseLilytoLilyVal polyScore)
+  ,testCase     "parseLily . toLily group score" (assertParseLilytoLilyVal groupScore)
+  --
   ,testCase     "single-voice score" (testLilypond "single-voice.ly" minScore)
   ,testCase     "multi-voice score"  (testLilypond "multi-voice.ly" multiScore)
   ,testCase     "poly-voice score"   (testLilypond "poly-voice.ly" polyScore)
@@ -59,25 +64,15 @@ tests =
   ]
 
 deriving instance Generic Accent
-
 deriving instance Generic Chord
-
 deriving instance Generic Duration
-
 deriving instance Generic Dynamic
-
 deriving instance Generic KeySignature
-
 deriving instance Generic Mode
-
 deriving instance Generic Note
-
 deriving instance Generic Octave
-
 deriving instance Generic Pitch
-
 deriving instance Generic Rest
-
 deriving instance Generic TimeSignature
 
 instance Arbitrary Duration where

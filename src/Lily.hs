@@ -474,26 +474,26 @@ parseVoice :: Parser Voice
 parseVoice = choice [
   try (SingleVoice <$> (string [str|\new Voice
                                    {\set Staff.instrumentName = ##|]
-                           *> parseQuotedIdentifier
-                           *> string [str|\set Voice.midiInstrument = ##"|]
-                           *> parseInstrument <* string "\"\n")
+                        *> parseQuotedIdentifier
+                        *> string [str|\set Voice.midiInstrument = ##"|]
+                        *> parseInstrument <* string [str|"$endline$|])
                    <*> (parseVoiceEvent `endBy` space
-                         <* string [str|\bar "|."
-                                       }|]))
+                        <* string [str|\bar "|."
+                                      }|]))
   ,try (VoiceGroup <$> (string [str|\new StaffGroup
                                    <<
                                    |]
                         *> (parseVoice `endBy` newline
-                            <* string ">>\n")))
+                            <* string ">>")))
   ,try (PolyVoice <$> (string [str|\new PianoStaff {
                                   <<
                                   \set PianoStaff.instrumentName = ##|]
-                          *> parseQuotedIdentifier
-                          *> string [str|\set PianoStaff.midiInstrument = ##"|]
-                          *> parseInstrument <* string "\"\n")
-                      <*> (parsePolyVoiceEvents `endBy` newline
-                           <* string [str|>>
-                                         }|]))
+                       *> parseQuotedIdentifier
+                       *> string [str|\set PianoStaff.midiInstrument = ##"|]
+                       *> parseInstrument <* string [str|"$endline$|])
+                       <*> (parsePolyVoiceEvents `endBy` newline
+                            <* string [str|>>
+                                          }|]))
   ]
 
 instance FromLily Voice where
@@ -512,24 +512,24 @@ instance ToLily Score where
         <<
         $mconcat (map toLily voices)$>>
         }
-        \score {\structure  \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }
+        \score {\structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }
         \score { \unfoldRepeats \articulate \structure \midi {  } }
         |]
 
 parseScore :: Parser Score
-parseScore = Score <$> (string "% "
-                        *> parseQuotedString
-                        <* string [str|
-                                      \include "articulate.ly"
-                                      \version "2.18.2"
-                                      structure = {
-                                      <<
-                                      |])
-                   <*> parseVoice `sepBy` newline
-                   <* string [str|>>
-                                 \score {\structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }
-                                 \score { \unfoldRepeats \articulate \structure \midi { } }
-                                 |]
+parseScore = Score <$> (string "% " *> parseQuotedString
+                         <* string [str|
+                                       \include "articulate.ly"
+                                       \version "2.18.2"
+                                       structure = {
+                                       <<
+                                       |])
+                       <*> parseVoice `endBy` newline
+                       <* string [str|>>
+                                     }
+                                     \score {\structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }
+                                     \score { \unfoldRepeats \articulate \structure \midi {  } }
+                                     |]
 
 instance FromLily Score where
   parseLily = mkParseLily parseScore
