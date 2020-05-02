@@ -46,7 +46,7 @@ data Accent = Marcato | Tenuto | Staccatissimo | Staccato | Accent | Portato | E
 data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FFFF | FFFFF | FP | SF | SFF | SP | SPP | SFZ | RFZ | NoDynamic
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-data Note = Note { _notePit :: Pitch, _noteoOct :: Octave, _noteDur :: Duration, _noteAcc :: Accent, _notedDyn :: Dynamic, _noteSlur :: Bool }
+data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAcc :: Accent, _notedDyn :: Dynamic, _noteSlur :: Bool }
   deriving (Eq, Ord, Show)
 
 newtype Rest = Rest { _rdur :: Duration }

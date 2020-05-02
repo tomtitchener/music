@@ -54,5 +54,8 @@ exRandElem = randomElement [C,D,E,F,G,A,B] >>= print
 exRandElems :: Int -> Driver ()
 exRandElems n = randomElements [C,D,E,F,G,A,B] >>= print . take n
 
+printConfigParam :: [Char] -> Driver ()
+printConfigParam sel = getConfigParam ("example_param." <> sel) >>= print
+
 exEnv :: Driver ()
-exEnv = getConfigParam "example_param.intss" >>= print
+exEnv = mapM_ printConfigParam ["pits","durs","durss","ints","intss","pitoct","pitocts"]

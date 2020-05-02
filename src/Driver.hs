@@ -109,6 +109,8 @@ data ConfigSelector =
   | SelDurationss [[Duration]]
   | SelMIntervals [Maybe Int]
   | SelMIntervalss [[Maybe Int]]
+  | SelPitOctPr (Pitch,Octave)
+  | SelPitOctPrs [(Pitch,Octave)]
   deriving (Eq, Show)
 
 parseConfigSelector :: String -> ConfigSelector
@@ -117,15 +119,29 @@ parseConfigSelector = either (error . show) id . parse pConfigSelector ""
 pConfigSelector :: Parser ConfigSelector
 pConfigSelector =
   choice [
-    SelPitches <$> (string "pitches" *> spaces *> parsePitch `sepBy` space)  -- "c d e"
-  , SelDurationss <$> (string "durationss" *> spaces *> (parseDuration `sepBy` space) `sepBy` char ',') -- "4 2. 2,16 32 64,4 2 1"
-  , SelDurations <$> (string "durations" *> spaces *> parseDuration `sepBy` space) -- "4 2. 2 16 32"
-  , SelMIntervalss <$> (string "intmottos" *> spaces *> (parseIntMotto `sepBy` space) `sepBy` char ',') -- "1 r 2 -3 4 r"
-  , SelMIntervals <$> (string "intmotto" *> spaces *> parseIntMotto `sepBy` space) -- "1 r 2 -3 4 r"
+    try $ SelPitches <$> (string "pitches" *> spaces *> parsePitch `sepBy` space)          -- "c d e"
+  , try $ SelDurationss <$> (string "durationss" *> spaces *> pDurations `sepBy` char ',') -- "4 2. 2,16 32 64,4 2 1"
+  , try $ SelDurations <$> (string "durations" *> spaces *> pDurations)                    -- "4 2. 2 16 32"
+  , try $ SelMIntervalss <$> (string "intmottos" *> spaces *> pMInts `sepBy` char ',')     -- "1 r 2 -3 4 r"
+  , try $ SelMIntervals <$> (string "intmotto" *> spaces *> pMInts)                        -- "1 r 2 -3 4 r"
+  , try $ SelPitOctPrs <$> (string "pitoctprs" *> spaces *> pPitOctPr `sepBy` char ',')    -- "(c,"'"),(g,""),(d,",")
+  , try $ SelPitOctPr <$> (string "pitoctpr" *> spaces *> pPitOctPr)                       -- "(c,"'")
   ]
 
-parseIntMotto :: Parser (Maybe Int)
-parseIntMotto = (Just <$> int) <|> (char 'r' >> pure Nothing)
+pDurations :: Parser [Duration]
+pDurations = parseDuration `sepBy` space
+
+pMInt :: Parser (Maybe Int)
+pMInt = (Just <$> int) <|> (char 'r' >> pure Nothing)
+
+pMInts :: Parser [Maybe Int]
+pMInts = pMInt `sepBy` space
+
+pPitOctPr :: Parser (Pitch,Octave)
+pPitOctPr = between (char '(') (char ')') ((,) <$> parsePitch <*> (char ',' *> pQuotedOct))
+
+pQuotedOct :: Parser Octave
+pQuotedOct = between (symbol '"') (symbol '"') parseOctave
 
 -- https://www.programming-idioms.org/idiom/10/shuffle-a-list/826/haskell
 -- shuffle :: [a] -> IO [a]

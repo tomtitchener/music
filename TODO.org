@@ -40,24 +40,9 @@ take up to n items which would be without repeats.
 Given list list of Pitch, a (Pitch,Octave) pair, and a list of Int
 answer the list of (Pitch,Octave) that corresponds to the transposition
 by interval item in [Int].  Note this is a pure routine.
-** TODO Config of interval motto
+** DONE Config of interval motto
 Consist of <digit> or 'r', parses as [Maybe Int] where
-Nothing means rest, or absence of an interval.  Point is
-to combine with a) list pitch as scale, b) pair Pitch, Octave
-as Lily inputs like (c,') though really, that doesn't work due
-to absence meaning octave below middle C, though it could be
-(c,"'") so you can have (c,""), I suppose, or maybe even a list
-of them so you could transpose given different starting pitches.
-How to use in combination with randomization?  Randomization 
-drives selection of mottos, so what you want is a list of mottos,
-even if they're only [Maybe Int] skeletons.  These are intervals
-that want first a starting (Pitch,Octave) pair to yield a 
-[(Pitch,Octave)] result.  Oh, except I guess sometimes that's 
-going to be a Rest instead of a (Pitch,Octave), ugh.  Do with 
-canned types, that's [Maybe (Pitch,Octave)] with Nothing continuing
-to indicate a future rest.  That only leaves dressing it up with
-a list of Durations and at least Accents to get something to
-score.
+Nothing means rest, or absence of an interval.  
 ** TODO Sample app to generate score with simple voice.
 ** TODO Non-pitched Percussion Voices
 
