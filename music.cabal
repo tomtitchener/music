@@ -51,6 +51,7 @@ executable music
                      , music
                      , optparse-applicative
                      , protolude
+                     , random
                      , text
                      , transformers
                      , yaml

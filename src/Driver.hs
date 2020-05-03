@@ -29,8 +29,9 @@ newtype DriverState = DriverState {
     _randGen :: StdGen
   } deriving (Show)
 
-initState :: DriverState
-initState = DriverState (mkStdGen 5)
+initState :: String -> StdGen -> DriverState
+initState "" gen = DriverState gen
+initState seed _ = DriverState ((read seed)::StdGen)
 
 newtype DriverEnv = DriverEnv {
     _config :: Value
