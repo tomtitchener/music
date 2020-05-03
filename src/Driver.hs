@@ -11,12 +11,10 @@ import Control.Lens
 import Control.Monad.Free
 import Control.Monad.Random.Class
 import Control.Monad.Reader
-import Control.Monad.State
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.List.Split hiding (sepBy)
 import qualified Data.Text as T
-import System.Random
 import System.Random.Shuffle
 import Text.Parsec
 import Text.Parsec.Number
@@ -25,19 +23,12 @@ import Text.Parsec.String
 import Lily
 import Types
 
-newtype DriverState = DriverState {
-    _randGen :: StdGen
-  } deriving (Show)
-
-initState :: String -> StdGen -> DriverState
-initState "" gen = DriverState gen
-initState seed _ = DriverState ((read seed)::StdGen)
-
-newtype DriverEnv = DriverEnv {
-    _config :: Value
+data DriverEnv = DriverEnv {
+     _config :: Value
+    ,_seed   :: String
   } deriving Show
 
-initEnv :: Value -> DriverEnv
+initEnv :: Value -> String -> DriverEnv
 initEnv = DriverEnv
 
 data ActionNoValue where
@@ -59,7 +50,7 @@ deriving instance Functor DriverF
 
 type Driver = Free DriverF
 
-runDriver :: forall a m.(MonadIO m, MonadRandom m, MonadState DriverState m, MonadReader DriverEnv m) => Driver a -> m a
+runDriver :: forall a m.(MonadIO m, MonadRandom m, MonadReader DriverEnv m) => Driver a -> m a
 runDriver (Free (DoActionThen act k)) =
   case act of
     RandomElement  l    -> getRandomR (0, length l - 1) >>= runDriver . k . (l !!)
@@ -161,16 +152,7 @@ pQuotedOct :: Parser Octave
 pQuotedOct = between (symbol '"') (symbol '"') parseOctave
 
 -- https://www.programming-idioms.org/idiom/10/shuffle-a-list/826/haskell
--- shuffle :: [a] -> IO [a]
--- shuffle x = if length x < 2 then return x else do
--- 	  i <- System.Random.randomRIO (0, length(x)-1)
--- 	  r <- shuffle (take i x ++ drop (i+1) x)
--- 	  return (x!!i : r)
-
 -- https://www.parsonsmatt.org/2017/09/22/what_does_free_buy_us.html
-
---randomSt :: (RandomGen g, Random a) => State g a
---randomSt = State random
 
 -----------------------------
 -- Many thanks to Dan Choi --

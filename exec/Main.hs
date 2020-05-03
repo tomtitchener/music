@@ -8,10 +8,10 @@ module Main where
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
-import Control.Monad.Trans.State
 import Data.Aeson hiding (Options)
 import qualified Data.Yaml as Y
 import Options.Applicative
+import qualified Prelude as P (read, show)
 import Protolude hiding (print, to)
 import System.Directory (doesFileExist)
 import System.Random
@@ -30,6 +30,7 @@ options = Options
                  <> value "config.yml"
                  <> help "Default: config.yml, if available")
   <*> strOption (short 's' <> metavar "RANDOM_SEED"
+                 <>  value ""
                  <> help "Seed string for random generator")
 
 opts :: ParserInfo Options
@@ -39,13 +40,15 @@ opts = info (helper <*> options)
 main :: IO ()
 main =  do
   Options{..} <- execParser opts
-  stdGen <- getStdGen
   config <- do
     e <- doesFileExist _optConfigYaml
     if e
     then either (panic.show) identity <$> Y.decodeFileEither _optConfigYaml
     else pure Null
-  void . liftIO $ execStateT (runReaderT (runDriver exEnv) (initEnv config)) (initState _optRandomSeed stdGen)
+  unless (null _optRandomSeed) $ do
+    setStdGen (P.read _optRandomSeed::StdGen)
+  gen <- getStdGen
+  void . liftIO $ runReaderT (runDriver exRandList) (initEnv config (P.show gen))
 
 exAction :: Driver ()
 exAction = writeLily "example.ly" (Note C COct QDur Accent Forte False)

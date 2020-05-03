@@ -12,7 +12,6 @@ module Main (
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
-import Control.Monad.Trans.State
 import Data.Aeson
 import GHC.Generics
 import System.Exit
@@ -132,8 +131,8 @@ propParseLilytoLilyVal v = v == (parseLily . toLily) v
 propDurSum2Durs :: [Duration] -> Bool
 propDurSum2Durs durs = sumDurs durs == (sumDurs . durSum2Durs . sumDurs) durs
 
-runTestDriver :: MonadIO m => Driver a -> m DriverState
-runTestDriver action = liftIO $ execStateT (runReaderT (runDriver action) (initEnv Null)) initState
+runTestDriver :: MonadIO m => Driver a -> m a
+runTestDriver action = liftIO $ runReaderT (runDriver action) (initEnv Null "")
 
 minVEvents :: [VoiceEvent]
 minVEvents = [VeClef Treble
