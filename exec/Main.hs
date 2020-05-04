@@ -50,9 +50,6 @@ main =  do
   gen <- getStdGen
   void . liftIO $ runReaderT (runDriver exRandList) (initEnv config (P.show gen))
 
-exAction :: Driver ()
-exAction = writeLily "example.ly" (Note C COct QDur Accent Forte False)
-
 exRandList :: Driver ()
 exRandList = randomizeList [C,D,E,F,G,A,B] >>= mapM_ print
 

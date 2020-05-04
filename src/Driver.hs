@@ -32,7 +32,7 @@ initEnv :: Value -> String -> DriverEnv
 initEnv = DriverEnv
 
 data ActionNoValue where
-  WriteLily :: (ToLily a) => FilePath -> a -> ActionNoValue
+  WriteScore ::  FilePath -> Score -> ActionNoValue
   PrintLily :: (ToLily a) => a -> ActionNoValue
   Print     :: String -> ActionNoValue
 
@@ -59,9 +59,9 @@ runDriver (Free (DoActionThen act k)) =
     GetConfigParam path -> (lookupConfig path <$> asks _config) >>= runDriver . k
 runDriver (Free (DoAction act k)) =
   case act of
-    WriteLily fn l -> liftIO (writeFile fn (toLily l)) *> runDriver k
-    PrintLily l    -> liftIO (putStrLn (toLily l)) *> runDriver k
-    Print t        -> liftIO (putStrLn t) *> runDriver k
+    WriteScore fn (Score c vs) -> asks _seed >>= (\s -> liftIO (writeFile fn (toLily (Score (c <> " " <> s) vs))) *> runDriver k)
+    PrintLily l -> liftIO (putStrLn (toLily l)) *> runDriver k
+    Print t -> liftIO (putStrLn t) *> runDriver k
 runDriver (Pure k) = pure k
 
 lookupConfig :: String -> Value -> ConfigSelector
@@ -74,8 +74,8 @@ lookupConfig path config =
                show config
     Just txt -> parseConfigSelector (T.unpack txt)
 
-writeLily :: ToLily a => FilePath -> a -> Driver ()
-writeLily fName l = liftF $ DoAction (WriteLily fName l) ()
+writeScore :: FilePath -> Score -> Driver ()
+writeScore fName s = liftF $ DoAction (WriteScore fName s) ()
 
 printLily :: ToLily a => a -> Driver ()
 printLily l = liftF $ DoAction (PrintLily l) ()

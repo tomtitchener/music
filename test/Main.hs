@@ -16,6 +16,7 @@ import Data.Aeson
 import GHC.Generics
 import System.Exit
 import System.Process
+import System.Random
 import Test.QuickCheck
 import Test.QuickCheck.Arbitrary.Generic
 import Test.Tasty
@@ -132,7 +133,7 @@ propDurSum2Durs :: [Duration] -> Bool
 propDurSum2Durs durs = sumDurs durs == (sumDurs . durSum2Durs . sumDurs) durs
 
 runTestDriver :: MonadIO m => Driver a -> m a
-runTestDriver action = liftIO $ runReaderT (runDriver action) (initEnv Null "")
+runTestDriver action = liftIO $ getStdGen >>= (\g -> runReaderT (runDriver action) (initEnv Null (show g)))
 
 minVEvents :: [VoiceEvent]
 minVEvents = [VeClef Treble
@@ -143,7 +144,7 @@ minVEvents = [VeClef Treble
              ,VeNote (Note C COct QDur NoAccent NoDynamic False)]
 
 assertParseLilytoLilyVal :: (Show a, Eq a, ToLily a, FromLily a) => a -> Assertion
-assertParseLilytoLilyVal a = assertEqual "" a (parseLily (toLily a))
+assertParseLilytoLilyVal a = assertEqual (show a) a (parseLily (toLily a))
 
 singleVoice :: Voice
 singleVoice = SingleVoice AcousticGrand minVEvents
@@ -168,7 +169,7 @@ groupScore = Score "comment" [voiceGroup, voiceGroup]
 
 testLilypond :: FilePath -> Score -> Assertion
 testLilypond path score = do
-  void $ runTestDriver (writeLily ("test/"<>path) score)
+  void $ runTestDriver (writeScore ("test/"<>path) score)
   (code, _, stderr) <- readProcessWithExitCode "lilypond" ["-s","-o","test", "test/"<>path] ""
   unless (ExitSuccess == code) (putStr $ "\n" <> stderr)
   assertEqual "lilypond exit code" ExitSuccess code
