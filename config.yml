@@ -17,17 +17,17 @@ example_texture:
     instr:  instrument acoustic grand
     clef:   clef treble
     scale:  pitches c d e f g a b
-    start:  pitoct c "''"
+    start:  pitoctpr (c,"''")
   voice2:
     instr:  instrument acoustic grand
     clef:   clef treble
     scale:  pitches c d e f g a b
-    start:  pitoct c "'"
+    start:  pitoctpr (c,"'")
   voice3:
     instr:  instrument acoustic grand
     clef:   clef bass
     scale:  pitches c d e f g a b
-    start:  pitoct c ""
+    start:  pitoct (c,"")
   voice4:
     instr:  instrument acoustic grand
     clef:   clef bass
@@ -35,5 +35,5 @@ example_texture:
     start:  pitoct c ","
   intss:    intmottos r -3 5 7 r 0,3 2 1 r r 8
   durss:    durationss 8 8 4 8. 16 4,2 16 16 16 16 4
-  accss:    accentss ^ ^ - - . .,_ _ ^ . ^ .
+  accss:    accentss ^ """" - . "",_ " ^ . ^ .
   

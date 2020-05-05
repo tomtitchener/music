@@ -206,6 +206,12 @@ instance FromLily Chord  where
 -- Clef --
 ----------
 
+clefStrs :: [String]
+clefStrs = ["bass_8", "bass", "tenor", "alto", "treble", "treble^8"]
+
+pClefStr :: Parser Clef
+pClefStr = choice (zipWith mkParser (init clefStrs) (init clefVals))
+
 clefSyms :: [String]
 clefSyms = ["\\clef bass_8", "\\clef bass", "\\clef tenor", "\\clef alto", "\\clef treble", "\\clef treble^8"]
 

@@ -1,9 +1,11 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Driver where
 
@@ -50,7 +52,10 @@ deriving instance Functor DriverF
 
 type Driver = Free DriverF
 
-runDriver :: forall a m.(MonadIO m, MonadRandom m, MonadReader DriverEnv m) => Driver a -> m a
+instance MonadFail Driver where
+  fail s = error s
+
+runDriver :: forall a m.(MonadIO m, MonadRandom m, MonadReader DriverEnv m, MonadFail m) => Driver a -> m a
 runDriver (Free (DoActionThen act k)) =
   case act of
     RandomElement  l    -> getRandomR (0, length l - 1) >>= runDriver . k . (l !!)
@@ -108,6 +113,7 @@ data ConfigSelector =
   | SelPitOctPr (Pitch,Octave)
   | SelPitOctPrs [(Pitch,Octave)]
   | SelInstrument Instrument
+  | SelClef Clef
   deriving (Eq, Show)
 
 parseConfigSelector :: String -> ConfigSelector
@@ -128,6 +134,7 @@ pConfigSelector =
   , try $ SelPitOctPrs <$> (string "pitoctprs" *> spaces *> pPitOctPr `sepBy` char ',')    -- (c,"'"),(g,""),(d,",")
   , try $ SelPitOctPr <$> (string "pitoctpr" *> spaces *> pPitOctPr)                       -- (c,"'")
   , try $ SelInstrument <$> (string "instrument" *> spaces *> parseInstrument)             -- acoustic grand
+  , try $ SelClef <$> (string "clef" *> spaces *> pClefStr)                                -- bass
   ]
 
 pAccents :: Parser [Accent]
