@@ -48,7 +48,7 @@ main =  do
   unless (null _optRandomSeed) $ do
     setStdGen (P.read _optRandomSeed::StdGen)
   gen <- getStdGen
-  void . liftIO $ runReaderT (runDriver (cfg2Voc "example_texture.voice1" >>= print)) (initEnv config (P.show gen))
+  void . liftIO $ runReaderT (runDriver (cfg2Vocs "example_texture" ["voice1","voice2","voice3","voice4"] >>= print)) (initEnv config (P.show gen))
 
 exRandList :: Driver ()
 exRandList = randomizeList [C,D,E,F,G,A,B] >>= mapM_ print
@@ -72,3 +72,6 @@ cfg2Voc pre = do
   (SelPitOctPr po) <- getConfigParam (pre <> ".start")
   (SelInstrument i) <- getConfigParam (pre <> ".instr")
   pure (i, c, s, po)
+
+cfg2Vocs :: [Char] -> [[Char]] -> Driver [(Instrument, Clef, [Pitch], (Pitch,Octave))]
+cfg2Vocs root vocs = mapM (\v -> cfg2Voc (root <> "." <> v)) vocs
