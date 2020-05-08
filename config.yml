@@ -35,5 +35,7 @@ example_texture:
     start:  pitoctpr (c,",")
   intss:    intmottos r -3 5 7 r 0,3 2 1 r r 8
   durss:    durationss 8 8 4 8. 16 4,2 16 16 16 16 4
-  accss:    accentss ^ """" - . "",_ " ^ . ^ .
+  accss:    accentss ^ "" "" - . "",_ "" ^ . ^ .
+  dynss:    dynamicss ff "" "" pp "" "",p "" mp "" f ""
+
   
