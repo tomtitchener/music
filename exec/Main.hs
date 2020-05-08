@@ -97,14 +97,25 @@ cfg2Dynss pre = do
   (SelDynamicss dynss) <- getConfigParam (pre <> ".dynss")
   pure dynss
 
-genVoc :: (Instrument, Clef, [Pitch], (Pitch,Octave)) -> [Maybe Int] -> [Duration] -> [Accent] -> [Dynamic] -> Voice
-genVoc (instr, clef, scale, (p,o)) motto durs accs dns = SingleVoice instr (VeClef clef:genNotes (mtranspose scale motto (p,o)) durs accs dns)
+-- genVoc :: (Instrument, Clef, [Pitch], (Pitch,Octave)) -> [Maybe Int] -> [Duration] -> [Accent] -> [Dynamic] -> Voice
+-- genVoc (instr, clef, scale, (p,o)) motto durs accs dns = SingleVoice instr (VeClef clef:genNotes (mtranspose scale motto (p,o)) durs accs dns)
 
-genVocs :: [(Instrument, Clef, [Pitch], (Pitch,Octave))] -> [[Maybe Int]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> [Voice]
-genVocs tups mottos durss accss dynss = genVoc <$> tups <*> mottos <*> durss <*> accss <*> dynss
+-- genVocs :: [(Instrument, Clef, [Pitch], (Pitch,Octave))] -> [[Maybe Int]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> [Voice]
+--  tups mottos durss accss dynss = genVoc <$> tups <*> mottos <*> durss <*> accss <*> dynss
 
-genScore :: [Char] -> [(Instrument, Clef, [Pitch], (Pitch,Octave))] -> [[Maybe Int]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> Score
-genScore title tups mottos durss accss dyns = Score title (genVocs tups mottos durss accss dyns)
+genVoc :: [Maybe Int] -> [Duration] -> [Accent] -> [Dynamic] -> (Instrument, Clef, [Pitch], (Pitch,Octave)) -> Voice
+genVoc motto durs accs dyns (instr, clef, scale, (p,o)) = SingleVoice instr (VeClef clef:genNotes (mtranspose scale motto (p,o)) durs accs dyns)
+
+genVocs :: [(Instrument, Clef, [Pitch], (Pitch,Octave))] -> [[Maybe Int]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> Driver [Voice]
+genVocs tups mottos durss accss dynss = do
+  motto <- randomElement mottos
+  durs <- randomElement durss
+  accs <- randomElement accss
+  dyns <- randomElement dynss
+  pure $ map (genVoc motto durs accs dyns) tups
+
+-- genScore :: [Char] -> [(Instrument, Clef, [Pitch], (Pitch,Octave))] -> [[Maybe Int]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> Score
+-- genScore title tups mottos durss accss dyns = Score title (genVocs tups mottos durss accss dyns)
 
 cfg2Score :: [Char] -> Driver ()
 cfg2Score title = do
@@ -113,6 +124,7 @@ cfg2Score title = do
   durss <- cfg2Durss title
   accss <- cfg2Accss title
   dynss <- cfg2Dynss title
-  writeScore title $ genScore title voctups mottos durss accss dynss
+  voices <- genVocs voctups mottos durss accss dynss
+  writeScore title $ Score title voices
 
 

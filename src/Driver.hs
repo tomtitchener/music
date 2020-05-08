@@ -85,13 +85,13 @@ writeScore fName s = liftF $ DoAction (WriteScore fName s) ()
 printLily :: ToLily a => a -> Driver ()
 printLily l = liftF $ DoAction (PrintLily l) ()
 
-randomElement :: ToLily a => [a] -> Driver a
+randomElement :: [a] -> Driver a
 randomElement ls = liftF $ DoActionThen (RandomElement ls) id
 
-randomElements :: ToLily a => [a] -> Driver [a]
+randomElements :: [a] -> Driver [a]
 randomElements ls = liftF $ DoActionThen (RandomElements ls) id
 
-randomizeList :: ToLily a => [a] -> Driver [a]
+randomizeList :: [a] -> Driver [a]
 randomizeList ls = liftF $ DoActionThen (RandomizeList ls) id
 
 getConfigParam :: String -> Driver ConfigSelector
