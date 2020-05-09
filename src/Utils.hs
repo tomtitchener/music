@@ -9,9 +9,8 @@ module Utils (incrOct
              ,genNotes
              ) where
 
-import Control.Monad.State
 import Data.List hiding (transpose)
-import Data.Map
+import qualified Data.Map as M
 import Data.Maybe
 
 import Types
@@ -26,8 +25,8 @@ decrOct o = toEnum $ max (fromEnum o - 1) (fromEnum (minBound::Octave))
 durVals :: [Int]
 durVals = [1, 2, 2 + 1, 4, 4 + 2, 8, 8 + 4, 16, 16 + 8, 32, 32 + 16, 64, 64 + 32, 128, 128 + 64]
 
-durVal2Duration :: Map Int Duration
-durVal2Duration = fromList (zip durVals [HTEDur .. DWDur])
+durVal2Duration :: M.Map Int Duration
+durVal2Duration = M.fromList (zip durVals [HTEDur .. DWDur])
 
 addDur :: Duration -> DurationSum -> DurationSum
 addDur d ds = DurationSum $ (durVals !! fromEnum d) + getDurSum ds
@@ -57,25 +56,21 @@ durSum2Durs = unfoldr f
     f (DurationSum i) = Just (d, ds)
       where
         v = fromJust $ find (i >=) (reverse durVals)
-        d = durVal2Duration ! v
+        d = durVal2Duration M.! v
         ds = DurationSum (i - v)
 
-transpose :: [Pitch] -> [Int] -> (Pitch,Octave) -> [(Pitch,Octave)]
-transpose scale intervals = evalState (traverse f intervals)
-  where
-    f :: Int -> State (Pitch,Octave) (Pitch,Octave)
-    f i = gets (xp scale i) >>= \po' -> put po' >> pure po'
+transpose :: [Pitch] -> (Pitch,Octave) -> [Int] -> [(Pitch,Octave)]
+transpose scale pr = map (xp scale pr) . scanl (+) 0
 
-mtranspose :: [Pitch] -> [Maybe Int] -> (Pitch,Octave) -> [Maybe (Pitch,Octave)]
-mtranspose scale intervals = evalState (traverse f intervals)
+mtranspose :: [Pitch] -> (Pitch,Octave) -> [Maybe Int] -> [Maybe (Pitch,Octave)]
+mtranspose scale pr = map (xp scale pr <$>) . reverse . snd . foldl' f (0,[Just 0])
   where
-    f :: Maybe Int -> State (Pitch,Octave) (Maybe (Pitch,Octave))
-    f Nothing  = pure Nothing
-    f (Just i) = gets (xp scale i) >>= \po' -> put po' >> pure (Just po')
+    f (s,l) Nothing  = (s, Nothing:l)
+    f (s,l) (Just i) = (s+i, Just (s+i):l)
 
 -- partial if Pitch from (Pitch,Octave) is not element of [Pitch]
-xp :: [Pitch] -> Int -> (Pitch,Octave) -> (Pitch,Octave)
-xp scale i (p,o) = (p',o')
+xp :: [Pitch] -> (Pitch,Octave) -> Int -> (Pitch,Octave)
+xp scale (p,o) i = (p',o')
   where
     cntSteps = length scale
     normScale = sort scale -- To [C..B] or closest enharmonic to compute new octave
@@ -94,3 +89,4 @@ genNotes = zipWith4 f
   where
     f Nothing du _ _ = VeRest $ Rest du
     f (Just (p,o)) du a dy = VeNote (Note p o du a dy False)
+

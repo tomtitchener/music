@@ -5,7 +5,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 module Driver where
 
@@ -53,7 +52,7 @@ deriving instance Functor DriverF
 type Driver = Free DriverF
 
 instance MonadFail Driver where
-  fail s = error s
+  fail = error
 
 runDriver :: forall a m.(MonadIO m, MonadRandom m, MonadReader DriverEnv m, MonadFail m) => Driver a -> m a
 runDriver (Free (DoActionThen act k)) =

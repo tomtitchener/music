@@ -133,7 +133,7 @@ propDurSum2Durs :: [Duration] -> Bool
 propDurSum2Durs durs = sumDurs durs == (sumDurs . durSum2Durs . sumDurs) durs
 
 runTestDriver :: MonadIO m => Driver a -> m a
-runTestDriver action = liftIO $ getStdGen >>= (\g -> runReaderT (runDriver action) (initEnv Null (show g)))
+runTestDriver action = liftIO $ getStdGen >>= runReaderT (runDriver action) . initEnv Null . show
 
 minVEvents :: [VoiceEvent]
 minVEvents = [VeClef Treble

@@ -106,10 +106,10 @@ newtype DurationSum = DurationSum { getDurSum :: Int }
 ------------
 
 accentStrs :: [String]
-accentStrs = ["^", "-", "!", ".",  ">", "_", "espressivo", ""]
+accentStrs = ["^", "-", "!", ".",  ">", "_", "espressivo", "~"]
 
 pAccentStr :: Parser Accent
-pAccentStr = choice (zipWith mkParser (init accentStrs) (init accentVals)) <|> pure NoAccent
+pAccentStr = choice (zipWith mkParser accentStrs accentVals)
 
 accentSyms :: [String]
 accentSyms = ["-^", "--", "-!", "-.",  "->", "-_", "\\espressivo", ""]
@@ -131,10 +131,10 @@ instance FromLily Accent  where
 -------------
 
 dynamicStrs :: [String]
-dynamicStrs = ["ppppp", "pppp", "ppp", "pp", "p", "mp", "mf", "fffff", "ffff", "fff", "ff", "fp", "f", "sff", "sfz", "sf", "spp", "sp", "rfz", ""]
+dynamicStrs = ["ppppp", "pppp", "ppp", "pp", "p", "mp", "mf", "fffff", "ffff", "fff", "ff", "fp", "f", "sff", "sfz", "sf", "spp", "sp", "rfz", "~"]
 
 pDynamicStr :: Parser Dynamic
-pDynamicStr = choice (zipWith mkParser (init dynamicStrs) (init dynamicVals)) <|> pure NoDynamic
+pDynamicStr = choice (zipWith mkParser dynamicStrs dynamicVals)
 
 dynamicSyms :: [String]
 dynamicSyms = ["\\ppppp", "\\pppp", "\\ppp", "\\pp", "\\p", "\\mp", "\\mf", "\\fffff", "\\ffff", "\\fff", "\\ff", "\\fp", "\\f", "\\sff", "\\sfz", "\\sf", "\\spp", "\\sp", "\\rfz", ""]
@@ -210,7 +210,7 @@ clefStrs :: [String]
 clefStrs = ["bass_8", "bass", "tenor", "alto", "treble", "treble^8"]
 
 pClefStr :: Parser Clef
-pClefStr = choice (zipWith mkParser (init clefStrs) (init clefVals))
+pClefStr = choice (zipWith mkParser clefStrs clefVals)
 
 clefSyms :: [String]
 clefSyms = ["\\clef bass_8", "\\clef bass", "\\clef tenor", "\\clef alto", "\\clef treble", "\\clef treble^8"]
