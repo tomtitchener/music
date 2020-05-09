@@ -450,7 +450,7 @@ instance ToLily Voice where
 toSingleVoice :: Instrument -> [VoiceEvent] -> String
 toSingleVoice instr events =
   [str|\new Voice
-      {\set Staff.instrumentName = ##"$shortInstrName instr$"\set Voice.midiInstrument = ##"$midiName instr$"
+      {\set Staff.instrumentName = ##"$shortInstrName instr$"\set Staff.midiInstrument = ##"$midiName instr$"
       $unwords (map toLily events)$ \bar "|."
       }
       |]
@@ -493,7 +493,7 @@ parseVoice = choice [
   try (SingleVoice <$> (string [str|\new Voice
                                    {\set Staff.instrumentName = ##|]
                         *> parseQuotedIdentifier
-                        *> string [str|\set Voice.midiInstrument = ##"|]
+                        *> string [str|\set Staff.midiInstrument = ##"|]
                         *> parseInstrument <* string [str|"$endline$|])
                    <*> (parseVoiceEvent `endBy` space
                         <* string [str|\bar "|."
