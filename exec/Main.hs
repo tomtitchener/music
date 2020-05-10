@@ -12,7 +12,7 @@ import Data.Aeson hiding (Options)
 import qualified Data.Yaml as Y
 import Options.Applicative
 import Prelude (String, error, read, show)
-import Protolude hiding (print, show, to)
+import Protolude hiding (option, print, show, to)
 import System.Directory (doesFileExist)
 import System.Random
 
@@ -66,15 +66,23 @@ printConfigParam sel = getConfigParam ("example_param." <> sel) >>= print
 exEnv :: Driver ()
 exEnv = mapM_ printConfigParam ["pits","accs","accss","dyns","dynss","durs","durss","ints","intss","pitoct","pitocts","instrument"]
 
-cfg2VocTup :: String -> Driver (Instrument, Clef, [Pitch], (Pitch,Octave))
+cfg2Int :: String -> Driver Int
+cfg2Int k = do
+  (SelInt i) <- getConfigParam k
+  pure i
+
+type VoiceTup = (Instrument, KeySignature, Clef, [Pitch], (Pitch,Octave))
+
+cfg2VocTup :: String -> Driver VoiceTup
 cfg2VocTup pre = do
   (SelInstrument i) <- getConfigParam (pre <> ".instr")
+  (SelKey k) <- getConfigParam (pre <> ".key")
   (SelClef c) <- getConfigParam (pre <> ".clef")
   (SelPitOctPr po) <- getConfigParam (pre <> ".start")
   (SelPitches s) <- getConfigParam (pre <> ".scale")
-  pure (i, c, s, po)
+  pure (i, k, c, s, po)
 
-cfg2VocTups :: String -> [String] -> Driver [(Instrument, Clef, [Pitch], (Pitch,Octave))]
+cfg2VocTups :: String -> [String] -> Driver [VoiceTup]
 cfg2VocTups root = mapM (\v -> cfg2VocTup (root <> "." <> v))
 
 cfg2IntMottos :: String -> Driver [[Maybe Int]]
@@ -97,25 +105,26 @@ cfg2Dynss pre = do
   (SelDynamicss dynss) <- getConfigParam (pre <> ".dynss")
   pure dynss
 
-genVoc :: [[Maybe Int]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> (Instrument, Clef, [Pitch], (Pitch,Octave)) -> Driver Voice
-genVoc mottos durss accss dynss (instr, clef, scale, (p,o))= do
-  motto <- concat . take 5 <$> randomElements mottos
-  durs <-  concat . take 5 <$> randomElements durss
-  accs <-  concat . take 5 <$> randomElements accss
-  dyns <-  concat . take 5 <$> randomElements dynss
-  pure $ SingleVoice instr (VeClef clef:genNotes (mtranspose scale (p,o) motto) durs accs dyns)
+genVoc :: Int -> [[Maybe Int]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> VoiceTup -> Driver Voice
+genVoc reps mottos durss accss dynss (instr, key, clef, scale, (p,o))= do
+  motto <- concat . take reps <$> randomElements mottos
+  durs  <- concat . take reps <$> randomElements durss
+  accs  <- concat . take reps <$> randomElements accss
+  dyns  <- concat . take reps <$> randomElements dynss
+  pure $ SingleVoice instr (VeKeySignature key:VeClef clef:genNotes (mtranspose scale (p,o) motto) durs accs dyns)
 
-genVocs :: [[Maybe Int]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> [(Instrument, Clef, [Pitch], (Pitch,Octave))] -> Driver [Voice]
-genVocs mottos durss accss dynss = mapM (genVoc mottos durss accss dynss)
+genVocs :: Int -> [[Maybe Int]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> [VoiceTup] -> Driver [Voice]
+genVocs reps mottos durss accss dynss = mapM (genVoc reps mottos durss accss dynss)
 
 cfg2Score :: String -> Driver ()
 cfg2Score title = do
-  voctups <- cfg2VocTups title ["voice1","voice2","voice3","voice4"]
+  voctups <- cfg2VocTups title ["voice1","voice2","voice3","voice4","voice5","voice6"]
   mottos <- cfg2IntMottos title
   durss <- cfg2Durss title
   accss <- cfg2Accss title
   dynss <- cfg2Dynss title
-  voices <- genVocs mottos durss accss dynss voctups
+  reps  <- cfg2Int (title <> ".reps")
+  voices <- genVocs reps mottos durss accss dynss voctups
   writeScore title $ Score title voices
 
 

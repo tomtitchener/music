@@ -100,7 +100,8 @@ print :: Show a => a -> Driver ()
 print s = liftF $ DoAction (Print (show s)) ()
 
 data ConfigSelector =
-  SelPitches [Pitch]
+  SelInt Int
+  | SelPitches [Pitch]
   | SelAccents [Accent]
   | SelAccentss [[Accent]]
   | SelDynamics [Dynamic]
@@ -112,6 +113,7 @@ data ConfigSelector =
   | SelPitOctPr (Pitch,Octave)
   | SelPitOctPrs [(Pitch,Octave)]
   | SelInstrument Instrument
+  | SelKey KeySignature
   | SelClef Clef
   deriving (Eq, Show)
 
@@ -121,7 +123,8 @@ parseConfigSelector = either (error . show) id . parse pConfigSelector ""
 pConfigSelector :: Parser ConfigSelector
 pConfigSelector =
   choice [
-    try $ SelPitches <$> (string "pitches" *> spaces *> parsePitch `sepBy` space)          -- c d e
+    try $ SelInt <$> (string "int" *> spaces *> int)          -- 5
+  , try $ SelPitches <$> (string "pitches" *> spaces *> parsePitch `sepBy` space)          -- c d e
   , try $ SelAccentss <$> (string "accentss" *> spaces *> pAccents `sepBy` char ',')       -- _ > .,espressivo ^ -
   , try $ SelAccents <$> (string "accents" *> spaces *> pAccents)                          -- ^ - !
   , try $ SelDynamicss <$> (string "dynamicss" *> spaces *> pDynamics `sepBy` char ',')    -- p f pp,sf ff rfz
@@ -133,8 +136,12 @@ pConfigSelector =
   , try $ SelPitOctPrs <$> (string "pitoctprs" *> spaces *> pPitOctPr `sepBy` char ',')    -- (c,"'"),(g,""),(d,",")
   , try $ SelPitOctPr <$> (string "pitoctpr" *> spaces *> pPitOctPr)                       -- (c,"'")
   , try $ SelInstrument <$> (string "instrument" *> spaces *> parseInstrument)             -- acoustic grand
+  , try $ SelKey <$> (string "key" *> spaces *> pKeySig)                                   -- g major
   , try $ SelClef <$> (string "clef" *> spaces *> pClefStr)                                -- bass
   ]
+
+pKeySig :: Parser KeySignature
+pKeySig = KeySignature <$> parsePitch <*> (spaces *> parseModeStr)
 
 pAccents :: Parser [Accent]
 pAccents = pAccentStr `sepBy` space

@@ -253,6 +253,9 @@ instance FromLily Tempo where
 modeSyms :: [String]
 modeSyms = ["\\major", "\\minor"]
 
+modeStrs :: [String]
+modeStrs = ["major", "minor"]
+
 modeVals :: [Mode]
 modeVals = [Major .. Minor]
 
@@ -261,6 +264,9 @@ instance ToLily Mode where
 
 parseMode :: Parser Mode
 parseMode = choice (zipWith mkParser modeSyms modeVals)
+
+parseModeStr :: Parser Mode
+parseModeStr = choice (zipWith mkParser modeStrs modeVals)
 
 instance FromLily Mode where
   parseLily = mkParseLily parseMode

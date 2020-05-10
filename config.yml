@@ -13,29 +13,46 @@ example_param:
   instrument: instrument acoustic grand
 
 example_texture:
+  reps: int 20
   voice1:
-    instr:  instrument acoustic grand
+    instr:  instrument marimba
+    key:    key g major
     clef:   clef treble
-    scale:  pitches c d e f g a b
-    start:  pitoctpr (c,"''")
+    scale:  pitches g a b c d e fis
+    start:  pitoctpr (d,"''")
   voice2:
-    instr:  instrument acoustic grand
+    instr:  instrument marimba
+    key:    key g major
     clef:   clef treble
-    scale:  pitches c d e f g a b
-    start:  pitoctpr (c,"'")
+    scale:  pitches g a b c d e fis
+    start:  pitoctpr (b,"'")
   voice3:
-    instr:  instrument acoustic grand
-    clef:   clef bass
-    scale:  pitches c d e f g a b
-    start:  pitoctpr (c,"")
+    instr:  instrument marimba
+    key:    key g major
+    clef:   clef treble
+    scale:  pitches g a b c d e fis
+    start:  pitoctpr (g,"'")
   voice4:
-    instr:  instrument acoustic grand
+    instr:  instrument marimba
+    key:    key g major
     clef:   clef bass
-    scale:  pitches c d e f g a b
-    start:  pitoctpr (c,",")
-  intss:    intmottos r -3 5 -1 r -1,3 2 -2 r r -3
-  durss:    durationss 8 8 4 8. 16 4,2 16 16 16 16 4
-  accss:    accentss ^ ~ ~ - . ~,_ ~ ^ . ^ .
-  dynss:    dynamicss ff ~ ~ pp ~ ~,p ~ mp ~ f ~
+    scale:  pitches g a b c d e fis
+    start:  pitoctpr (e,"")
+  voice5:
+    instr:  instrument marimba
+    key:    key g major
+    clef:   clef bass
+    scale:  pitches g a b c d e fis
+    start:  pitoctpr (g,"")
+  voice6:
+    instr:  instrument marimba
+    key:    key g major
+    clef:   clef bass
+    scale:  pitches g a b
+    start:  pitoctpr (g,",")
+  intss:    intmottos r -3 5 -1 r -1,3 2 -2 r r -3,2 -2 5 -5 2 0 1 0 -3 0
+  durss:    durationss 8 8 4 8. 16 4,2 16 16 16 16 4,8. 16 16 16 8 16 16 8
+  accss:    accentss ^ ~ ~ - . ~,- ~ ^ . ^ .,> > ~ ~ > > ~ ~
+  dynss:    dynamicss ff ~ ~ pp ~ ~,p ~ mp ~ f ~,pp ~ p ~ mp ~ mf ~
 
   
