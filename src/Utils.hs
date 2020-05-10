@@ -60,10 +60,10 @@ durSum2Durs = unfoldr f
         ds = DurationSum (i - v)
 
 transpose :: [Pitch] -> (Pitch,Octave) -> [Int] -> [(Pitch,Octave)]
-transpose scale pr = map (xp scale pr) . scanl (+) 0
+transpose scale pr = map (xp scale pr) . scanl1 (+)
 
 mtranspose :: [Pitch] -> (Pitch,Octave) -> [Maybe Int] -> [Maybe (Pitch,Octave)]
-mtranspose scale pr = map (xp scale pr <$>) . reverse . snd . foldl' f (0,[Just 0])
+mtranspose scale pr = map (xp scale pr <$>) . reverse . snd . foldl' f (0,[])
   where
     f (s,l) Nothing  = (s, Nothing:l)
     f (s,l) (Just i) = (s+i, Just (s+i):l)
