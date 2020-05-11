@@ -133,18 +133,42 @@ pConfigSelector =
   , try $ SelDurations <$> (string "durations" *> spaces *> pDurations)                    -- 4 2. 2 16 32
   , try $ SelMIntervalss <$> (string "intmottos" *> spaces *> pMInts `sepBy` char ',')     -- 1 r 2 -3 4 r
   , try $ SelMIntervals <$> (string "intmotto" *> spaces *> pMInts)                        -- 1 r 2 -3 4 r
-  , try $ SelPitOctPrs <$> (string "pitoctprs" *> spaces *> pPitOctPr `sepBy` char ',')    -- (c,"'"),(g,""),(d,",")
+  , try $ SelPitOctPrs <$> (string "pitoctprs" *> spaces *> pPitOctPr `sepBy` char ',')    -- (c,-1),(g,0),(d,1)
   , try $ SelPitOctPr <$> (string "pitoctpr" *> spaces *> pPitOctPr)                       -- (c,"'")
   , try $ SelInstrument <$> (string "instrument" *> spaces *> parseInstrument)             -- acoustic grand
   , try $ SelKey <$> (string "key" *> spaces *> pKeySig)                                   -- g major
   , try $ SelClef <$> (string "clef" *> spaces *> pClefStr)                                -- bass
   ]
 
+mkParser :: String -> a -> Parser a
+mkParser s d = try (string s >> pure d)
+
+modeStrs :: [String]
+modeStrs = ["major", "minor"]
+
+parseModeStr :: Parser Mode
+parseModeStr = choice (zipWith mkParser modeStrs [Major .. Minor])
+
 pKeySig :: Parser KeySignature
 pKeySig = KeySignature <$> parsePitch <*> (spaces *> parseModeStr)
 
+accentStrs :: [String]
+accentStrs = ["^", "-", "!", ".",  ">", "_", "espressivo", "~"]
+
+pAccentStr :: Parser Accent
+pAccentStr = choice (zipWith mkParser accentStrs [Marcato .. NoAccent])
+
 pAccents :: Parser [Accent]
 pAccents = pAccentStr `sepBy` space
+
+dynamicStrs :: [String]
+dynamicStrs = ["ppppp", "pppp", "ppp", "pp", "p", "mp", "mf", "fffff", "ffff", "fff", "ff", "fp", "f", "sff", "sfz", "sf", "spp", "sp", "rfz", "~"]
+
+dynamicVals :: [Dynamic]
+dynamicVals = [PPPPP, PPPP, PPP, PP, Piano, MP, MF, FFFFF, FFFF, FFF, FF, FP, Forte, SFF, SFZ, SF, SPP, SP, RFZ, NoDynamic]
+
+pDynamicStr :: Parser Dynamic
+pDynamicStr = choice (zipWith mkParser dynamicStrs dynamicVals)
 
 pDynamics :: Parser [Dynamic]
 pDynamics = pDynamicStr `sepBy` space
@@ -158,11 +182,20 @@ pMInt = (Just <$> int) <|> (char 'r' >> pure Nothing)
 pMInts :: Parser [Maybe Int]
 pMInts = pMInt `sepBy` space
 
-pPitOctPr :: Parser (Pitch,Octave)
-pPitOctPr = between (char '(') (char ')') ((,) <$> parsePitch <*> (char ',' *> pQuotedOct))
+octaveInts :: [String]
+octaveInts = ["-4","-3","-2","-1","0","1","2","3"]
 
-pQuotedOct :: Parser Octave
-pQuotedOct = between (symbol '"') (symbol '"') parseOctave
+pOctaveStr :: Parser Octave
+pOctaveStr = choice (zipWith mkParser octaveInts [TwentyNineVBOct .. TwentyTwoVAOct])
+
+pPitOctPr :: Parser (Pitch,Octave)
+pPitOctPr = between (char '(') (char ')') ((,) <$> parsePitch <*> (char ',' *> pOctaveStr))
+
+clefStrs :: [String]
+clefStrs = ["bass_8", "bass", "tenor", "alto", "treble", "treble^8"]
+
+pClefStr :: Parser Clef
+pClefStr = choice (zipWith mkParser clefStrs [Bass8VB ..Treble8VA])
 
 -- https://www.programming-idioms.org/idiom/10/shuffle-a-list/826/haskell
 -- https://www.parsonsmatt.org/2017/09/22/what_does_free_buy_us.html

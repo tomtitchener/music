@@ -49,7 +49,8 @@ main =  do
   unless (null _optRandomSeed) $
     setStdGen (read _optRandomSeed::StdGen)
   gen <- getStdGen
-  void . liftIO $ runReaderT (runDriver (cfg2Score "example_texture")) (initEnv config (show gen))
+  void . liftIO $ runReaderT (runDriver exEnv) (initEnv config (show gen))
+--void . liftIO $ runReaderT (runDriver (cfg2Score "example_texture")) (initEnv config (show gen))
 
 exRandList :: Driver ()
 exRandList = randomizeList [C,D,E,F,G,A,B] >>= mapM_ print

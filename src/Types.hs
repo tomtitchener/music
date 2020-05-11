@@ -34,7 +34,7 @@ data Pitch = Bs | C   | Bss | Dff | Cs
 data Octave = TwentyNineVBOct | TwentyTwoVBOct | FifteenVBOct | EightVBOct | COct | EightVAOct | FifteenVAOct | TwentyTwoVAOct
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-data Duration = HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur | DEDur | QDur | DQDur | HDur | DHDur | WDur | DWDur
+data Duration =  HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur | DEDur | QDur | DQDur | HDur | DHDur | WDur | DWDur
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 newtype DurationSum = DurationSum { getDurSum :: Int }

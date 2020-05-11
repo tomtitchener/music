@@ -91,7 +91,7 @@ Needed to be Staff.midiInstrument not Voice.midiInstrument
 ** TODO Config file parsing
 *** DONE Eliminate use of initial pitch/octave in transpostion
   When chaining, yields 1+n,n,n... sequences.
-*** TODO Simplify octave parsing
+*** DONE Simplify octave parsing
   Parsing of octaves is too confusing, change form Lilypond
   parsing to simple +/- integer values with the octave at
   middle C being 0, 1 the octave above, -1 the octave below,
@@ -100,6 +100,11 @@ Needed to be Staff.midiInstrument not Voice.midiInstrument
   Space separations is a bad idea, change to commas for the
   individual lists, with ';' separator between lists, each
   token should accept before and after whitespace, too.
+*** TODO Change sequencing of transpositions to use start
+Accidental degree of freedom:  chaining motto transpositions
+instead of restarting each motto from the same starting pitch.
+Means motto shape is preserved but maybe over different starting
+pitches based on end pitch from previous motto.
 *** TODO Control complexity
   Random groupings of a) pitches, b) rhythms, c) accents
   d) dynamics even for short sequences yields boring soup

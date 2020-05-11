@@ -1,7 +1,12 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Lily where
+module Lily (ToLily(..)
+            ,FromLily(..)
+            ,parsePitch
+            ,parseInstrument
+            ,parseDuration
+            ) where
 
 import Control.Monad
 import Data.List
@@ -105,12 +110,6 @@ newtype DurationSum = DurationSum { getDurSum :: Int }
 -- Accent --
 ------------
 
-accentStrs :: [String]
-accentStrs = ["^", "-", "!", ".",  ">", "_", "espressivo", "~"]
-
-pAccentStr :: Parser Accent
-pAccentStr = choice (zipWith mkParser accentStrs accentVals)
-
 accentSyms :: [String]
 accentSyms = ["-^", "--", "-!", "-.",  "->", "-_", "\\espressivo", ""]
 
@@ -130,18 +129,11 @@ instance FromLily Accent  where
 -- Dynamic --
 -------------
 
-dynamicStrs :: [String]
-dynamicStrs = ["ppppp", "pppp", "ppp", "pp", "p", "mp", "mf", "fffff", "ffff", "fff", "ff", "fp", "f", "sff", "sfz", "sf", "spp", "sp", "rfz", "~"]
-
-pDynamicStr :: Parser Dynamic
-pDynamicStr = choice (zipWith mkParser dynamicStrs dynamicVals)
-
 dynamicSyms :: [String]
 dynamicSyms = ["\\ppppp", "\\pppp", "\\ppp", "\\pp", "\\p", "\\mp", "\\mf", "\\fffff", "\\ffff", "\\fff", "\\ff", "\\fp", "\\f", "\\sff", "\\sfz", "\\sf", "\\spp", "\\sp", "\\rfz", ""]
 
 dynamicVals :: [Dynamic]
 dynamicVals = [PPPPP, PPPP, PPP, PP, Piano, MP, MF, FFFFF, FFFF, FFF, FF, FP, Forte, SFF, SFZ, SF, SPP, SP, RFZ, NoDynamic]
-
 instance ToLily Dynamic where
   toLily = mkToLily "dynamic" dynamicVals dynamicSyms
 
@@ -206,12 +198,6 @@ instance FromLily Chord  where
 -- Clef --
 ----------
 
-clefStrs :: [String]
-clefStrs = ["bass_8", "bass", "tenor", "alto", "treble", "treble^8"]
-
-pClefStr :: Parser Clef
-pClefStr = choice (zipWith mkParser clefStrs clefVals)
-
 clefSyms :: [String]
 clefSyms = ["\\clef bass_8", "\\clef bass", "\\clef tenor", "\\clef alto", "\\clef treble", "\\clef treble^8"]
 
@@ -253,9 +239,6 @@ instance FromLily Tempo where
 modeSyms :: [String]
 modeSyms = ["\\major", "\\minor"]
 
-modeStrs :: [String]
-modeStrs = ["major", "minor"]
-
 modeVals :: [Mode]
 modeVals = [Major .. Minor]
 
@@ -265,8 +248,6 @@ instance ToLily Mode where
 parseMode :: Parser Mode
 parseMode = choice (zipWith mkParser modeSyms modeVals)
 
-parseModeStr :: Parser Mode
-parseModeStr = choice (zipWith mkParser modeStrs modeVals)
 
 instance FromLily Mode where
   parseLily = mkParseLily parseMode
@@ -562,6 +543,9 @@ instance FromLily Score where
 -- Utils --
 -----------
 
+mkParser :: String -> a -> Parser a
+mkParser s d = try (string s >> pure d)
+
 parseInt :: Parser Int
 parseInt = read <$> many1 digit
 
@@ -570,9 +554,6 @@ parseNatural = read <$> many1 digit
 
 parseBool :: Parser Bool
 parseBool = (string "~" >> pure True) <|> pure False
-
-mkParser :: String -> a -> Parser a
-mkParser s d = try (string s >> pure d)
 
 mkToLily :: (Show a, Ord a) => String -> [a] -> [String] -> a -> String
 mkToLily name vals syms v = fromMaybe (error $ "Invalid " <> name <> " val " <> show v <> " not in " <> show vals) $ M.lookup v (M.fromList (zip vals syms))
@@ -596,13 +577,6 @@ identifier = lexeme ((:) <$> firstChar <*> many nonFirstChar)
   where
     firstChar = letter <|> char '_'
     nonFirstChar = digit <|> firstChar
-
-{--
-parseString :: Parser String
-parseString = many lilyChar
-  where
-    lilyChar = letter <|> digit <|> oneOf "',."
---}
 
 parseQuotedString :: Parser String
 parseQuotedString = lexeme (char '\"' *> manyTill anyChar (char '\"'))
