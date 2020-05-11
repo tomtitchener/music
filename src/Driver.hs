@@ -123,43 +123,43 @@ parseConfigSelector = either (error . show) id . parse pConfigSelector ""
 pConfigSelector :: Parser ConfigSelector
 pConfigSelector =
   choice [
-    try $ SelInt <$> (string "int" *> spaces *> int)          -- 5
-  , try $ SelPitches <$> (string "pitches" *> spaces *> parsePitch `sepBy` space)          -- c d e
-  , try $ SelAccentss <$> (string "accentss" *> spaces *> pAccents `sepBy` char ',')       -- _ > .,espressivo ^ -
-  , try $ SelAccents <$> (string "accents" *> spaces *> pAccents)                          -- ^ - !
-  , try $ SelDynamicss <$> (string "dynamicss" *> spaces *> pDynamics `sepBy` char ',')    -- p f pp,sf ff rfz
-  , try $ SelDynamics <$> (string "dynamics" *> spaces *> pDynamics)                       -- p f pp
-  , try $ SelDurationss <$> (string "durationss" *> spaces *> pDurations `sepBy` char ',') -- 4 2. 2,16 32 64,4 2 1
-  , try $ SelDurations <$> (string "durations" *> spaces *> pDurations)                    -- 4 2. 2 16 32
-  , try $ SelMIntervalss <$> (string "intmottos" *> spaces *> pMInts `sepBy` char ',')     -- 1 r 2 -3 4 r
-  , try $ SelMIntervals <$> (string "intmotto" *> spaces *> pMInts)                        -- 1 r 2 -3 4 r
-  , try $ SelPitOctPrs <$> (string "pitoctprs" *> spaces *> pPitOctPr `sepBy` char ',')    -- (c,-1),(g,0),(d,1)
-  , try $ SelPitOctPr <$> (string "pitoctpr" *> spaces *> pPitOctPr)                       -- (c,"'")
-  , try $ SelInstrument <$> (string "instrument" *> spaces *> parseInstrument)             -- acoustic grand
-  , try $ SelKey <$> (string "key" *> spaces *> pKeySig)                                   -- g major
-  , try $ SelClef <$> (string "clef" *> spaces *> pClefStr)                                -- bass
+    try $ SelInt <$> (string "int" *> spaces *> int)                        -- 5
+  , try $ SelPitches <$> (string "pitches" *> mkPs parsePitch)              -- c,d,e
+  , try $ SelAccentss <$> (string "accentss" *> mkPss pAccentStr)           -- _,>,.;espressivo,^,-
+  , try $ SelAccents <$> (string "accents" *> mkPs pAccentStr)              -- ^,-,!
+  , try $ SelDynamicss <$> (string "dynamicss" *> mkPss pDynamicStr)        -- p,f,pp;sf,ff,rfz
+  , try $ SelDynamics <$> (string "dynamics" *> mkPs pDynamicStr)          -- p,f,pp
+  , try $ SelDurationss <$> (string "durationss" *> mkPss parseDuration)    -- 4,2.,2;16,32,64;4,2,1
+  , try $ SelDurations <$> (string "durations" *> mkPs parseDuration)       -- 4,2.,2,16,32
+  , try $ SelMIntervalss <$> (string "intmottos" *> mkPss pMInt)            -- 1,r,2;-3,4,r
+  , try $ SelMIntervals <$> (string "intmotto" *> mkPs pMInt)               -- 1,r,2,-3,4,r
+  , try $ SelPitOctPrs <$> (string "pitoctprs" *> mkPs pPitOctPr)           -- (c,-1),(g,0),(d,1)
+  , try $ SelPitOctPr <$> (string "pitoctpr" *> lexeme pPitOctPr)           -- (c,"'")
+  , try $ SelInstrument <$> (string "instrument" *> lexeme parseInstrument) -- acoustic grand
+  , try $ SelKey <$> (string "key" *> lexeme pKeySig)                       -- g major
+  , try $ SelClef <$> (string "clef" *> lexeme pClefStr)                    -- bass
   ]
+
+comma :: Parser Char
+comma = char ','
+
+semi :: Parser Char
+semi = char ';'
+
+lexeme :: Parser a -> Parser a
+lexeme p = spaces *> p <* spaces
 
 mkParser :: String -> a -> Parser a
 mkParser s d = try (string s >> pure d)
 
-modeStrs :: [String]
-modeStrs = ["major", "minor"]
+mkPs :: Parser a -> Parser [a]
+mkPs p = lexeme p `sepBy` comma
 
-parseModeStr :: Parser Mode
-parseModeStr = choice (zipWith mkParser modeStrs [Major .. Minor])
-
-pKeySig :: Parser KeySignature
-pKeySig = KeySignature <$> parsePitch <*> (spaces *> parseModeStr)
+mkPss :: Parser a -> Parser [[a]]
+mkPss p = mkPs p `sepBy` semi
 
 accentStrs :: [String]
 accentStrs = ["^", "-", "!", ".",  ">", "_", "espressivo", "~"]
-
-pAccentStr :: Parser Accent
-pAccentStr = choice (zipWith mkParser accentStrs [Marcato .. NoAccent])
-
-pAccents :: Parser [Accent]
-pAccents = pAccentStr `sepBy` space
 
 dynamicStrs :: [String]
 dynamicStrs = ["ppppp", "pppp", "ppp", "pp", "p", "mp", "mf", "fffff", "ffff", "fff", "ff", "fp", "f", "sff", "sfz", "sf", "spp", "sp", "rfz", "~"]
@@ -170,17 +170,20 @@ dynamicVals = [PPPPP, PPPP, PPP, PP, Piano, MP, MF, FFFFF, FFFF, FFF, FF, FP, Fo
 pDynamicStr :: Parser Dynamic
 pDynamicStr = choice (zipWith mkParser dynamicStrs dynamicVals)
 
-pDynamics :: Parser [Dynamic]
-pDynamics = pDynamicStr `sepBy` space
-
-pDurations :: Parser [Duration]
-pDurations = parseDuration `sepBy` space
+pAccentStr :: Parser Accent
+pAccentStr = choice (zipWith mkParser accentStrs [Marcato .. NoAccent])
 
 pMInt :: Parser (Maybe Int)
 pMInt = (Just <$> int) <|> (char 'r' >> pure Nothing)
 
-pMInts :: Parser [Maybe Int]
-pMInts = pMInt `sepBy` space
+modeStrs :: [String]
+modeStrs = ["major", "minor"]
+
+pModeStr :: Parser Mode
+pModeStr = choice (zipWith mkParser modeStrs [Major .. Minor])
+
+pKeySig :: Parser KeySignature
+pKeySig = KeySignature <$> parsePitch <*> (spaces *> pModeStr)
 
 octaveInts :: [String]
 octaveInts = ["-4","-3","-2","-1","0","1","2","3"]

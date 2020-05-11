@@ -49,8 +49,7 @@ main =  do
   unless (null _optRandomSeed) $
     setStdGen (read _optRandomSeed::StdGen)
   gen <- getStdGen
-  void . liftIO $ runReaderT (runDriver exEnv) (initEnv config (show gen))
---void . liftIO $ runReaderT (runDriver (cfg2Score "example_texture")) (initEnv config (show gen))
+  void . liftIO $ runReaderT (runDriver (cfg2Score "example_texture")) (initEnv config (show gen))
 
 exRandList :: Driver ()
 exRandList = randomizeList [C,D,E,F,G,A,B] >>= mapM_ print
@@ -108,11 +107,11 @@ cfg2Dynss pre = do
 
 genVoc :: Int -> [[Maybe Int]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> VoiceTup -> Driver Voice
 genVoc reps mottos durss accss dynss (instr, key, clef, scale, (p,o))= do
-  motto <- concat . take reps <$> randomElements mottos
-  durs  <- concat . take reps <$> randomElements durss
-  accs  <- concat . take reps <$> randomElements accss
-  dyns  <- concat . take reps <$> randomElements dynss
-  pure $ SingleVoice instr (VeKeySignature key:VeClef clef:genNotes (mtranspose scale (p,o) motto) durs accs dyns)
+  mots <- concat . map (mtranspose scale (p,o)) . take reps <$> randomElements mottos
+  durs <- concat . take reps <$> randomElements durss
+  accs <- concat . take reps <$> randomElements accss
+  dyns <- concat . take reps <$> randomElements dynss
+  pure $ SingleVoice instr (VeKeySignature key:VeClef clef:genNotes mots durs accs dyns)
 
 genVocs :: Int -> [[Maybe Int]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> [VoiceTup] -> Driver [Voice]
 genVocs reps mottos durss accss dynss = mapM (genVoc reps mottos durss accss dynss)
