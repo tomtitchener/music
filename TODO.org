@@ -105,6 +105,10 @@ Accidental degree of freedom:  chaining motto transpositions
 instead of restarting each motto from the same starting pitch.
 Means motto shape is preserved but maybe over different starting
 pitches based on end pitch from previous motto.
+*** DONE Remove type keyword in config file
+Means playing with parse order so parses don't interfere
+with one another.  Spent the better part of Saturday 
+nudging this into shape.
 ** TODO Control complexity
   Random groupings of a) pitches, b) rhythms, c) accents
   d) dynamics even for short sequences yields boring soup
