@@ -51,21 +51,6 @@ main =  do
   gen <- getStdGen
   void . liftIO $ runReaderT (runDriver (cfg2Score "example_texture")) (initEnv config (show gen))
 
-exRandList :: Driver ()
-exRandList = randomizeList [C,D,E,F,G,A,B] >>= mapM_ print
-
-exRandElem :: Driver ()
-exRandElem = randomElement [C,D,E,F,G,A,B] >>= print
-
-exRandElems :: Int -> Driver ()
-exRandElems n = randomElements [C,D,E,F,G,A,B] >>= print . take n
-
-printConfigParam :: String -> Driver ()
-printConfigParam sel = getConfigParam ("example_param." <> sel) >>= print
-
-exEnv :: Driver ()
-exEnv = mapM_ printConfigParam ["pits","accs","accss","dyns","dynss","durs","durss","ints","intss","pitoct","pitocts","instrument"]
-
 cfg2Int :: String -> Driver Int
 cfg2Int k = do
   (SelInt i) <- getConfigParam k
@@ -107,7 +92,7 @@ cfg2Dynss pre = do
 
 genVoc :: Int -> [[Maybe Int]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> VoiceTup -> Driver Voice
 genVoc reps mottos durss accss dynss (instr, key, clef, scale, (p,o))= do
-  mots <- concat . map (mtranspose scale (p,o)) . take reps <$> randomElements mottos
+  mots <- concatMap (mtranspose scale (p,o)) . take reps <$> randomElements mottos
   durs <- concat . take reps <$> randomElements durss
   accs <- concat . take reps <$> randomElements accss
   dyns <- concat . take reps <$> randomElements dynss
@@ -118,7 +103,7 @@ genVocs reps mottos durss accss dynss = mapM (genVoc reps mottos durss accss dyn
 
 cfg2Score :: String -> Driver ()
 cfg2Score title = do
-  voctups <- cfg2VocTups title ["voice1","voice2","voice3","voice4","voice5","voice6"]
+  voctups <- cfg2VocTups title ["voice1","voice2","voice3","voice4"]
   mottos <- cfg2IntMottos title
   durss <- cfg2Durss title
   accss <- cfg2Accss title
@@ -127,4 +112,22 @@ cfg2Score title = do
   voices <- genVocs reps mottos durss accss dynss voctups
   writeScore title $ Score title voices
 
+---------
+-- Test -
+---------
+
+exRandList :: Driver ()
+exRandList = randomizeList [C,D,E,F,G,A,B] >>= mapM_ print
+
+exRandElem :: Driver ()
+exRandElem = randomElement [C,D,E,F,G,A,B] >>= print
+
+exRandElems :: Int -> Driver ()
+exRandElems n = randomElements [C,D,E,F,G,A,B] >>= print . take n
+
+printConfigParam :: String -> Driver ()
+printConfigParam sel = getConfigParam ("example_param." <> sel) >>= print
+
+printConfigParams :: Driver ()
+printConfigParams = mapM_ printConfigParam ["pits","accs","accss","dyns","dynss","durs","durss","ints","intss","pitoct","pitocts","instrument"]
 

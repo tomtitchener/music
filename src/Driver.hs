@@ -8,7 +8,7 @@
 
 module Driver where
 
-import Control.Lens
+import Control.Lens hiding (only)
 import Control.Monad.Free
 import Control.Monad.Random.Class
 import Control.Monad.Reader
@@ -123,21 +123,21 @@ parseConfigSelector = either (error . show) id . parse pConfigSelector ""
 pConfigSelector :: Parser ConfigSelector
 pConfigSelector =
   choice [
-    try $ SelInt <$> (string "int" *> spaces *> int)                        -- 5
-  , try $ SelPitches <$> (string "pitches" *> mkPs parsePitch)              -- c,d,e
-  , try $ SelAccentss <$> (string "accentss" *> mkPss pAccentStr)           -- _,>,.;espressivo,^,-
-  , try $ SelAccents <$> (string "accents" *> mkPs pAccentStr)              -- ^,-,!
-  , try $ SelDynamicss <$> (string "dynamicss" *> mkPss pDynamicStr)        -- p,f,pp;sf,ff,rfz
-  , try $ SelDynamics <$> (string "dynamics" *> mkPs pDynamicStr)          -- p,f,pp
-  , try $ SelDurationss <$> (string "durationss" *> mkPss parseDuration)    -- 4,2.,2;16,32,64;4,2,1
-  , try $ SelDurations <$> (string "durations" *> mkPs parseDuration)       -- 4,2.,2,16,32
-  , try $ SelMIntervalss <$> (string "intmottos" *> mkPss pMInt)            -- 1,r,2;-3,4,r
-  , try $ SelMIntervals <$> (string "intmotto" *> mkPs pMInt)               -- 1,r,2,-3,4,r
-  , try $ SelPitOctPrs <$> (string "pitoctprs" *> mkPs pPitOctPr)           -- (c,-1),(g,0),(d,1)
-  , try $ SelPitOctPr <$> (string "pitoctpr" *> lexeme pPitOctPr)           -- (c,"'")
-  , try $ SelInstrument <$> (string "instrument" *> lexeme parseInstrument) -- acoustic grand
-  , try $ SelKey <$> (string "key" *> lexeme pKeySig)                       -- g major
-  , try $ SelClef <$> (string "clef" *> lexeme pClefStr)                    -- bass
+    try $ SelInt <$> (string "int" *> spaces *> int)   -- 5
+  , try $ SelInstrument  <$> only parseInstrument      -- acoustic grand
+  , try $ SelKey         <$> only pKeySig              -- g major
+  , try $ SelClef        <$> only pClefStr             -- bass
+  , try $ SelPitOctPr    <$> only pPitOctPr            -- (c,0)
+  , try $ SelPitches     <$> only (mkPs parsePitch)    -- c,d,e
+  , try $ SelAccents     <$> only (mkPs pAccentStr)    -- ^,-,!
+  , try $ SelDynamics    <$> only (mkPs pDynamicStr)   -- p,f,pp
+  , try $ SelDurations   <$> only (mkPs parseDuration) -- 4,2.,2,16,32
+  , try $ SelMIntervals  <$> only (mkPs pMInt)         -- 1,r,2,-3,4,r
+  , try $ SelPitOctPrs   <$> only (mkPs pPitOctPr)     -- (c,-1),(g,0),(d,1)
+  , try $ SelAccentss    <$> mkPss pAccentStr          -- _,>,.;espressivo,^,-
+  , try $ SelDynamicss   <$> mkPss pDynamicStr         -- p,f,pp;sf,ff,rfz
+  , try $ SelDurationss  <$> mkPss parseDuration       -- 4,2.,2;16,32,64;4,2,1
+  , try $ SelMIntervalss <$> mkPss pMInt               -- 1,r,2;-3,4,r
   ]
 
 comma :: Parser Char
@@ -146,17 +146,20 @@ comma = char ','
 semi :: Parser Char
 semi = char ';'
 
+only :: Parser a -> Parser a
+only p = lexeme p <* eof
+
 lexeme :: Parser a -> Parser a
-lexeme p = spaces *> p <* spaces
+lexeme p = spaces *> p
 
 mkParser :: String -> a -> Parser a
 mkParser s d = try (string s >> pure d)
 
 mkPs :: Parser a -> Parser [a]
-mkPs p = lexeme p `sepBy` comma
+mkPs p = lexeme p `sepBy1` comma
 
 mkPss :: Parser a -> Parser [[a]]
-mkPss p = mkPs p `sepBy` semi
+mkPss p = mkPs p `sepBy1` semi
 
 accentStrs :: [String]
 accentStrs = ["^", "-", "!", ".",  ">", "_", "espressivo", "~"]
