@@ -111,6 +111,68 @@ pitches based on end pitch from previous motto.
   texture.  Create a new generation routine that creates
   n random associations and uses them as entities in the 
   asssembly of a larger texture.
+  Or consider a progession where the existing strategy
+  is the endpoint with the most complexity, e.g. random
+  selection among a) interval/rest, b) duration, c) accent, 
+  and d) dynamic.  
+  Minimal complexity would be identical selection of each 
+  in all voices, in a loop.
+
+  First step could be to advance interval/rest by one, 
+  wrapping to maintain order.  The pairing of duration,
+  accent, and dynmamic would continue.  In fact, it's
+  hard to imagine playing with the accent/dyanmic pair
+  independently except against a drone of a stable interval,
+  duration pairing.  And even then you'd want to do 
+  something like drop the overall dynamic and just have
+  the voices chorus on the accent patterns.
+
+  And maybe do it voice-by-voice, pulling the wrapping
+  ahead successively.  
+
+  Or experiment with letting the other voices catch up
+  first?
+
+  General idea is to introduce complexity gradually,
+  or to find or arrive at a starting point for some
+  other style of progression, like gradual widening
+  of intervals or playing with varying accents.
+
+  Another dimension for complexity:  total length of
+  duration elements.  If they're not uniform, then
+  re-arrangement will stagger voices.  To maintain
+  uniform count, add rests?  What is consequence of
+  unequal length of e.g. interval/rest, duration, 
+  accent, dynamic?  Could pad accent and dynamic
+  to avoid truncation.  Lengths of interval/rest
+  and durations is trickier, either needs to cause
+  truncation.
+  
+  Code:
+  1) Capture configuration.  Lists of a) mottos,
+     b) durations, c) accents, d) durations.  And
+     per voice instrument, key, clef, scale, and
+     starting pitch.
+     Routine that merges to note list extends
+     accents and durations, but truncates by 
+     shortest of interval/rest or durations list.
+     Or why not extend interval/rest with a series
+     of zero transpositions?  Duration should be
+     the determining factor so that, for a cycle
+     all voices end a the same point.  Note that
+     random selection will violate this.
+  2) Create uniform unvarying texture with all
+     voices starting from same pitch separated
+     only by octaves  Repeat for some count.
+  3) Advance interval/rest list by one with wrapping
+     for top voice only.  Repeat.  And the same for
+     each voice individually until they've all 
+     landed at the same alignment.
+
+  During the first step, repeat until the different
+  mottos are sharply defined, different from each 
+  other, and easy to recognize.
+
 ** TODO Motif Transitions
   - build longer-term transitions on top, e.g. migrate all 
     voices to a destination range: high, middle, low or
@@ -123,6 +185,8 @@ pitches based on end pitch from previous motto.
   - pair-wise progressions so there's audible variety in
     the texture, e.g. outer voices chiming with inner 
     voices quietly busy
+  - increasing sparsity of notes vs. rests to reduce
+    texture to pointillistic dots
 ** TODO Barring
 ** TODO Non-pitched Percussion Voices
 
