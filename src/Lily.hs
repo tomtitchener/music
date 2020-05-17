@@ -134,6 +134,7 @@ dynamicSyms = ["\\ppppp", "\\pppp", "\\ppp", "\\pp", "\\p", "\\mp", "\\mf", "\\f
 
 dynamicVals :: [Dynamic]
 dynamicVals = [PPPPP, PPPP, PPP, PP, Piano, MP, MF, FFFFF, FFFF, FFF, FF, FP, Forte, SFF, SFZ, SF, SPP, SP, RFZ, NoDynamic]
+
 instance ToLily Dynamic where
   toLily = mkToLily "dynamic" dynamicVals dynamicSyms
 

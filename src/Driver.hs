@@ -17,10 +17,8 @@ import Data.Aeson.Lens
 import Data.List.Split hiding (sepBy)
 import qualified Data.Text as T
 import System.Random.Shuffle
-import Text.Parsec
-import Text.Parsec.Number
-import Text.Parsec.String
 
+import Config
 import Lily
 import Types
 
@@ -41,7 +39,7 @@ data ActionWithValue a where
   RandomElement  :: [b] -> ActionWithValue b
   RandomElements :: [b] -> ActionWithValue [b]
   RandomizeList  :: [b] -> ActionWithValue [b]
-  GetConfigParam :: String -> ActionWithValue ConfigSelector
+  GetConfigParam :: FromConfig a => String -> ActionWithValue a
 
 data DriverF next where
   DoAction       :: ActionNoValue -> next -> DriverF next
@@ -51,10 +49,10 @@ deriving instance Functor DriverF
 
 type Driver = Free DriverF
 
-instance MonadFail Driver where
-  fail = error
+--instance MonadFail Driver where
+--  fail = error
 
-runDriver :: forall a m.(MonadIO m, MonadRandom m, MonadReader DriverEnv m, MonadFail m) => Driver a -> m a
+runDriver :: forall a m.(MonadIO m, MonadRandom m, MonadReader DriverEnv m {--, MonadFail m0--}) => Driver a -> m a
 runDriver (Free (DoActionThen act k)) =
   case act of
     RandomElement  l    -> getRandomR (0, length l - 1) >>= runDriver . k . (l !!)
@@ -68,7 +66,7 @@ runDriver (Free (DoAction act k)) =
     Print t -> liftIO (putStrLn t) *> runDriver k
 runDriver (Pure k) = pure k
 
-lookupConfig :: String -> Value -> ConfigSelector
+lookupConfig :: FromConfig a => String -> Value -> a
 lookupConfig path config =
   let segments = splitOn "." path
   in case preview (foldl1 (.) (map (key . T.pack) segments) . _String) config of
@@ -76,7 +74,7 @@ lookupConfig path config =
                "Could not find value for path: " <>
                path <> "\nin values:\n" <>
                show config
-    Just txt -> parseConfigSelector (T.unpack txt)
+    Just txt -> parseConfig (T.unpack txt)
 
 writeScore :: FilePath -> Score -> Driver ()
 writeScore fName s = liftF $ DoAction (WriteScore fName s) ()
@@ -93,110 +91,14 @@ randomElements ls = liftF $ DoActionThen (RandomElements ls) id
 randomizeList :: [a] -> Driver [a]
 randomizeList ls = liftF $ DoActionThen (RandomizeList ls) id
 
-getConfigParam :: String -> Driver ConfigSelector
+getConfigParam :: (FromConfig a, Show a) => String -> Driver a
 getConfigParam path = liftF $ DoActionThen (GetConfigParam path) id
 
 print :: Show a => a -> Driver ()
 print s = liftF $ DoAction (Print (show s)) ()
 
-data ConfigSelector =
-  SelInt Int
-  | SelPitches [Pitch]
-  | SelAccents [Accent]
-  | SelAccentss [[Accent]]
-  | SelDynamics [Dynamic]
-  | SelDynamicss [[Dynamic]]
-  | SelDurations [Duration]
-  | SelDurationss [[Duration]]
-  | SelMIntervals [Maybe Int]
-  | SelMIntervalss [[Maybe Int]]
-  | SelPitOctPr (Pitch,Octave)
-  | SelPitOctPrs [(Pitch,Octave)]
-  | SelInstrument Instrument
-  | SelKey KeySignature
-  | SelClef Clef
-  deriving (Eq, Show)
-
-parseConfigSelector :: String -> ConfigSelector
-parseConfigSelector = either (error . show) id . parse pConfigSelector ""
-
-pConfigSelector :: Parser ConfigSelector
-pConfigSelector =
-  choice [
-    try $ SelInt         <$> (string "int" *> spaces *> int) -- 5
-  , try $ SelInstrument  <$> parseInstrument     -- acoustic grand
-  , try $ SelKey         <$> pKeySig             -- g major
-  , try $ SelClef        <$> pClefStr            -- bass
-  , try $ SelPitOctPr    <$> pPitOctPr           -- (c,0)
-  , try $ SelPitches     <$> mkPs parsePitch     -- [c,d,e]
-  , try $ SelAccents     <$> mkPs pAccentStr     -- [^,-,!]
-  , try $ SelDynamics    <$> mkPs pDynamicStr    -- [p,f,pp]
-  , try $ SelDurations   <$> mkPs parseDuration  -- [4,2.,2,16,32]
-  , try $ SelMIntervals  <$> mkPs pMInt          -- [1,r,2,-3,4,r
-  , try $ SelPitOctPrs   <$> mkPs pPitOctPr      -- [(c,-1),(g,0),(d,1)]
-  , try $ SelAccentss    <$> mkPss pAccentStr    -- [[_,>,.],[espressivo,^,-]]
-  , try $ SelDynamicss   <$> mkPss pDynamicStr   -- [[p,f,pp],[sf,ff,rfz]]
-  , try $ SelDurationss  <$> mkPss parseDuration -- [[4,2.,2],[16,32,64],[4,2,1]]
-  , try $ SelMIntervalss <$> mkPss pMInt         -- [[1,r,2],[-3,4,r]]
-  ]
-
-lexeme :: Parser a -> Parser a
-lexeme p = spaces *> p
-
-mkParser :: String -> a -> Parser a
-mkParser s d = try (string s >> pure d)
-
-mkPs :: Parser a -> Parser [a]
-mkPs p = between (char '(') (char ')') (lexeme p `sepBy1` (char ','))
-
-mkPss :: Parser a -> Parser [[a]]
-mkPss = mkPs . mkPs
-
-accentStrs :: [String]
-accentStrs = ["^", "-", "!", ".",  ">", "_", "espressivo", "~"]
-
-dynamicStrs :: [String]
-dynamicStrs = ["ppppp", "pppp", "ppp", "pp", "p", "mp", "mf", "fffff", "ffff", "fff", "ff", "fp", "f", "sff", "sfz", "sf", "spp", "sp", "rfz", "~"]
-
-dynamicVals :: [Dynamic]
-dynamicVals = [PPPPP, PPPP, PPP, PP, Piano, MP, MF, FFFFF, FFFF, FFF, FF, FP, Forte, SFF, SFZ, SF, SPP, SP, RFZ, NoDynamic]
-
-pDynamicStr :: Parser Dynamic
-pDynamicStr = choice (zipWith mkParser dynamicStrs dynamicVals)
-
-pAccentStr :: Parser Accent
-pAccentStr = choice (zipWith mkParser accentStrs [Marcato .. NoAccent])
-
-pMInt :: Parser (Maybe Int)
-pMInt = (Just <$> int) <|> (char 'r' >> pure Nothing)
-
-modeStrs :: [String]
-modeStrs = ["major", "minor"]
-
-pModeStr :: Parser Mode
-pModeStr = choice (zipWith mkParser modeStrs [Major .. Minor])
-
-pKeySig :: Parser KeySignature
-pKeySig = KeySignature <$> parsePitch <*> (spaces *> pModeStr)
-
-octaveInts :: [String]
-octaveInts = ["-4","-3","-2","-1","0","1","2","3"]
-
-pOctaveStr :: Parser Octave
-pOctaveStr = choice (zipWith mkParser octaveInts [TwentyNineVBOct .. TwentyTwoVAOct])
-
-pPitOctPr :: Parser (Pitch,Octave)
-pPitOctPr = between (char '(') (char ')') ((,) <$> parsePitch <*> (char ',' *> pOctaveStr))
-
-clefStrs :: [String]
-clefStrs = ["bass_8", "bass", "tenor", "alto", "treble", "treble^8"]
-
-pClefStr :: Parser Clef
-pClefStr = choice (zipWith mkParser clefStrs [Bass8VB ..Treble8VA])
-
--- https://www.programming-idioms.org/idiom/10/shuffle-a-list/826/haskell
 -- https://www.parsonsmatt.org/2017/09/22/what_does_free_buy_us.html
 
------------------------------
--- Many thanks to Dan Choi --
------------------------------
+------------------------
+-- Thanks to Dan Choi --
+------------------------

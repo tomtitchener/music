@@ -49,47 +49,21 @@ main =  do
   unless (null _optRandomSeed) $
     setStdGen (read _optRandomSeed::StdGen)
   gen <- getStdGen
-  void . liftIO $ runReaderT (runDriver printConfigParams) (initEnv config (show gen))
---  void . liftIO $ runReaderT (runDriver (cfg2Score "example_texture")) (initEnv config (show gen))
-
-cfg2Int :: String -> Driver Int
-cfg2Int k = do
-  (SelInt i) <- getConfigParam k
-  pure i
+  void . liftIO $ runReaderT (runDriver (cfg2Score "example_texture")) (initEnv config (show gen))
 
 type VoiceTup = (Instrument, KeySignature, Clef, [Pitch], (Pitch,Octave))
 
 cfg2VocTup :: String -> Driver VoiceTup
 cfg2VocTup pre = do
-  (SelInstrument i) <- getConfigParam (pre <> ".instr")
-  (SelKey k) <- getConfigParam (pre <> ".key")
-  (SelClef c) <- getConfigParam (pre <> ".clef")
-  (SelPitOctPr po) <- getConfigParam (pre <> ".start")
-  (SelPitches s) <- getConfigParam (pre <> ".scale")
-  pure (i, k, c, s, po)
+  instr <- getConfigParam (pre <> ".instr")
+  key <- getConfigParam (pre <> ".key")
+  clef <- getConfigParam (pre <> ".clef")
+  pitOctPr <- getConfigParam (pre <> ".start")
+  scale <- getConfigParam (pre <> ".scale")
+  pure (instr, key, clef, scale, pitOctPr)
 
 cfg2VocTups :: String -> [String] -> Driver [VoiceTup]
 cfg2VocTups root = mapM (\v -> cfg2VocTup (root <> "." <> v))
-
-cfg2IntMottos :: String -> Driver [[Maybe Int]]
-cfg2IntMottos pre = do
-  (SelMIntervalss mIMs) <- getConfigParam (pre <> ".intss")
-  pure mIMs
-
-cfg2Durss :: String -> Driver [[Duration]]
-cfg2Durss pre = do
-  (SelDurationss durss) <- getConfigParam (pre <> ".durss")
-  pure durss
-
-cfg2Accss :: String -> Driver [[Accent]]
-cfg2Accss pre = do
-  (SelAccentss accss) <- getConfigParam (pre <> ".accss")
-  pure accss
-
-cfg2Dynss :: String -> Driver [[Dynamic]]
-cfg2Dynss pre = do
-  (SelDynamicss dynss) <- getConfigParam (pre <> ".dynss")
-  pure dynss
 
 genVoc :: Int -> [[Maybe Int]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> VoiceTup -> Driver Voice
 genVoc reps mottos durss accss dynss (instr, key, clef, scale, (p,o))= do
@@ -105,11 +79,11 @@ genVocs reps mottos durss accss dynss = mapM (genVoc reps mottos durss accss dyn
 cfg2Score :: String -> Driver ()
 cfg2Score title = do
   voctups <- cfg2VocTups title ["voice1","voice2","voice3","voice4"]
-  mottos <- cfg2IntMottos title
-  durss <- cfg2Durss title
-  accss <- cfg2Accss title
-  dynss <- cfg2Dynss title
-  reps  <- cfg2Int (title <> ".reps")
+  mottos <- getConfigParam (title <> ".intss")
+  durss <- getConfigParam (title <> ".durss")
+  accss <- getConfigParam (title <> ".accss")
+  dynss <- getConfigParam (title <> ".dynss")
+  reps  <- getConfigParam (title <> ".reps")
   voices <- genVocs reps mottos durss accss dynss voctups
   writeScore title $ Score title voices
 
@@ -125,10 +99,4 @@ exRandElem = randomElement [C,D,E,F,G,A,B] >>= print
 
 exRandElems :: Int -> Driver ()
 exRandElems n = randomElements [C,D,E,F,G,A,B] >>= print . take n
-
-printConfigParam :: String -> Driver ()
-printConfigParam sel = getConfigParam ("example_param." <> sel) >>= print
-
-printConfigParams :: Driver ()
-printConfigParams = mapM_ printConfigParam ["pits","accs","accss","dyns","dynss","durs","durss","ints","intss","pitoct","pitocts","instrument"]
 
