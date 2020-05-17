@@ -49,7 +49,8 @@ main =  do
   unless (null _optRandomSeed) $
     setStdGen (read _optRandomSeed::StdGen)
   gen <- getStdGen
-  void . liftIO $ runReaderT (runDriver (cfg2Score "example_texture")) (initEnv config (show gen))
+  void . liftIO $ runReaderT (runDriver printConfigParams) (initEnv config (show gen))
+--  void . liftIO $ runReaderT (runDriver (cfg2Score "example_texture")) (initEnv config (show gen))
 
 cfg2Int :: String -> Driver Int
 cfg2Int k = do

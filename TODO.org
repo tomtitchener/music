@@ -109,6 +109,18 @@ pitches based on end pitch from previous motto.
 Means playing with parse order so parses don't interfere
 with one another.  Spent the better part of Saturday 
 nudging this into shape.
+*** DONE Simplify grouping with before, after
+First tried '[' and ']' but those parse to Aeson Array,
+not string, so substituted '(' and ')'.  Eliminated need
+for "only" with eof test.
+*** TODO Parallel FromLily as FromConfig
+Shouldn't have to parse to ConfigSelector type, then
+pick apart with MonadFail handler.  With type class,
+should be able just do parseConfig.  Segregate parsers
+between lilypond ones and config ones in a new file,
+Parsers.hs, have Lilypond instances just refer to 
+parseLily<Foo>.  Create Config.hs to parallel Lilly.hs
+and have Driver import both.
 ** TODO Control complexity
   Random groupings of a) pitches, b) rhythms, c) accents
   d) dynamics even for short sequences yields boring soup
