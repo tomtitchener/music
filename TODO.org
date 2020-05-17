@@ -113,7 +113,7 @@ nudging this into shape.
 First tried '[' and ']' but those parse to Aeson Array,
 not string, so substituted '(' and ')'.  Eliminated need
 for "only" with eof test.
-*** TODO Parallel FromLily as FromConfig
+*** DONE Parallel FromLily as FromConfig
 Shouldn't have to parse to ConfigSelector type, then
 pick apart with MonadFail handler.  With type class,
 should be able just do parseConfig.  Segregate parsers

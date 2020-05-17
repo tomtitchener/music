@@ -49,10 +49,7 @@ deriving instance Functor DriverF
 
 type Driver = Free DriverF
 
---instance MonadFail Driver where
---  fail = error
-
-runDriver :: forall a m.(MonadIO m, MonadRandom m, MonadReader DriverEnv m {--, MonadFail m0--}) => Driver a -> m a
+runDriver :: forall a m.(MonadIO m, MonadRandom m, MonadReader DriverEnv m) => Driver a -> m a
 runDriver (Free (DoActionThen act k)) =
   case act of
     RandomElement  l    -> getRandomR (0, length l - 1) >>= runDriver . k . (l !!)
