@@ -121,7 +121,7 @@ between lilypond ones and config ones in a new file,
 Parsers.hs, have Lilypond instances just refer to 
 parseLily<Foo>.  Create Config.hs to parallel Lilly.hs
 and have Driver import both.
-** TODO Control complexity
+** Control complexity
   Random groupings of a) pitches, b) rhythms, c) accents
   d) dynamics even for short sequences yields boring soup
   texture.  Create a new generation routine that creates
@@ -130,10 +130,35 @@ and have Driver import both.
   Or consider a progession where the existing strategy
   is the endpoint with the most complexity, e.g. random
   selection among a) interval/rest, b) duration, c) accent, 
-  and d) dynamic.  
+  and d) dynamic.  How to progress from simple to more
+  complex?  Consider taking uniform length list of inputs,
+  interval/rest + duration + accent + dynamic.  (Can make
+  uniform length following a couple rules: durations is 
+  determinant, extend interval/rest with 0 transpositions
+  for repeating same note, extend accent and dynamic with
+  null ~.)  Then start with groupings of two and have random
+  permutation of two-element list. Or, does it make sense
+  to consider vertial slice of interval/rest + duration +
+  accent + dynamic as integral and pick groupings 
+  algorithmically?  It seems like it'd be hard to hear
+  e.g. shuffled groups of 'n' elements as having anything
+  to do with one another.  Say, as opposed to groupings
+  of a shuffled list of three elements where each is a
+  list of say three or four notes.  Which is where I was
+  originally coming from.  In this pattern, a unit is 
+  the motif as a list of four lists where the inner lists
+  are of interval/rest, duration, accent, and dynamic.
+  Or really, that would better be a struct with four
+  elements or a four-tuple product.  The defining thing
+  would be a constructor that would stretch out or clip
+  the interval/rest, accent, and dynamic lists so they
+  match the length of the duration list.  
+*** DONE Minimal complexity pattern
   Minimal complexity would be identical selection of each 
-  in all voices, in a loop.
-
+  in all voices, in a loop.  Repeat the exact same motifs
+  just from different octave-separted initial notes?  Would
+  be unison effect, certainly minimal complexity.  
+*** TODO Rotate 
   First step could be to advance interval/rest by one, 
   wrapping to maintain order.  The pairing of duration,
   accent, and dynmamic would continue.  In fact, it's
@@ -188,6 +213,43 @@ and have Driver import both.
   During the first step, repeat until the different
   mottos are sharply defined, different from each 
   other, and easy to recognize.
+
+  Note another level of control:  order of motifs
+  in original lists, from repeating the same order
+  to repeating a random order, maybe with rotation
+  successively by one in the middle.
+ 
+  But the idea is for 'N' elements, pick the same
+  permuation for all of them.  Which would mean 
+  taking an index list, permuting it, and using 
+  the same index list to order each of the original
+  motif lists.
+
+  What sort of data structure?  Could just be list
+  of list with contents varying by motif type:  interval,
+  duration, accent, dynamic.  Translations would be to
+  map into a sequence e.g. of just repetitions of the
+  original order (i.e. concatenation), to map into a
+  sequence by a consistent permutation (e.g. rotation)
+  successively, to map into a sequence randomly, but
+  so that all components follow the same sequence.
+
+  Inputs are:
+    1) sequence, which is list of a list of motif,
+    2) function that acts on the sequence to vary it,
+       type list of list of motif to list of list of 
+       motif
+    3) count of times to apply the function
+
+  Problem is to capture progress so you can do something
+  more than just repeat the exact same operation on the
+  list of motifs every time.
+
+  If input is anything other than the source material (motif)
+  then that means carrying through some sort of state, or using
+  a fold.  So for example, to rotate successively by 1, you'd
+  need ... really, only the previous result ... so that could 
+  just be a scan.
 
 ** TODO Motif Transitions
   - build longer-term transitions on top, e.g. migrate all 

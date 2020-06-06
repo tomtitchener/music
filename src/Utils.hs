@@ -59,25 +59,33 @@ durSum2Durs = unfoldr f
         d = durVal2Duration M.! v
         ds = DurationSum (i - v)
 
+-- in interval arithmetic 0 doesn't make any sense, 1/-1 is unison, 2/-2 is a second, etc.
+-- to convert to offset from current pitch, 0 => exception, 1/-1 => 0, 2/-2 = 1/-1, etc.
+intervalToOffset :: Int -> Int
+intervalToOffset i
+  | i < 0 = i + 1
+  | i == 0 = error "intervalToOffset invalid interval 0"
+  | otherwise = i - 1
+
 transpose :: [Pitch] -> (Pitch,Octave) -> [Int] -> [(Pitch,Octave)]
-transpose scale pr = map (xp scale pr) . scanl1 (+)
+transpose scale pr = map (xp scale pr) . scanl1 (+) . map intervalToOffset
 
 mtranspose :: [Pitch] -> (Pitch,Octave) -> [Maybe Int] -> [Maybe (Pitch,Octave)]
 mtranspose scale pr = map (xp scale pr <$>) . reverse . snd . foldl' f (0,[])
   where
     f (s,l) Nothing  = (s, Nothing:l)
-    f (s,l) (Just i) = (s+i, Just (s+i):l)
+    f (s,l) (Just i) = (s + intervalToOffset i, Just (s + intervalToOffset i):l)
 
 -- partial if Pitch from (Pitch,Octave) is not element of [Pitch]
 xp :: [Pitch] -> (Pitch,Octave) -> Int -> (Pitch,Octave)
-xp scale (p,o) i = (p',o')
+xp scale (p,o) off = (p',o')
   where
     cntSteps = length scale
     normScale = sort scale -- To [C..B] or closest enharmonic to compute new octave
     pitInt = fromMaybe (error $ "pitch " <> show p <> " not in scale " <> show scale) $ elemIndex p normScale
-    cntOcts = (pitInt + i) `div` cntSteps
-    o' = if i < 0 then fpow (abs cntOcts) decrOct o; else fpow cntOcts incrOct o
-    pitIdx = (pitInt + i) `rem` cntSteps
+    cntOcts = (pitInt + off) `div` cntSteps
+    o' = if off < 0 then fpow (abs cntOcts) decrOct o; else fpow cntOcts incrOct o
+    pitIdx = (pitInt + off) `rem` cntSteps
     p' = if pitIdx < 0 then normScale !! (cntSteps + pitIdx); else normScale !! pitIdx
 
 -- https://stackoverflow.com/questions/7423123/how-to-call-the-same-function-n-times
