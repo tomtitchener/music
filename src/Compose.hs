@@ -1,11 +1,15 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Compose (cfg2MaxRandScore
-               ,cfg2MinRandScore) where
+               ,cfg2MinRandScore
+               ,cfg2RotFor1RandScore) where
 
+import Control.Monad (zipWithM)
 import Data.Foldable (fold)
 import Data.List (zipWith4)
 import Data.Semigroup (stimes)
+
 import Driver
 import Types
 import Utils
@@ -32,6 +36,9 @@ instance Semigroup VoiceMottos where
 
 instance Monoid VoiceMottos where
   mempty = VoiceMottos [] [] [] []
+
+lift2VocMots :: (forall a . ([[a]] -> [[a]])) -> VoiceMottos -> VoiceMottos
+lift2VocMots f VoiceMottos{..} = VoiceMottos (f _vmMIntss) (f _vmDurss) (f _vmAcctss) (f _vmDynss)
 
 cfg2VocTup :: String -> Driver VoiceTup
 cfg2VocTup pre =
@@ -74,8 +81,8 @@ normalizeVoiceMottos :: VoiceMottos -> VoiceMottos
 normalizeVoiceMottos VoiceMottos{..} =
   fold $ zipWith4 normalizeVoiceMotto _vmMIntss _vmDurss _vmAcctss _vmDynss
 
-genMaxRandVoc :: Int -> VoiceMottos -> VoiceTup -> Driver Voice
-genMaxRandVoc reps VoiceMottos{..} VoiceTup{..} = do
+genMaxRandVoc :: Int -> VoiceMottos -> VoiceTup -> GenVoiceMottos -> Driver Voice
+genMaxRandVoc reps VoiceMottos{..} VoiceTup{..} _ = do
   mots <- concatMap (mtranspose _vtScale _vtStart) . take reps <$> randomElements _vmMIntss
   durs <- concat . take reps <$> randomElements _vmDurss
   accs <- concat . take reps <$> randomElements _vmAcctss
@@ -84,8 +91,8 @@ genMaxRandVoc reps VoiceMottos{..} VoiceTup{..} = do
 
 -- reps repetitions of the mottos all in the same order, no randomization, just repeats
 -- Monadic to fit genRandVocs harness, otherwise pure.
-genMinRandVoc :: Int -> VoiceMottos -> VoiceTup -> Driver Voice
-genMinRandVoc reps vocmots VoiceTup{..} =
+genMinRandVoc :: Int -> VoiceMottos -> VoiceTup -> GenVoiceMottos -> Driver Voice
+genMinRandVoc reps vocmots VoiceTup{..} _ =
   pure $ SingleVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
   where
     mots = concatMap (mtranspose _vtScale _vtStart) _vmMIntss
@@ -94,10 +101,22 @@ genMinRandVoc reps vocmots VoiceTup{..} =
     dyns = concat _vmDynss
     VoiceMottos{..} = stimes reps $ normalizeVoiceMottos vocmots
 
-newtype GenRandVoice = GenRandVoice { _genRandVoc :: Int -> VoiceMottos -> VoiceTup -> Driver Voice }
+genRot1RandVoc :: Int -> VoiceMottos -> VoiceTup -> GenVoiceMottos -> Driver Voice
+genRot1RandVoc reps vocmots VoiceTup{..} GenVoiceMottos{..} =
+  pure $ SingleVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
+  where
+    mots = concatMap (mtranspose _vtScale _vtStart) _vmMIntss
+    durs = concat _vmDurss
+    accs = concat _vmAcctss
+    dyns = concat _vmDynss
+    VoiceMottos{..} = stimes reps $ normalizeVoiceMottos (_genVoiceMottos vocmots)
 
-genRandVocs :: GenRandVoice -> Int -> VoiceMottos -> [VoiceTup] -> Driver [Voice]
-genRandVocs GenRandVoice{..} reps vocmots = mapM (_genRandVoc reps vocmots)
+newtype GenVoice = GenVoice { _genRandVoc :: Int -> VoiceMottos -> VoiceTup -> GenVoiceMottos -> Driver Voice }
+
+newtype GenVoiceMottos = GenVoiceMottos { _genVoiceMottos :: VoiceMottos -> VoiceMottos }
+
+genRandVocs :: GenVoice -> Int -> VoiceMottos -> [VoiceTup] -> [GenVoiceMottos] -> Driver [Voice]
+genRandVocs GenVoice{..} reps vocmots = zipWithM (_genRandVoc reps vocmots)
 
 cfg2ConfigTup :: String -> Driver (Int, [VoiceTup], VoiceMottos)
 cfg2ConfigTup title =
@@ -113,14 +132,23 @@ cfg2ConfigTup title =
 cfg2MaxRandScore :: String -> Driver ()
 cfg2MaxRandScore title = do
   (reps, voctups, vocmots) <- cfg2ConfigTup title
-  voices  <- genRandVocs (GenRandVoice genMaxRandVoc) reps vocmots voctups
+  voices  <- genRandVocs (GenVoice genMaxRandVoc) reps vocmots voctups []
   writeScore title $ Score title voices
 
 cfg2MinRandScore :: String -> Driver ()
 cfg2MinRandScore title = do
   (reps, voctups, vocmots) <- cfg2ConfigTup title
-  voices  <- genRandVocs (GenRandVoice genMinRandVoc) reps vocmots voctups
+  voices  <- genRandVocs (GenVoice genMinRandVoc) reps vocmots voctups []
   writeScore title $ Score title voices
+
+cfg2RotFor1RandScore :: String -> Driver ()
+cfg2RotFor1RandScore title = do
+  (reps, voctups, vocmots) <- cfg2ConfigTup title
+  let genVocMots = map genVocMot [0..(length voctups) - 1]
+  voices  <- genRandVocs (GenVoice genRot1RandVoc) reps vocmots voctups genVocMots
+  writeScore title $ Score title voices
+  where
+    genVocMot n = GenVoiceMottos $ lift2VocMots (rotNFor n)
 
 {--
 matchLen :: Int -> [a] -> [a]

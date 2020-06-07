@@ -7,6 +7,10 @@ module Utils (incrOct
              ,transpose
              ,mtranspose
              ,genNotes
+             ,rotFor
+             ,rotNFor
+             ,rotRev
+             ,rotNRev
              ) where
 
 import Data.List hiding (transpose)
@@ -98,3 +102,22 @@ genNotes = zipWith4 f
     f Nothing du _ _ = VeRest $ Rest du
     f (Just (p,o)) du a dy = VeNote (Note p o du a dy False)
 
+-- partial, panic on empty list
+-- rotate a list forward by 1 step
+rotFor :: [[a]] -> [[a]]
+rotFor [] = error "rotFor empty list"
+rotFor (x:xs) = xs<>[x]
+
+rotNFor :: Int -> [[a]] -> [[a]]
+rotNFor _ [] = error "rotForN empty list"
+rotNFor i xs = iterate rotFor xs !! i
+
+-- partial, panic on empty list
+-- rotate a list backward by 1 step
+rotRev :: [[a]] -> [[a]]
+rotRev [] = error "rotRev empty list"
+rotRev xs = last xs:take (length xs - 1) xs
+
+rotNRev :: Int -> [[a]] -> [[a]]
+rotNRev _ [] = error "rotRevN empty list"
+rotNRev i xs = iterate rotRev xs !! i

@@ -153,104 +153,18 @@ and have Driver import both.
   would be a constructor that would stretch out or clip
   the interval/rest, accent, and dynamic lists so they
   match the length of the duration list.  
-*** DONE Minimal complexity pattern
+*** DONE Minimal complexity:  same order homophonic
   Minimal complexity would be identical selection of each 
   in all voices, in a loop.  Repeat the exact same motifs
   just from different octave-separted initial notes?  Would
   be unison effect, certainly minimal complexity.  
-*** TODO Rotate 
-  First step could be to advance interval/rest by one, 
-  wrapping to maintain order.  The pairing of duration,
-  accent, and dynmamic would continue.  In fact, it's
-  hard to imagine playing with the accent/dyanmic pair
-  independently except against a drone of a stable interval,
-  duration pairing.  And even then you'd want to do 
-  something like drop the overall dynamic and just have
-  the voices chorus on the accent patterns.
-
-  And maybe do it voice-by-voice, pulling the wrapping
-  ahead successively.  
-
-  Or experiment with letting the other voices catch up
-  first?
-
-  General idea is to introduce complexity gradually,
-  or to find or arrive at a starting point for some
-  other style of progression, like gradual widening
-  of intervals or playing with varying accents.
-
-  Another dimension for complexity:  total length of
-  duration elements.  If they're not uniform, then
-  re-arrangement will stagger voices.  To maintain
-  uniform count, add rests?  What is consequence of
-  unequal length of e.g. interval/rest, duration, 
-  accent, dynamic?  Could pad accent and dynamic
-  to avoid truncation.  Lengths of interval/rest
-  and durations is trickier, either needs to cause
-  truncation.
-  
-  Code:
-  1) Capture configuration.  Lists of a) mottos,
-     b) durations, c) accents, d) durations.  And
-     per voice instrument, key, clef, scale, and
-     starting pitch.
-     Routine that merges to note list extends
-     accents and durations, but truncates by 
-     shortest of interval/rest or durations list.
-     Or why not extend interval/rest with a series
-     of zero transpositions?  Duration should be
-     the determining factor so that, for a cycle
-     all voices end a the same point.  Note that
-     random selection will violate this.
-  2) Create uniform unvarying texture with all
-     voices starting from same pitch separated
-     only by octaves  Repeat for some count.
-  3) Advance interval/rest list by one with wrapping
-     for top voice only.  Repeat.  And the same for
-     each voice individually until they've all 
-     landed at the same alignment.
-
-  During the first step, repeat until the different
-  mottos are sharply defined, different from each 
-  other, and easy to recognize.
-
-  Note another level of control:  order of motifs
-  in original lists, from repeating the same order
-  to repeating a random order, maybe with rotation
-  successively by one in the middle.
- 
-  But the idea is for 'N' elements, pick the same
-  permuation for all of them.  Which would mean 
-  taking an index list, permuting it, and using 
-  the same index list to order each of the original
-  motif lists.
-
-  What sort of data structure?  Could just be list
-  of list with contents varying by motif type:  interval,
-  duration, accent, dynamic.  Translations would be to
-  map into a sequence e.g. of just repetitions of the
-  original order (i.e. concatenation), to map into a
-  sequence by a consistent permutation (e.g. rotation)
-  successively, to map into a sequence randomly, but
-  so that all components follow the same sequence.
-
-  Inputs are:
-    1) sequence, which is list of a list of motif,
-    2) function that acts on the sequence to vary it,
-       type list of list of motif to list of list of 
-       motif
-    3) count of times to apply the function
-
-  Problem is to capture progress so you can do something
-  more than just repeat the exact same operation on the
-  list of motifs every time.
-
-  If input is anything other than the source material (motif)
-  then that means carrying through some sort of state, or using
-  a fold.  So for example, to rotate successively by 1, you'd
-  need ... really, only the previous result ... so that could 
-  just be a scan.
-
+*** TODO Medium complexity: same order polyphonic
+  Rotate each voice by one motive, with as many motives
+  as there are voices.
+*** TODO Fill-in/Fade-out  
+  To fill-in, introduce voices one-by-one playing 
+  single motif, then increase density across all voices.
+  Reverse to fade-out.
 ** TODO Motif Transitions
   - build longer-term transitions on top, e.g. migrate all 
     voices to a destination range: high, middle, low or
