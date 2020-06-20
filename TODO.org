@@ -158,9 +158,32 @@ and have Driver import both.
   in all voices, in a loop.  Repeat the exact same motifs
   just from different octave-separted initial notes?  Would
   be unison effect, certainly minimal complexity.  
-*** TODO Medium complexity: same order polyphonic
+*** DONE Medium complexity: same order polyphonic
   Rotate each voice by one motive, with as many motives
-  as there are voices.
+  as there are voices.  Effect is canon, so you hear 
+  periodic repetitions in different octaves of motifs
+  in the same order over and over.  Better than unison
+  but not much.
+*** TODO Random motifs.
+  Among 'n' motifs, randomly pick one.  Repeat.  Trick 
+  is for motifs to all be of the same rhythmic duration,
+  otherwise you get staggered lengths.
+  Tricky to lift monad behavior (randomizeList) into
+  generation of voices.  Let's say I create a list of
+  a list of notes by combining the input config params
+  just in the order that they occur in the config file.
+  That'd just be length four, which wouldn't be much to
+  randomize, so multiply that by the number of repetitions.
+  Now shuffle *that* list of list, which is going to be a 
+  monadic operation.  Then concat the notes for the voice.
+  Another possibility is for reps * count of elements in
+  motifs, pick random one and concatenate the result. 
+*** DONE Fix rest rendering with dynamic change
+  If there's a rest and there's a new dynamic, want to
+  show dynamic.  Ignore accents.
+*** DONE Change pitch/octave extension 
+  Currently repeat to make note list match duration
+  where needed.  Change to rests.
 *** TODO Fill-in/Fade-out  
   To fill-in, introduce voices one-by-one playing 
   single motif, then increase density across all voices.

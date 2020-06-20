@@ -162,10 +162,10 @@ instance FromLily Note  where
 ----------
 
 instance ToLily Rest where
-  toLily (Rest dur) = "r" <> toLily dur
+  toLily (Rest dur dyn) = "r" <> toLily dur <> toLily dyn
 
 parseRest :: Parser Rest
-parseRest = Rest <$> (char 'r' *> parseDuration)
+parseRest = Rest <$> (char 'r' *> parseDuration) <*> parseDynamic
 
 instance FromLily Rest  where
   parseLily = mkParseLily parseRest

@@ -49,7 +49,7 @@ main =  do
   unless (null _optRandomSeed) $
     setStdGen (read _optRandomSeed::StdGen)
   gen <- getStdGen
-  void . liftIO $ runReaderT (runDriver (cfg2RotFor1RandScore "example_texture")) (initEnv config (show gen))
+  void . liftIO $ runReaderT (runDriver (cfg2RandMotScore "example_texture")) (initEnv config (show gen))
 
 ---------
 -- Test -

@@ -7,6 +7,7 @@ module Utils (incrOct
              ,transpose
              ,mtranspose
              ,genNotes
+             ,genNotess
              ,rotFor
              ,rotNFor
              ,rotRev
@@ -99,8 +100,11 @@ fpow n f x = iterate f x !! n
 genNotes :: [Maybe (Pitch,Octave)] -> [Duration] -> [Accent] -> [Dynamic] -> [VoiceEvent]
 genNotes = zipWith4 f
   where
-    f Nothing du _ _ = VeRest $ Rest du
+    f Nothing du _ dy = VeRest $ Rest du dy
     f (Just (p,o)) du a dy = VeNote (Note p o du a dy False)
+
+genNotess :: [[Maybe (Pitch,Octave)]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> [[VoiceEvent]]
+genNotess = zipWith4 genNotes
 
 -- partial, panic on empty list
 -- rotate a list forward by 1 step
