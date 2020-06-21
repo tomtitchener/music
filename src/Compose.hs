@@ -3,7 +3,7 @@
 
 module Compose (cfg2MaxRandScore
                ,cfg2HomoPhonScore
-            -- ,cfg2CanonScore
+               ,cfg2CanonScore
                ,cfg2RandMotScore) where
 
 import Control.Monad (zipWithM)
@@ -152,15 +152,13 @@ cfg2HomoPhonScore title = do
   writeScore title $ Score title voices
 
 -- effectively canon after lead-in with all voices running at same imitative distance repeatedly
-{--
 cfg2CanonScore :: String -> Driver ()
 cfg2CanonScore title = do
   (reps, voctups, vocmots) <- cfg2ConfigTup title
-  let genVocMot n = _genVoiceMottos $ lift2VocMots (rotNFor n)
-     genVocMots = map genVocMot [0..(length voctups) - 1]
+  let genVocMot n = GenVoiceMottos $ lift2VocMots (rotNFor n)
+      genVocMots = map genVocMot [0..(length voctups) - 1]
   voices <- genVoices (GenVoice genVoc) reps vocmots voctups genVocMots
   writeScore title $ Score title voices
---}
 
 genRandMots :: [Int] -> [[a]] -> [[a]]
 genRandMots idxs src = map (src !!)  idxs
@@ -170,7 +168,7 @@ genRandVoiceMottos reps vocmots = do
   ridxs <- randomizeList idxs
   pure $ lift2VocMots (genRandMots ridxs) (normalizeVoiceMottos vocmots)
   where
-    idxs = concat $ replicate reps [0..(length (_vmDurss vocmots))]
+    idxs = concat $ replicate reps [0..(length (_vmDurss vocmots) - 1)]
 
 cfg2RandMotScore :: String -> Driver ()
 cfg2RandMotScore title = do
