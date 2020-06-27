@@ -158,6 +158,19 @@ instance FromLily Note  where
   parseLily = mkParseLily parseNote
 
 ----------
+-- Rhythm --
+----------
+
+instance ToLily Rhythm where
+  toLily (Rhythm instr dur acc dyn) = instr  <> toLily dur <> toLily acc <> toLily dyn
+
+parseRhythm :: Parser Rhythm
+parseRhythm = Rhythm <$> manyTill anyChar eof <*> parseDuration <*> parseAccent <*> parseDynamic
+
+instance FromLily Rhythm  where
+  parseLily = mkParseLily parseRhythm
+
+----------
 -- Rest --
 ----------
 
@@ -290,6 +303,7 @@ instance FromLily TimeSignature where
 
 instance ToLily VoiceEvent where
   toLily (VeNote note) = toLily note
+  toLily (VeRhythm rhythm) = toLily rhythm
   toLily (VeRest rest) = toLily rest
   toLily (VeChord chord) = toLily chord
   toLily (VeClef clef) = toLily clef
@@ -300,6 +314,7 @@ instance ToLily VoiceEvent where
 parseVoiceEvent :: Parser VoiceEvent
 parseVoiceEvent = choice [try (VeClef <$> parseClef)
                          ,try (VeNote <$> parseNote)
+                         ,try (VeRhythm <$> parseRhythm)
                          ,try (VeRest <$> parseRest)
                          ,try (VeChord <$> parseChord)
                          ,try (VeTempo <$> parseTempo)

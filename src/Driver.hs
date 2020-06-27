@@ -21,6 +21,7 @@ import System.Random.Shuffle
 import Config
 import Lily
 import Types
+import Utils
 
 data DriverEnv = DriverEnv {
      _config :: Value
@@ -81,6 +82,9 @@ printLily l = liftF $ DoAction (PrintLily l) ()
 
 randomElement :: [a] -> Driver a
 randomElement ls = liftF $ DoActionThen (RandomElement ls) id
+
+randomWeightedElement :: [(Int,a)] -> Driver a
+randomWeightedElement ws = liftF $ DoActionThen (RandomElement (genByWeight ws)) id
 
 randomElements :: [a] -> Driver [a]
 randomElements ls = liftF $ DoActionThen (RandomElements ls) id

@@ -7,6 +7,7 @@ module Types (Pitch (..)
              ,Accent (..)
              ,Dynamic (..)
              ,Note (..)
+             ,Rhythm (..)
              ,Rest (..)
              ,Chord (..)
              ,Clef (..)
@@ -49,6 +50,9 @@ data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FF
 data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAcc :: Accent, _notedDyn :: Dynamic, _noteSlur :: Bool }
   deriving (Eq, Ord, Show)
 
+data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAcc :: Accent, _rhythmdDyn :: Dynamic }
+  deriving (Eq, Ord, Show)
+
 data Rest = Rest { _rdur :: Duration, _rdyn :: Dynamic }
   deriving (Eq, Ord, Show)
 
@@ -78,6 +82,7 @@ data TimeSignature = TimeSignature { _tsNum :: Int, _tsDenom :: Duration }
 data VoiceEvent =
     VeNote { _veNote :: Note }
   | VeRest { _veRest :: Rest }
+  | VeRhythm { _veRhythm :: Rhythm }
   | VeChord { _veChord :: Chord }
   | VeClef { _veClef :: Clef }
   | VeTempo { _veTempo :: Tempo }

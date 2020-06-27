@@ -121,7 +121,7 @@ between lilypond ones and config ones in a new file,
 Parsers.hs, have Lilypond instances just refer to 
 parseLily<Foo>.  Create Config.hs to parallel Lilly.hs
 and have Driver import both.
-** Control complexity
+** DONE Control complexity
   Random groupings of a) pitches, b) rhythms, c) accents
   d) dynamics even for short sequences yields boring soup
   texture.  Create a new generation routine that creates
@@ -164,7 +164,7 @@ and have Driver import both.
   periodic repetitions in different octaves of motifs
   in the same order over and over.  Better than unison
   but not much.
-*** TODO Random motifs.
+*** DONE Random motifs.
   Among 'n' motifs, randomly pick one.  Repeat.  Trick 
   is for motifs to all be of the same rhythmic duration,
   otherwise you get staggered lengths.
@@ -178,13 +178,50 @@ and have Driver import both.
   monadic operation.  Then concat the notes for the voice.
   Another possibility is for reps * count of elements in
   motifs, pick random one and concatenate the result. 
+  
+  Effect is like chorus where transitional passage comes
+  back to restatement of idea without transition, or maybe
+  ritornello.  It's grounded and static while continuously
+  varying the series of motives between the voices.
 *** DONE Fix rest rendering with dynamic change
   If there's a rest and there's a new dynamic, want to
   show dynamic.  Ignore accents.
 *** DONE Change pitch/octave extension 
   Currently repeat to make note list match duration
   where needed.  Change to rests.
-*** TODO Fill-in/Fade-out  
+** TODO Contrary texture
+Instead of voices with separate ranges, all voices following
+trajectories across same range.  More a chase even, with swarm 
+that follows general countour but with each varying in details
+of rhythm and exact pitch trajectories.  Model on the murmuration
+(not a bad title).  Could even model graphic algorithm with leader
+and followers.
+Revisit weighted random generation with history.  Start simple e.g.
+with just rhythm, e.g. duration.  Pick collection say of three:
+1/16, 1/8, 1/4.  Assign weights: 1, 1, 2.  That is, 25%, 25%, 50%
+probability on each choice.  To implement, pick random number from
+range that is sum 4, e.g. 0..3.  Then create a list of duration
+four elements long with 1/16 in first, 1/8 in second, and 1/4 in
+last two, e.g.:
+> concat $ zipWith replicate [1,1,2] [16,8,4]
+[16,8,4,4]
+Or $ concat . (zipWith replicate) is
+Then use randomElement to pick one, or just wrap in new routine 
+randomWeightedElement that takes weights as well as list.  Note
+that it would be better to input a list of pairs explicitly to 
+avoid truncation that can happen with zip.  And it makes for a 
+more succinct implementation:  concatMap (uncurry replicate).
+For this, config can just be 
+ 1) list of weights as ints
+ 2) list of durations
+ 3) count of elements to generate
+ 4) instrument
+ 5) note.
+Or better yet, make a parser that knows (Int,a) pairs and a parser
+for a list of them.
+Also, consider filling out the percussion instruments so I can use
+claves.
+** TODO Fill-in/Fade-out  
   To fill-in, introduce voices one-by-one playing 
   single motif, then increase density across all voices.
   Reverse to fade-out.

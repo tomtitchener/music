@@ -178,7 +178,6 @@ cfg2RandMotScore title = do
   voices  <- genVoicesM (GenVoiceM genVocM) reps vocmots voctups genVocMotMs
   writeScore title $ Score title voices
 
-
 {--
 matchLen :: Int -> [a] -> [a]
 matchLen n arr
