@@ -446,12 +446,21 @@ shortInstrName = (shortInstrNames !!) . fromEnum
 -----------
 
 instance ToLily Voice where
-  toLily (SingleVoice instr events) = toSingleVoice instr events
+  toLily (PitchedVoice instr events) = toPitchedVoice instr events
+  toLily (PercussionVoice instr events) = toPercussionVoice instr events
   toLily (VoiceGroup voices) = toVoiceGroup voices
   toLily (PolyVoice instr eventss) = toPolyVoice instr eventss
 
-toSingleVoice :: Instrument -> [VoiceEvent] -> String
-toSingleVoice instr events =
+toPitchedVoice :: Instrument -> [VoiceEvent] -> String
+toPitchedVoice instr events =
+  [str|\new Voice
+      {\set Staff.instrumentName = ##"$shortInstrName instr$"\set Staff.midiInstrument = ##"$midiName instr$"
+      $unwords (map toLily events)$ \bar "|."
+      }
+      |]
+
+toPercussionVoice :: Instrument -> [VoiceEvent] -> String
+toPercussionVoice instr events =
   [str|\new Voice
       {\set Staff.instrumentName = ##"$shortInstrName instr$"\set Staff.midiInstrument = ##"$midiName instr$"
       $unwords (map toLily events)$ \bar "|."
@@ -493,7 +502,15 @@ parsePolyVoiceEvents = string [str|\new Staff {
 
 parseVoice :: Parser Voice
 parseVoice = choice [
-  try (SingleVoice <$> (string [str|\new Voice
+  try (PitchedVoice <$> (string [str|\new Voice
+                                   {\set Staff.instrumentName = ##|]
+                        *> parseQuotedIdentifier
+                        *> string [str|\set Staff.midiInstrument = ##"|]
+                        *> parseInstrument <* string [str|"$endline$|])
+                   <*> (parseVoiceEvent `endBy` space
+                        <* string [str|\bar "|."
+                                      }|]))
+  ,try (PercussionVoice <$> (string [str|\new Voice
                                    {\set Staff.instrumentName = ##|]
                         *> parseQuotedIdentifier
                         *> string [str|\set Staff.midiInstrument = ##"|]

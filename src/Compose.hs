@@ -91,11 +91,11 @@ genMaxRandVoc reps VoiceMottos{..} VoiceTup{..} _ = do
   durs <- concat . take reps <$> randomElements _vmDurss
   accs <- concat . take reps <$> randomElements _vmAcctss
   dyns <- concat . take reps <$> randomElements _vmDynss
-  pure $ SingleVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
+  pure $ PitchedVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
 
 genVoc :: Int -> VoiceMottos -> VoiceTup -> GenVoiceMottos -> Driver Voice
 genVoc reps vocmots VoiceTup{..} GenVoiceMottos{..} =
-  pure $ SingleVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
+  pure $ PitchedVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
   where
     mots = concatMap (mtranspose _vtScale _vtStart) _vmMIntss
     durs = concat _vmDurss
@@ -110,7 +110,7 @@ genVocM _ vocmots VoiceTup{..} GenVoiceMottosM{..} = do
       durs = concat _vmDurss
       accs = concat _vmAcctss
       dyns = concat _vmDynss
-  pure $ SingleVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
+  pure $ PitchedVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
 
 newtype GenVoice = GenVoice { _genRandVoc :: Int -> VoiceMottos -> VoiceTup -> GenVoiceMottos -> Driver Voice }
 
@@ -189,7 +189,7 @@ matchLen n arr
 
 genHomoPhonVoc :: Int -> VoiceMottos -> VoiceTup -> GenVoiceMottos -> Driver Voice
 genHomoPhonVoc reps vocmots VoiceTup{..} _ =
-  pure $ SingleVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
+  pure $ PitchedVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
   where
     mots = concatMap (mtranspose _vtScale _vtStart) _vmMIntss
     durs = concat _vmDurss
@@ -199,7 +199,7 @@ genHomoPhonVoc reps vocmots VoiceTup{..} _ =
 
 genRot1RandVoc :: Int -> VoiceMottos -> VoiceTup -> GenVoiceMottos -> Driver Voice
 genRot1RandVoc reps vocmots VoiceTup{..} GenVoiceMottos{..} =
-  pure $ SingleVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
+  pure $ PitchedVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
   where
     mots = concatMap (mtranspose _vtScale _vtStart) _vmMIntss
     durs = concat _vmDurss

@@ -48,7 +48,7 @@ tests =
   ,testProperty "parseLily . toLily TimeSignature == id" (propParseLilytoLilyVal @TimeSignature)
   ,testProperty "parseLily . toLily Chord == id" (propParseLilytoLilyVal @Chord)
   --
-  ,testCase     "parseLily . toLily SingleVoice" (assertParseLilytoLilyVal singleVoice)
+  ,testCase     "parseLily . toLily PitchedVoice" (assertParseLilytoLilyVal pitchedVoice)
   ,testCase     "parseLily . toLily PolyVoice"   (assertParseLilytoLilyVal polyVoice)
   ,testCase     "parseLily . toLily VoiceGroup"  (assertParseLilytoLilyVal voiceGroup)
   --
@@ -146,20 +146,20 @@ minVEvents = [VeClef Treble
 assertParseLilytoLilyVal :: (Show a, Eq a, ToLily a, FromLily a) => a -> Assertion
 assertParseLilytoLilyVal a = assertEqual (show a) a (parseLily (toLily a))
 
-singleVoice :: Voice
-singleVoice = SingleVoice AcousticGrand minVEvents
+pitchedVoice :: Voice
+pitchedVoice = PitchedVoice AcousticGrand minVEvents
 
 polyVoice :: Voice
 polyVoice = PolyVoice AcousticGrand [minVEvents,minVEvents]
 
 voiceGroup :: Voice
-voiceGroup = VoiceGroup [singleVoice, singleVoice, polyVoice]
+voiceGroup = VoiceGroup [pitchedVoice, pitchedVoice, polyVoice]
 
 minScore :: Score
-minScore = Score "comment" [singleVoice]
+minScore = Score "comment" [pitchedVoice]
 
 multiScore :: Score
-multiScore = Score "comment" [singleVoice,singleVoice]
+multiScore = Score "comment" [pitchedVoice,pitchedVoice]
 
 polyScore :: Score
 polyScore = Score "comment" [polyVoice]

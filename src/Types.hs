@@ -137,7 +137,8 @@ data Instrument =
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 data Voice =
-  SingleVoice { _svInstrument :: Instrument, _svVoiceEvents :: [VoiceEvent] }
+  PitchedVoice { _svInstrument :: Instrument, _svVoiceEvents :: [VoiceEvent] }
+  | PercussionVoice { _pInstrument :: Instrument, _svVoiceEvents :: [VoiceEvent] }
   | VoiceGroup { _vgVoices :: [Voice] }
   | PolyVoice { _pvInstrument :: Instrument, _pvVoiceEvents :: [[VoiceEvent]] }
   deriving (Eq, Ord, Show)
