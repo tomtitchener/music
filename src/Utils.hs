@@ -87,7 +87,7 @@ genNotes :: [Maybe (Pitch,Octave)] -> [Duration] -> [Accent] -> [Dynamic] -> [Vo
 genNotes = zipWith4 f
   where
     f Nothing du _ dy = VeRest $ Rest du dy
-    f (Just (p,o)) du a dy = VeNote (Note p o du a dy False)
+    f (Just (p,o)) du a dy = VeNote (Note p o du a (dy,NoSwell) False)
 
 genNotess :: [[Maybe (Pitch,Octave)]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> [[VoiceEvent]]
 genNotess = zipWith4 genNotes

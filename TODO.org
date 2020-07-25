@@ -189,6 +189,77 @@ and have Driver import both.
 *** DONE Change pitch/octave extension 
   Currently repeat to make note list match duration
   where needed.  Change to rests.
+** TODO Crescendo/Decrescendo
+To do swells over a tremolo or generally, need notation.  Can be a generic term
+"swell" with values cresc, decresc, end, hairpin.  Or better yet I just need extra
+values for dynamic that are cresc, decresc, end, and hairpin (espressivo) for
+a swell on a single pitch.  Except I may want both dynamic and crescendo for the
+same note, or dynamic and decrescendo for the same note.  I could have a list, 
+but the actual instances of dynamic will be rare--and I'll have to get the order
+of dynamic and swell correct.  So probably it makes better sense to keep them
+separate.  Except, I forget: order varies between crescendo vs. decrescendo.
+If there's a dynamic and a crescendo then that's the order.  But if there's a
+dynamic and a decrescendo then you want the decrescendo first and the note second.
+So really it would be better to have a pair as you can only ever have two, and
+there's a handy NoDynamic and NoSwell for the empty cases.  Except that's not
+really necessary, as I can customize ToLily instances by type and FromLily by
+expected order.  But that only works (trivially) in the ToLily part.  The parsing
+is harder.  The order of swell/dynamic vs. dynamic/swell means you can't use 
+applicative style because the order in the containers e.g. Note has only one
+shape.  I need a way to say parse swell + dynamic OR dynamic + swell but 
+present them always in the order first dynamic then swell.  And while you can
+trivially do a pair of (Either Swell Dynamic), you're still left with the
+translation of that to Dynamic then Swell.  There is Text.Parsec.Perm that
+I may be able to leverage.  But from my reading of the documentation, *all*
+the fields of e.g. Note would be part of the mix, just so swell and dynamic
+could be out-of-order.  The the parser would actually be much more general
+than needed--would accept a much larger variety of input.  Seems like overkill,
+like I'm just missing some part of the parser architecture.  
+
+Simply god awful failure trying to force order of e.g. ">p" vs: "p<" which it
+turns out, doesn't even matter to Lilypond!  Surprisingly difficult to create
+a parser that handles two orders for the same type result.  In this case, I
+wanted the result to be (Dynamic,Swell) but the order to occur in either order.
+But as it turns out Lilypond takes "g''8.->\>\p" and g''8.->\p\> and treats 
+them the same way!  
+
+parseDynSwellPr :: Parser (Dynamic,Swell)
+-- type checks but doesn't work for e.g. "\\f\\<", parses as (Forte,NoSwell)
+parseDynSwellPr = try ((flip (,)) <$> parseSwell <*> parseDynamic) <|> try ((,) <$> parseDynamic <*> parseSwell)
+-- type checks but doesn't work for e.g. "\\>\\f", parses as (NoDynamic,Decrescendo)
+--parseDynSwellPr = try ((,) <$> parseDynamic <*> parseSwell) <|> try (flip (,) <$> parseSwell <*> parseDynamic)
+
+
+
+** TODO Tremolo
+Lilypond notation is :<N> where N is [8,16,32,64] for barring
+of tremolo.  Though that sounds like it's a fail for Midi rendering.
+So the way to encode it instead would be \repeat tremolo <reps> <note>[octave]<barring>
+where reps * barring gives total duration, so \repeat tremolo 4 c16 is a quarter note
+duration because 4 sixteenths gives a quarter note.  That's a little awkward.  First
+of all, the tremolo indication will have to carry the barring: [8|16|32|64|128].  Then
+there'll be a computation given a) the duration (1,1.,2,2.,4,4.,8,8. etc.] and b) the
+barring, the duration will have to be evenly divisible by the barring.  It's tempting
+to forgo the barring and just compute a lowest division maybe with some floor, like
+e.g. sixteenths, that could be a global constant even.
+But consider repeating a single note is only the minimal tremolo.  More usual is 
+tremolo between two chords or, probably for marimba, between two pairs of notes.
+And that's accommodated by the \repeat syntax.  But that encompasses multiple 
+pitches, which means that it's probably better to have Tremolo as another VoiceEvent.
+It wouldn't make any sense to use tremolo for a solo non-percussion voice, but that
+doesn't have to be captured by the type.  The Tremolo VoiceEvent would include a 
+list of notes of length one or two only.  Or better yet a [ [(Pitch,Octave)] ] of 
+length one or two.  A tremolo on a single note would be just [ [(Pitch,Octave)] ],
+over two single notes [ [(Pitch,Octave)], [(Pitch,Octave)] ], and etc.  Or another
+possibility would be ([(Pitch,Octave)],[(Pitch,Octave)]) where a single note tremelo
+would be represented as an empty list in the second element of the pair. Then it would
+need Duration, and Dynamic but probably not Accent.  Finally, it could include a 
+Maybe Duration for the barring, where Nothing would mean selecting a barring to fit
+the Duration with a minimal value of e.g. 16.  And the code would compute the reps
+value for the \repeat tremolo <reps> { '<' <note ... '>'<barring> ...}.
+** TODO Finish non-pitched percussion voice rendering.
+** TODO Install Docker, install lilypond, run test under Docker
+Should be possible to execute with GitHub integration.
 ** TODO Contrary texture
 Instead of voices with separate ranges, all voices following
 trajectories across same range.  More a chase even, with swarm 

@@ -6,6 +6,7 @@ module Types (Pitch (..)
              ,DurationSum (..)
              ,Accent (..)
              ,Dynamic (..)
+             ,Swell (..)
              ,Note (..)
              ,Rhythm (..)
              ,Rest (..)
@@ -41,22 +42,25 @@ data Duration =  HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur 
 newtype DurationSum = DurationSum { getDurSum :: Int }
   deriving (Eq, Ord, Show, Num)
 
-data Accent = Marcato | Tenuto | Staccatissimo | Staccato | Accent | Portato | Espressivo | NoAccent
+data Accent = Marcato | Tenuto | Staccatissimo | Staccato | Accent | Portato | NoAccent
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FFFF | FFFFF | FP | SF | SFF | SP | SPP | SFZ | RFZ | NoDynamic
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAcc :: Accent, _notedDyn :: Dynamic, _noteSlur :: Bool }
+data Swell = Crescendo | Decrescendo | Espressivo | SwellStop | NoSwell
+  deriving (Eq, Ord, Show, Enum, Bounded)
+
+data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAcc :: Accent, _noteDynSwellPr :: (Dynamic,Swell), _noteSlur :: Bool }
   deriving (Eq, Ord, Show)
 
-data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAcc :: Accent, _rhythmdDyn :: Dynamic }
+data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAcc :: Accent, _rhythmDynSwellPr :: (Dynamic,Swell) }
   deriving (Eq, Ord, Show)
 
 data Rest = Rest { _rdur :: Duration, _rdyn :: Dynamic }
   deriving (Eq, Ord, Show)
 
-data Chord = Chord { _chordPitOctPairs :: [(Pitch, Octave)] , _chordDur :: Duration, _chordDyn :: Dynamic, _chordAcc :: Accent, _chordSlur :: Bool }
+data Chord = Chord { _chordPitOctPairs :: [(Pitch, Octave)] , _chordDur :: Duration, _chordAcc :: Accent, _chordDynSwellPr :: (Dynamic,Swell), _chordSlur :: Bool }
   deriving (Eq, Ord, Show)
 
 data Clef = Bass8VB | Bass | Tenor | Alto | Treble | Treble8VA

@@ -6,6 +6,10 @@ module Lily (ToLily(..)
             ,parsePitch
             ,parseInstrument
             ,parseDuration
+            ,parseDynamic
+            ,parseSwell
+            ,parseDynSwellPr
+            ,mkParseLily
             ) where
 
 import Control.Monad
@@ -111,7 +115,7 @@ newtype DurationSum = DurationSum { getDurSum :: Int }
 ------------
 
 accentSyms :: [String]
-accentSyms = ["-^", "--", "-!", "-.",  "->", "-_", "\\espressivo", ""]
+accentSyms = ["-^", "--", "-!", "-.",  "->", "-_", ""]
 
 accentVals :: [Accent]
 accentVals = [Marcato .. NoAccent]
@@ -144,15 +148,43 @@ parseDynamic = choice (zipWith mkParser (init dynamicSyms) (init dynamicVals)) <
 instance FromLily Dynamic  where
   parseLily = mkParseLily parseDynamic
 
+-------------
+-- Swell --
+-------------
+
+swellSyms :: [String]
+swellSyms = ["\\<", "\\>", "\\espressivo", "\\!", ""]
+
+swellVals :: [Swell]
+swellVals = [Crescendo, Decrescendo, Espressivo, SwellStop, NoSwell]
+
+instance ToLily Swell where
+  toLily = mkToLily "swell" swellVals swellSyms
+
+parseSwell :: Parser Swell
+parseSwell = choice (zipWith mkParser (init swellSyms) (init swellVals)) <|> pure NoSwell
+
+instance FromLily Swell  where
+  parseLily = mkParseLily parseSwell
+
 ----------
 -- Note --
 ----------
 
 instance ToLily Note where
-  toLily (Note pit oct dur acc dyn slr) = toLily pit <> toLily oct <> toLily dur <> toLily acc <> toLily dyn <> if slr then "~" else ""
+  toLily (Note pit oct dur acc (dyn,Crescendo) slr) = toLily pit <> toLily oct <> toLily dur <> toLily acc <> toLily dyn <> toLily Crescendo <> if slr then "~" else ""
+  toLily (Note pit oct dur acc (dyn,Decrescendo) slr) = toLily pit <> toLily oct <> toLily dur <> toLily acc <> toLily Decrescendo <> toLily dyn <> if slr then "~" else ""
+  toLily (Note pit oct dur acc (dyn,SwellStop) slr) = toLily pit <> toLily oct <> toLily dur <> toLily acc <> toLily SwellStop <> toLily dyn <> if slr then "~" else ""
+  toLily (Note pit oct dur acc (dyn,swl) slr) = toLily pit <> toLily oct <> toLily dur <> toLily acc <> toLily dyn <> toLily swl <> if slr then "~" else ""
+
+parseDynSwellPr :: Parser (Dynamic,Swell)
+-- type checks but doesn't work for e.g. "\\f\\<", parses as (Forte,NoSwell)
+parseDynSwellPr = try ((flip (,)) <$> parseSwell <*> parseDynamic) <|> try ((,) <$> parseDynamic <*> parseSwell)
+-- type checks but doesn't work for e.g. "\\>\\f", parses as (NoDynamic,Decrescendo)
+--parseDynSwellPr = try ((,) <$> parseDynamic <*> parseSwell) <|> try (flip (,) <$> parseSwell <*> parseDynamic)
 
 parseNote :: Parser Note
-parseNote = Note <$> parsePitch <*> parseOctave <*> parseDuration <*> parseAccent <*> parseDynamic <*> parseBool
+parseNote = Note <$> parsePitch <*> parseOctave <*> parseDuration <*> parseAccent <*> parseDynSwellPr <*> parseBool
 
 instance FromLily Note  where
   parseLily = mkParseLily parseNote
@@ -162,10 +194,13 @@ instance FromLily Note  where
 ----------
 
 instance ToLily Rhythm where
-  toLily (Rhythm instr dur acc dyn) = instr  <> toLily dur <> toLily acc <> toLily dyn
+  toLily (Rhythm instr dur acc (dyn,Crescendo)) = instr  <> toLily dur <> toLily acc <> toLily dyn <> toLily Crescendo
+  toLily (Rhythm instr dur acc (dyn,Decrescendo)) = instr  <> toLily dur <> toLily acc <> toLily Decrescendo <> toLily dyn
+  toLily (Rhythm instr dur acc (dyn,SwellStop)) = instr  <> toLily dur <> toLily acc <> toLily SwellStop <> toLily dyn
+  toLily (Rhythm instr dur acc (dyn,swl)) = instr  <> toLily dur <> toLily acc <> toLily dyn <> toLily swl
 
 parseRhythm :: Parser Rhythm
-parseRhythm = Rhythm <$> manyTill anyChar eof <*> parseDuration <*> parseAccent <*> parseDynamic
+parseRhythm = Rhythm <$> manyTill anyChar eof <*> parseDuration <*> parseAccent <*> parseDynSwellPr
 
 instance FromLily Rhythm  where
   parseLily = mkParseLily parseRhythm
@@ -194,7 +229,10 @@ pitchOctavePairsToLily :: [(Pitch,Octave)] -> String
 pitchOctavePairsToLily = unwords . map pitchOctavePairToLily
 
 instance ToLily Chord where
-  toLily (Chord prs dur dyn acc slr) = "<" <> pitchOctavePairsToLily prs <> ">" <> toLily dur <> toLily dyn <> toLily acc <> if slr then "~" else ""
+  toLily (Chord prs dur acc (dyn,Crescendo) slr) = "<" <> pitchOctavePairsToLily prs <> ">" <> toLily dur <> toLily acc <> toLily dyn <> toLily Crescendo <> if slr then "~" else ""
+  toLily (Chord prs dur acc (dyn,Decrescendo) slr) = "<" <> pitchOctavePairsToLily prs <> ">" <> toLily dur <> toLily acc <> toLily Decrescendo <> toLily dyn <> if slr then "~" else ""
+  toLily (Chord prs dur acc (dyn,SwellStop) slr) = "<" <> pitchOctavePairsToLily prs <> ">" <> toLily dur <> toLily acc <> toLily SwellStop <> toLily dyn <> if slr then "~" else ""
+  toLily (Chord prs dur acc (dyn,swl) slr) = "<" <> pitchOctavePairsToLily prs <> ">" <> toLily dur <> toLily acc <> toLily dyn <> toLily swl <> if slr then "~" else ""
 
 parsePair :: Parser (Pitch,Octave)
 parsePair = (,) <$> parsePitch <*> parseOctave
@@ -203,7 +241,7 @@ parsePairs :: Parser [(Pitch,Octave)]
 parsePairs = parsePair `sepBy` spaces
 
 parseChord :: Parser Chord
-parseChord = Chord <$> (string "<" *> parsePairs <* string ">") <*> parseDuration <*> parseDynamic <*> parseAccent <*> parseBool
+parseChord = Chord <$> (string "<" *> parsePairs <* string ">") <*> parseDuration <*> parseAccent <*> parseDynSwellPr <*> parseBool
 
 instance FromLily Chord  where
   parseLily = mkParseLily parseChord
@@ -461,8 +499,9 @@ toPitchedVoice instr events =
 
 toPercussionVoice :: Instrument -> [VoiceEvent] -> String
 toPercussionVoice instr events =
-  [str|\new Voice
-      {\set Staff.instrumentName = ##"$shortInstrName instr$"\set Staff.midiInstrument = ##"$midiName instr$"
+  [str|\new DrumStaff \with
+      {drumStyleTable = ##percussion-style \override StaffSymbol ##'line-count = ##1 instrumentName = ##"$midiName instr$"}
+      \drummode {
       $unwords (map toLily events)$ \bar "|."
       }
       |]
