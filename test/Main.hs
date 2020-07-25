@@ -40,6 +40,7 @@ tests =
   ,testProperty "parseLily . toLily Pitch == id" (propParseLilytoLilyVal @Pitch)
   ,testProperty "parseLily . toLily Accent == id" (propParseLilytoLilyVal @Accent)
   ,testProperty "parseLily . toLily Dynamic == id" (propParseLilytoLilyVal @Dynamic)
+  ,testProperty "parseLily . toLily Swell == id" (propParseLilytoLilyVal @Swell)
   ,testProperty "parseLily . toLily Note == id" (propParseLilytoLilyVal @Note)
   ,testProperty "parseLily . toLily Rest == id" (propParseLilytoLilyVal @Rest)
   ,testProperty "parseLily . toLily Mode == id" (propParseLilytoLilyVal @Mode)
@@ -67,6 +68,7 @@ deriving instance Generic Accent
 deriving instance Generic Chord
 deriving instance Generic Duration
 deriving instance Generic Dynamic
+deriving instance Generic Swell
 deriving instance Generic KeySignature
 deriving instance Generic Mode
 deriving instance Generic Note
@@ -100,6 +102,10 @@ instance Arbitrary Accent where
   shrink = genericShrink
 
 instance Arbitrary Dynamic where
+  arbitrary = genericArbitrary
+  shrink = genericShrink
+  
+instance Arbitrary Swell where
   arbitrary = genericArbitrary
   shrink = genericShrink
 
@@ -139,9 +145,9 @@ minVEvents :: [VoiceEvent]
 minVEvents = [VeClef Treble
              ,VeTempo (TempoDur QDur 120)
              ,VeTimeSignature (TimeSignature 4 QDur)
-             ,VeNote (Note C COct QDur Staccato Forte False)
-             ,VeNote (Note G COct QDur NoAccent NoDynamic False)
-             ,VeNote (Note C COct QDur NoAccent NoDynamic False)]
+             ,VeNote (Note C COct QDur Staccato Forte NoSwell False)
+             ,VeNote (Note G COct QDur NoAccent NoDynamic NoSwell False)
+             ,VeNote (Note C COct QDur NoAccent NoDynamic NoSwell False)]
 
 assertParseLilytoLilyVal :: (Show a, Eq a, ToLily a, FromLily a) => a -> Assertion
 assertParseLilytoLilyVal a = assertEqual (show a) a (parseLily (toLily a))

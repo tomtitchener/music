@@ -51,16 +51,16 @@ data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FF
 data Swell = Crescendo | Decrescendo | Espressivo | SwellStop | NoSwell
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAcc :: Accent, _noteDynSwellPr :: (Dynamic,Swell), _noteSlur :: Bool }
+data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAcc :: Accent, _noteDyn :: Dynamic, _noteSwell :: Swell, _noteSlur :: Bool }
   deriving (Eq, Ord, Show)
 
-data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAcc :: Accent, _rhythmDynSwellPr :: (Dynamic,Swell) }
+data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAcc :: Accent, _rhythmDyn :: Dynamic, _rhythmSwell :: Swell }
   deriving (Eq, Ord, Show)
 
 data Rest = Rest { _rdur :: Duration, _rdyn :: Dynamic }
   deriving (Eq, Ord, Show)
 
-data Chord = Chord { _chordPitOctPairs :: [(Pitch, Octave)] , _chordDur :: Duration, _chordAcc :: Accent, _chordDynSwellPr :: (Dynamic,Swell), _chordSlur :: Bool }
+data Chord = Chord { _chordPitOctPairs :: [(Pitch, Octave)] , _chordDur :: Duration, _chordAcc :: Accent, _chordDyn :: Dynamic, _chordSwell :: Swell, _chordSlur :: Bool }
   deriving (Eq, Ord, Show)
 
 data Clef = Bass8VB | Bass | Tenor | Alto | Treble | Treble8VA

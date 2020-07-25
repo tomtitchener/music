@@ -229,7 +229,10 @@ parseDynSwellPr = try ((flip (,)) <$> parseSwell <*> parseDynamic) <|> try ((,) 
 -- type checks but doesn't work for e.g. "\\>\\f", parses as (NoDynamic,Decrescendo)
 --parseDynSwellPr = try ((,) <$> parseDynamic <*> parseSwell) <|> try (flip (,) <$> parseSwell <*> parseDynamic)
 
-
+So really, having a separate Dynamic and Swell is fine and it's just up to me
+to get the order right.  Having both Dynamic and Swell means Lilypond will 
+always render the dynamic first and the swell second.  The swell continues
+until the next dynamic (maybe with another swell) or until a stop swell indicator.
 
 ** TODO Tremolo
 Lilypond notation is :<N> where N is [8,16,32,64] for barring
