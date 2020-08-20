@@ -19,14 +19,32 @@ durVals = [1, 2, 2 + 1, 4, 4 + 2, 8, 8 + 4, 16, 16 + 8, 32, 32 + 16, 64, 64 + 32
 durVal2Duration :: M.Map Int Duration
 durVal2Duration = M.fromList (zip durVals [HTEDur .. DWDur])
 
+dur2DurVal :: Duration -> Int
+dur2DurVal d = durVals !! fromEnum d
+
 addDur :: Duration -> DurationSum -> DurationSum
-addDur d ds = DurationSum $ (durVals !! fromEnum d) + getDurSum ds
+addDur d ds = DurationSum $ dur2DurVal d + getDurSum ds
 
 zDurSum :: DurationSum
 zDurSum = 0
 
 sumDurs :: [Duration] -> DurationSum
 sumDurs = Data.List.foldr addDur zDurSum
+
+halfDur :: Duration -> Duration
+halfDur dur = durVal2Duration M.! (dur2DurVal dur `div` 2)
+
+doubleDur :: Duration -> Duration
+doubleDur dur = durVal2Duration M.! (dur2DurVal dur * 2)
+
+composedDur :: Int -> Duration -> Duration
+composedDur reps dur =
+  durVal2Duration M.! durVal
+  where
+    denom :: Int
+    denom  = truncate (fromIntegral (128::Int) / (fromIntegral $ dur2DurVal dur)::Double)
+    durVal :: Int
+    durVal = truncate (128 * (fromIntegral reps / fromIntegral denom)::Double)
 
 -- Simple-minded disaggregation, will prefer dotted durations, e.g.:
 -- > durSum2Durs (addDur WDur (addDur WDur (addDur WDur zDurSum)))

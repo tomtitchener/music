@@ -1,5 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Lily (ToLily(..)
             ,FromLily(..)
@@ -21,6 +23,7 @@ import Text.Parsec
 import Text.Parsec.String
 
 import Types
+import Utils
 
 class ToLily a where
   -- | Convert a Haskell value to a Lilypond string
@@ -105,9 +108,6 @@ parseDuration = choice $ zipWith mkParser durationSyms durationVals
 
 instance FromLily Duration  where
   parseLily = mkParseLily parseDuration
-
-newtype DurationSum = DurationSum { getDurSum :: Int }
-  deriving (Eq, Ord, Show, Num)
 
 ------------
 -- Accent --
@@ -268,6 +268,49 @@ parseTempo = choice [try (TempoRange <$> (string "\\tempo " *> parseDuration) <*
 instance FromLily Tempo where
   parseLily = mkParseLily parseTempo
 
+-------------
+-- Tremolo --
+-------------
+
+instance ToLily Tremolo where
+  toLily (Tremolo (Left (pit,oct)) dur dyn swell) =
+    [str|\repeat tremolo $:reps$ {$toLily pit <> toLily oct <> toLily barring <> toLily dyn <> toLily swell$}|]
+    where
+      (reps,barring) = splitTremolo dur [SFDur, HTEDur]
+  toLily (Tremolo (Right (tns1,tns2)) dur dyn swell) =
+    [str|\repeat tremolo $:reps$ {<$prs2Lily tns1$>$toLily (halfDur barring) <> toLily dyn <> toLily swell$ <$prs2Lily tns2$>}|]
+    where
+      (reps,barring) = splitTremolo dur [SFDur, HTEDur]
+      pr2Lily (p,o) = toLily p <> toLily o
+      prs2Lily = intercalate " " . map pr2Lily
+
+splitTremolo :: Duration -> [Duration] -> (Int,Duration)
+splitTremolo durTot [] = error $ "splitTremolo unable to split " <> show durTot
+splitTremolo durTot (dur:durs)
+  | 0 == dsTot `mod` dsTry = (dsTot `div` dsTry,dur)
+  | otherwise = splitTremolo durTot durs
+  where
+    dsTot = getDurSum $ sumDurs [durTot]
+    dsTry = getDurSum $ sumDurs [dur]
+
+-- \repeat tremolo 16 {c'64\pppp}
+parseSimpleTremolo :: Parser Tremolo
+parseSimpleTremolo = do
+    reps <- string "\\repeat tremolo" *> spaces *> parseInt
+    Note{..} <- spaces *> string "{" *> parseNote <* string "}"
+    pure $ Tremolo (Left (_notePit,_noteOct)) (composedDur reps _noteDur) _noteDyn _noteSwell
+
+-- \repeat tremolo 16 {<c' e'>128\pppp <a' c''>}
+parseCompoundTremolo :: Parser Tremolo
+parseCompoundTremolo = do
+    reps <- string "\\repeat tremolo" *> spaces *> parseInt
+    Chord{..} <- spaces *> string "{" *> parseChord <* spaces
+    prs <- string "<" *> parsePairs <* string ">}"
+    pure $ Tremolo (Right (_chordPitOctPairs,prs)) (doubleDur $ composedDur reps _chordDur) _chordDyn _chordSwell
+
+instance FromLily Tremolo where
+  parseLily = mkParseLily $ choice [try parseSimpleTremolo, try parseCompoundTremolo]
+
 ----------
 -- Mode --
 ----------
@@ -330,6 +373,7 @@ instance ToLily VoiceEvent where
   toLily (VeChord chord) = toLily chord
   toLily (VeClef clef) = toLily clef
   toLily (VeTempo tempo) = toLily tempo
+  toLily (VeTremolo tremolo) = toLily tremolo
   toLily (VeKeySignature keySignature) = toLily keySignature
   toLily (VeTimeSignature timeSignature) = toLily timeSignature
 

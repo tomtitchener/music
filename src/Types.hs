@@ -13,6 +13,8 @@ module Types (Pitch (..)
              ,Chord (..)
              ,Clef (..)
              ,Tempo (..)
+             ,TremoloNote
+             ,Tremolo(..)
              ,Mode (..)
              ,KeySignature (..)
              ,TimeSignature (..)
@@ -73,6 +75,11 @@ data Tempo =
   | TempoRange  { _trDur :: Duration, _trPerMinLo :: Natural, _trPerMinHi :: Natural  }
   deriving (Eq, Ord, Show)
 
+type TremoloNote = (Pitch, Octave)
+
+data Tremolo = Tremolo { _trnNote :: Either TremoloNote ([TremoloNote],[TremoloNote]), _trnDur :: Duration, _trnDyn :: Dynamic, _trnSwell :: Swell }
+  deriving (Eq, Ord, Show)
+
 data Mode = Major | Minor
   deriving (Eq, Ord, Show, Enum, Bounded)
 
@@ -90,6 +97,7 @@ data VoiceEvent =
   | VeChord { _veChord :: Chord }
   | VeClef { _veClef :: Clef }
   | VeTempo { _veTempo :: Tempo }
+  | VeTremolo { _veTremolo :: Tremolo }
   | VeKeySignature { _veKeySig :: KeySignature }
   | VeTimeSignature { _veTimeSig :: TimeSignature }
    deriving (Eq, Ord, Show)

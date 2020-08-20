@@ -48,6 +48,7 @@ tests =
   ,testProperty "parseLily . toLily Tempo == id" (propParseLilytoLilyVal @Tempo)
   ,testProperty "parseLily . toLily TimeSignature == id" (propParseLilytoLilyVal @TimeSignature)
   ,testProperty "parseLily . toLily Chord == id" (propParseLilytoLilyVal @Chord)
+  ,testProperty "parseLily . toLily Tremolo == id" (propParseLilytoLilyVal @Tremolo)
   --
   ,testCase     "parseLily . toLily PitchedVoice" (assertParseLilytoLilyVal pitchedVoice)
   ,testCase     "parseLily . toLily PolyVoice"   (assertParseLilytoLilyVal polyVoice)
@@ -66,6 +67,7 @@ tests =
 
 deriving instance Generic Accent
 deriving instance Generic Chord
+deriving instance Generic Tremolo
 deriving instance Generic Duration
 deriving instance Generic Dynamic
 deriving instance Generic Swell
@@ -104,7 +106,7 @@ instance Arbitrary Accent where
 instance Arbitrary Dynamic where
   arbitrary = genericArbitrary
   shrink = genericShrink
-  
+
 instance Arbitrary Swell where
   arbitrary = genericArbitrary
   shrink = genericShrink
@@ -130,6 +132,13 @@ instance Arbitrary Tempo where
 
 instance Arbitrary TimeSignature where
   arbitrary = TimeSignature <$> elements [1..10] <*> elements [WDur, HDur, QDur, EDur, SDur, SFDur, HTEDur]
+  shrink = genericShrink
+
+-- Doesn't work:
+-- * chords can't be empty list for Right instance
+-- * duration shouldn't be shorter than quarter note
+instance Arbitrary Tremolo where
+  arbitrary = genericArbitrary
   shrink = genericShrink
 
 propParseLilytoLilyVal :: (Eq a, ToLily a, FromLily a) => a -> Bool

@@ -71,7 +71,7 @@ mkParser :: String -> a -> Parser a
 mkParser s d = try (string s >> pure d)
 
 accentStrs :: [String]
-accentStrs = ["^", "-", "!", ".",  ">", "_", "espressivo", "~"]
+accentStrs = ["^", "-", "!", ".",  ">", "_", "~"]
 
 pAccentStr :: Parser Accent
 pAccentStr = choice (zipWith mkParser accentStrs [Marcato .. NoAccent])
