@@ -14,7 +14,7 @@ module Types (Pitch (..)
              ,Clef (..)
              ,Tempo (..)
              ,TremoloNote
-             ,Tremolo(..)
+             ,Tremolo (..)
              ,Mode (..)
              ,KeySignature (..)
              ,TimeSignature (..)

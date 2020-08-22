@@ -67,6 +67,7 @@ tests =
 
 deriving instance Generic Accent
 deriving instance Generic Chord
+deriving instance Generic TremoloNote
 deriving instance Generic Tremolo
 deriving instance Generic Duration
 deriving instance Generic Dynamic
@@ -134,11 +135,9 @@ instance Arbitrary TimeSignature where
   arbitrary = TimeSignature <$> elements [1..10] <*> elements [WDur, HDur, QDur, EDur, SDur, SFDur, HTEDur]
   shrink = genericShrink
 
--- Doesn't work:
--- * chords can't be empty list for Right instance
--- * duration shouldn't be shorter than quarter note
+-- Duration can't be shorter than quarter note.
 instance Arbitrary Tremolo where
-  arbitrary = genericArbitrary
+  arbitrary = Tremolo <$> arbitrary <*> elements [DWDur, WDur, DHDur, HDur, DQDur, QDur] <*> arbitrary <*> arbitrary
   shrink = genericShrink
 
 propParseLilytoLilyVal :: (Eq a, ToLily a, FromLily a) => a -> Bool
@@ -156,7 +155,8 @@ minVEvents = [VeClef Treble
              ,VeTimeSignature (TimeSignature 4 QDur)
              ,VeNote (Note C COct QDur Staccato Forte NoSwell False)
              ,VeNote (Note G COct QDur NoAccent NoDynamic NoSwell False)
-             ,VeNote (Note C COct QDur NoAccent NoDynamic NoSwell False)]
+             ,VeNote (Note C COct QDur NoAccent NoDynamic NoSwell False)
+             ,VeTremolo (Tremolo (Left (D,COct)) HDur NoDynamic NoSwell)]
 
 assertParseLilytoLilyVal :: (Show a, Eq a, ToLily a, FromLily a) => a -> Assertion
 assertParseLilytoLilyVal a = assertEqual (show a) a (parseLily (toLily a))

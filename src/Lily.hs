@@ -308,8 +308,11 @@ parseCompoundTremolo = do
     prs <- string "<" *> parsePairs <* string ">}"
     pure $ Tremolo (Right (_chordPitOctPairs,prs)) (doubleDur $ composedDur reps _chordDur) _chordDyn _chordSwell
 
+parseTremolo :: Parser Tremolo
+parseTremolo = choice [try parseSimpleTremolo, try parseCompoundTremolo]
+
 instance FromLily Tremolo where
-  parseLily = mkParseLily $ choice [try parseSimpleTremolo, try parseCompoundTremolo]
+  parseLily = mkParseLily parseTremolo
 
 ----------
 -- Mode --
@@ -385,7 +388,8 @@ parseVoiceEvent = choice [try (VeClef <$> parseClef)
                          ,try (VeChord <$> parseChord)
                          ,try (VeTempo <$> parseTempo)
                          ,try (VeKeySignature <$> parseKeySignature)
-                         ,try (VeTimeSignature <$> parseTimeSignature)]
+                         ,try (VeTimeSignature <$> parseTimeSignature)
+                         ,try (VeTremolo <$> parseTremolo)]
 
 instance FromLily VoiceEvent where
   parseLily = mkParseLily parseVoiceEvent
