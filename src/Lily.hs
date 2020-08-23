@@ -11,6 +11,7 @@ module Lily (ToLily(..)
             ,parseDynamic
             ,parseSwell
             ,mkParseLily
+            ,splitTremolo -- temporary
             ) where
 
 import Control.Monad
@@ -273,43 +274,41 @@ instance FromLily Tempo where
 -------------
 
 instance ToLily Tremolo where
-  toLily (Tremolo (Left (pit,oct)) dur dyn swell) =
-    [str|\repeat tremolo $:reps$ {$toLily pit <> toLily oct <> toLily barring <> toLily dyn <> toLily swell$}|]
+  toLily (NoteTremolo (Note pit oct dur acc dyn swell slr)) =
+    [str|\repeat tremolo $:reps$ {$toLily pit <> toLily oct <> toLily barring <> toLily acc <> toLily dyn <> toLily swell <> if slr then "~" else ""$}|]
     where
-      (reps,barring) = splitTremolo dur [SFDur, HTEDur]
-  toLily (Tremolo (Right (tns1,tns2)) dur dyn swell) =
-    [str|\repeat tremolo $:reps$ {<$prs2Lily tns1$>$toLily (halfDur barring) <> toLily dyn <> toLily swell$ <$prs2Lily tns2$>}|]
+      (reps,barring) = splitTremolo [dur] [SFDur, HTEDur]
+  toLily (ChordTremolo (Chord prsL durL accL dynL swellL slrL) (Chord prsR durR accR dynR swellR slrR)) =
+    [str|\repeat tremolo $:reps$ {<$prs2Lily prsL$>$toLily barring <> toLily accL <> toLily dynL <> toLily swellL <> if slrL then "~" else ""$ <$prs2Lily prsR$>$toLily barring <> toLily accR <> toLily dynR <> toLily swellR <> if slrR then "~" else ""$}|]
     where
-      (reps,barring) = splitTremolo dur [SFDur, HTEDur]
+      (reps,barring) = splitTremolo [durL,durR] [SFDur, HTEDur]
       pr2Lily (p,o) = toLily p <> toLily o
       prs2Lily = intercalate " " . map pr2Lily
 
-splitTremolo :: Duration -> [Duration] -> (Int,Duration)
+splitTremolo :: [Duration] -> [Duration] -> (Int,Duration)
 splitTremolo durTot [] = error $ "splitTremolo unable to split " <> show durTot
 splitTremolo durTot (dur:durs)
-  | 0 == dsTot `mod` dsTry = (dsTot `div` dsTry,dur)
+  | 0 == dsTot `mod` dsTry = (dsTot `div` dsTry `div` length durTot,dur)
   | otherwise = splitTremolo durTot durs
   where
-    dsTot = getDurSum $ sumDurs [durTot]
+    dsTot = getDurSum $ sumDurs durTot
     dsTry = getDurSum $ sumDurs [dur]
 
--- \repeat tremolo 16 {c'64\pppp}
-parseSimpleTremolo :: Parser Tremolo
-parseSimpleTremolo = do
+parseNoteTremolo :: Parser Tremolo
+parseNoteTremolo = do
     reps <- string "\\repeat tremolo" *> spaces *> parseInt
     Note{..} <- spaces *> string "{" *> parseNote <* string "}"
-    pure $ Tremolo (Left (_notePit,_noteOct)) (composedDur reps _noteDur) _noteDyn _noteSwell
+    pure $ NoteTremolo (Note _notePit _noteOct (composedDur reps _noteDur) _noteAcc _noteDyn _noteSwell _noteSlur)
 
--- \repeat tremolo 16 {<c' e'>128\pppp <a' c''>}
-parseCompoundTremolo :: Parser Tremolo
-parseCompoundTremolo = do
+parseChordTremolo :: Parser Tremolo
+parseChordTremolo = do
     reps <- string "\\repeat tremolo" *> spaces *> parseInt
-    Chord{..} <- spaces *> string "{" *> parseChord <* spaces
-    prs <- string "<" *> parsePairs <* string ">}"
-    pure $ Tremolo (Right (_chordPitOctPairs,prs)) (doubleDur $ composedDur reps _chordDur) _chordDyn _chordSwell
+    Chord c1prs c1dur c1acc c1dyn c1swell c1slur <- spaces *> string "{" *> parseChord
+    Chord c2prs c2dur c2acc c2dyn c2swell c2slur <- spaces *> parseChord <* string "}"
+    pure $ ChordTremolo (Chord c1prs (composedDur reps c1dur) c1acc c1dyn c1swell c1slur) (Chord c2prs (composedDur reps c2dur) c2acc c2dyn c2swell c2slur)
 
 parseTremolo :: Parser Tremolo
-parseTremolo = choice [try parseSimpleTremolo, try parseCompoundTremolo]
+parseTremolo = choice [try parseNoteTremolo, try parseChordTremolo]
 
 instance FromLily Tremolo where
   parseLily = mkParseLily parseTremolo

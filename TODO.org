@@ -189,7 +189,7 @@ and have Driver import both.
 *** DONE Change pitch/octave extension 
   Currently repeat to make note list match duration
   where needed.  Change to rests.
-** TODO Crescendo/Decrescendo
+** DONE Crescendo/Decrescendo
 To do swells over a tremolo or generally, need notation.  Can be a generic term
 "swell" with values cresc, decresc, end, hairpin.  Or better yet I just need extra
 values for dynamic that are cresc, decresc, end, and hairpin (espressivo) for
@@ -234,7 +234,7 @@ to get the order right.  Having both Dynamic and Swell means Lilypond will
 always render the dynamic first and the swell second.  The swell continues
 until the next dynamic (maybe with another swell) or until a stop swell indicator.
 
-** TODO Tremolo
+** DONE Tremolo
 Lilypond notation is :<N> where N is [8,16,32,64] for barring
 of tremolo.  Though that sounds like it's a fail for Midi rendering.
 So the way to encode it instead would be \repeat tremolo <reps> <note>[octave]<barring>
@@ -260,6 +260,22 @@ need Duration, and Dynamic but probably not Accent.  Finally, it could include a
 Maybe Duration for the barring, where Nothing would mean selecting a barring to fit
 the Duration with a minimal value of e.g. 16.  And the code would compute the reps
 value for the \repeat tremolo <reps> { '<' <note ... '>'<barring> ...}.
+** TODO More Tremolo
+For multiple-note tremolos, you can have a dynamic and/or swell associated
+with each note:  \repeat tremolo 32 {<c' e'>\64\< <a' c''>64\f\>}. 
+So really I Tremolo should be made up either a note or a pair of (maybe 
+one-note) chords.
+** TODO Tremolo Sample Texture
+Sustained one, two, and four-note tremolos seems reasonable, so long
+as the four-note tremolos are organized 2+2 and there's not too much
+distance between the two pitches.  From looking at a couple videos,
+it seems like a sixth is reasonable, even in both hands with rolls
+or tremolos for the sustained effect.  So assuming four marimbas,
+there's a range that starts with single notes per marmimba for a
+total of four pitches through double notes in both hands for a 
+total of 16 pitches.  What appeals to me is clusters of sixths
+paired with octaves.  So maybe a starting point would be interleaved
+octaves and sixths each with independent swells.
 ** TODO Finish non-pitched percussion voice rendering.
 ** TODO Install Docker, install lilypond, run test under Docker
 Should be possible to execute with GitHub integration.
@@ -314,6 +330,5 @@ claves.
   - increasing sparsity of notes vs. rests to reduce
     texture to pointillistic dots
 ** TODO Barring
-** TODO Non-pitched Percussion Voices
 
 

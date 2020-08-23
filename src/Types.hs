@@ -13,7 +13,6 @@ module Types (Pitch (..)
              ,Chord (..)
              ,Clef (..)
              ,Tempo (..)
-             ,TremoloNote
              ,Tremolo (..)
              ,Mode (..)
              ,KeySignature (..)
@@ -75,9 +74,11 @@ data Tempo =
   | TempoRange  { _trDur :: Duration, _trPerMinLo :: Natural, _trPerMinHi :: Natural  }
   deriving (Eq, Ord, Show)
 
-type TremoloNote = (Pitch, Octave)
-
-data Tremolo = Tremolo { _trnNote :: Either TremoloNote ([TremoloNote],[TremoloNote]), _trnDur :: Duration, _trnDyn :: Dynamic, _trnSwell :: Swell }
+-- ChordTremolo must have same Duration for both chords.
+-- ChordTremolo chords can have accents, swells and dynamics, which aren't renedered via midi.
+data Tremolo =
+    NoteTremolo { _ntrNote :: Note }
+  | ChordTremolo { _ctrLeftChord :: Chord, _ctrRightChord :: Chord }
   deriving (Eq, Ord, Show)
 
 data Mode = Major | Minor
