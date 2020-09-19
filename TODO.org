@@ -260,11 +260,31 @@ need Duration, and Dynamic but probably not Accent.  Finally, it could include a
 Maybe Duration for the barring, where Nothing would mean selecting a barring to fit
 the Duration with a minimal value of e.g. 16.  And the code would compute the reps
 value for the \repeat tremolo <reps> { '<' <note ... '>'<barring> ...}.
-** TODO More Tremolo
+** DONE More Tremolo
 For multiple-note tremolos, you can have a dynamic and/or swell associated
 with each note:  \repeat tremolo 32 {<c' e'>\64\< <a' c''>64\f\>}. 
 So really I Tremolo should be made up either a note or a pair of (maybe 
 one-note) chords.
+Tricky bits:  tried having two chords with different durations, didn't make
+any sense in terms of the notation.  Left type alone with comment that two
+durations should be identical because then it's just two chords.  Otherwise
+it'd have to be two of a special type of Note without the duration then a 
+single duration.  Don't forget to make a smart constructor for Tremolo that
+checks the two Durations match.  
+Lilypond renders accents, swells, and articulation even though articulations
+aren't particularly meaningful.  Swells and dynamics are nice to vary over
+course of the tremolo though unfortunately Lilypond doesn't render them via
+Midi.
+Lilypond also renders ties, which also aren't really meaningful.  Could 
+rewrite as two tuples of (Note,Octave,Dynamic,Swell) plus Duration to make 
+things explicit at the type level.
+Also rewrote computation for barring of chords to avoid always jacking up
+the barring to 128th notes.
+Note for chords each note gets the total duration, which can be confusing.
+The notes tremolo'd together make up a sustained note that lasts the duration
+of one of the notated chords.
+There's examples to show flipping the tremolo across staves if I ever need
+it.
 ** TODO Tremolo Sample Texture
 Sustained one, two, and four-note tremolos seems reasonable, so long
 as the four-note tremolos are organized 2+2 and there's not too much
@@ -275,7 +295,58 @@ there's a range that starts with single notes per marmimba for a
 total of four pitches through double notes in both hands for a 
 total of 16 pitches.  What appeals to me is clusters of sixths
 paired with octaves.  So maybe a starting point would be interleaved
-octaves and sixths each with independent swells.
+octaves and sixths each with independent swells, though I'm going to
+have to hand-annotate those in Logic myself.
+Consider fifth cycles up via major sixths:
+1) c  eb + octave ab
+2) g  bb + octave eb
+3) d  f  + octave bb
+4) a  c  + octave f
+...
+Other way around moves down by minor thirds:
+1) c  eb + octave ab
+2) a   c + octave f
+3) fs  a + octave d
+4) ds fs + octave b
+...
+Either way cross over of minor second/major seventh
+will add some friction.
+Starting initial descending major sixth as input, e.g. c + eb:
+1) produce octaves at lower fifth: ab + ab
+2) using ab as next point, produce new descending sixths
+   starting from half step up:  a + c
+3) repeat with those pitches as next stage.
+Abstract: octaves go up half step vs. down half step.
+Octave selection has to vary so tonal center doesn't
+uniformly migrate.
+Trick would be to have generator that adds complexity on successive
+iterations.  Pattern for generator is comonad, if you want to generalize
+beyond lists (e.g. unfoldr).  In my mind, first generation would be
+four marimbas, one sustained pitch per marimaba, next generation would
+be four marimbas, two systained pitches per marimaba, final generation
+four marimbas, four systained pitches per marimba.  Each generation 
+would be complete cycle of fifths but more dense texture.  Final
+generation would be easier to map as upper and lower sixths, with
+outer notes as octave, inner notes as sixths.  Middle generation 
+would be either octaves and sixths per player or lower and uppper
+sixths per player.  
+Original plan was overlap, e.g. first sixths, then octaves, then
+sixths, then octaves staggered.  Joins can be overlapping fifth
+progressions on top of overlapping sixths and octaves.
+
+But before that I need something conceptually simpler to build upon.
+Start will be scaffolding of pitch progressions expressed as intervals,
+defining characterstics:
+
+a) starting pitch
+b) interval: major sixth lower
+c) interval: major fifth lower
+d) interval: two octaves higher 
+
+Note: sustaining c (starting pitch) as pivot 
+to new  lower-half of major sixth gives continuity
+to minor third progression.
+
 ** TODO Finish non-pitched percussion voice rendering.
 ** TODO Install Docker, install lilypond, run test under Docker
 Should be possible to execute with GitHub integration.
