@@ -28,8 +28,8 @@ instance FromConfig Clef where
 instance FromConfig (Pitch,Octave) where
   parseConfig = mkParseConfig pPitOctPr
 
-instance FromConfig [Pitch] where
-  parseConfig = mkParseConfig (mkPs parsePitch)
+instance FromConfig Scale where
+  parseConfig = mkParseConfig (Scale <$> mkPs parsePitch)
 
 instance FromConfig [Accent] where
   parseConfig = mkParseConfig (mkPs pAccentStr)

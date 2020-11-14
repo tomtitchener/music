@@ -76,18 +76,18 @@ intervalToOffset i
   | i == 0 = error "intervalToOffset invalid interval 0"
   | otherwise = i - 1
 
-transpose :: [Pitch] -> (Pitch,Octave) -> [Int] -> [(Pitch,Octave)]
+transpose :: Scale -> (Pitch,Octave) -> [Int] -> [(Pitch,Octave)]
 transpose scale pr = map (xp scale pr) . scanl1 (+) . map intervalToOffset
 
-mtranspose :: [Pitch] -> (Pitch,Octave) -> [Maybe Int] -> [Maybe (Pitch,Octave)]
+mtranspose :: Scale -> (Pitch,Octave) -> [Maybe Int] -> [Maybe (Pitch,Octave)]
 mtranspose scale pr = map (xp scale pr <$>) . reverse . snd . foldl' f (0,[])
   where
     f (s,l) Nothing  = (s, Nothing:l)
     f (s,l) (Just i) = (s + intervalToOffset i, Just (s + intervalToOffset i):l)
 
--- partial if Pitch from (Pitch,Octave) is not element of [Pitch]
-xp :: [Pitch] -> (Pitch,Octave) -> Int -> (Pitch,Octave)
-xp scale (p,o) off = (p',o')
+-- partial if Pitch from (Pitch,Octave) is not element of Scale
+xp :: Scale -> (Pitch,Octave) -> Int -> (Pitch,Octave)
+xp (Scale scale) (p,o) off = (p',o')
   where
     cntSteps = length scale
     normScale = sort scale -- To [C..B] or closest enharmonic to compute new octave

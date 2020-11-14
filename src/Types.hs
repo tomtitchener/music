@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Types (Pitch (..)
+             ,Scale (..)
              ,Octave (..)
              ,Duration (..)
              ,DurationSum (..)
@@ -33,6 +34,9 @@ data Pitch = Bs | C   | Bss | Dff | Cs
            | Af | Gss | A   | Bff | As
            | Bf | Cff | Ass | B   | Cf
   deriving (Eq, Ord, Show, Enum, Bounded)
+
+newtype Scale = Scale { _scPitches :: [Pitch] }
+  deriving (Eq, Ord, Show)
 
 data Octave = TwentyNineVBOct | TwentyTwoVBOct | FifteenVBOct | EightVBOct | COct | EightVAOct | FifteenVAOct | TwentyTwoVAOct
   deriving (Eq, Ord, Show, Enum, Bounded)

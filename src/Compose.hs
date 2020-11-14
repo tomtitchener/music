@@ -18,7 +18,7 @@ import Utils
 data VoiceTup = VoiceTup {_vtInstr :: Instrument
                          ,_vtKey   :: KeySignature
                          ,_vtClef  :: Clef
-                         ,_vtScale :: [Pitch]
+                         ,_vtScale :: Scale
                          ,_vtStart :: (Pitch,Octave)
                          } deriving (Show)
 
