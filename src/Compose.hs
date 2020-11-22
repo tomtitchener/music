@@ -58,13 +58,16 @@ cfg2MottoVocTup pre =
 cfg2MottoVocTups :: String -> [String] -> Driver [MottoVoiceTup]
 cfg2MottoVocTups root = mapM (\v -> cfg2MottoVocTup (root <> "." <> v))
 
+nes2arrs :: NE.NonEmpty (NE.NonEmpty a) -> [[a]]
+nes2arrs = map NE.toList . NE.toList
+
 cfg2VocMottos :: String -> Driver VoiceMottos
 cfg2VocMottos title =
   VoiceMottos
-    <$> getConfigParam (title <> ".intss")
-    <*> getConfigParam (title <> ".durss")
-    <*> getConfigParam (title <> ".accss")
-    <*> getConfigParam (title <> ".dynss")
+    <$> (nes2arrs <$> getConfigParam (title <> ".intss"))
+    <*> (nes2arrs <$> getConfigParam (title <> ".durss"))
+    <*> (nes2arrs <$> getConfigParam (title <> ".accss"))
+    <*> (nes2arrs <$> getConfigParam (title <> ".dynss"))
 
 normalizeList :: a -> Int -> [a] -> [a]
 normalizeList val n vals
@@ -203,8 +206,8 @@ cfg2ArpeggiosConfigTup :: String -> Driver ([ArpeggiosVoiceTup], [Maybe Int], [D
 cfg2ArpeggiosConfigTup title =
   (,,)
   <$> cfg2ArpeggiosVocTups title ["voice"]
-  <*> getConfigParam (title <> ".intervals")
-  <*> getConfigParam (title <> ".durations")
+  <*> (NE.toList <$> getConfigParam (title <> ".intervals"))
+  <*> (NE.toList <$> getConfigParam (title <> ".durations"))
 
 cfg2ArpeggioVocTup :: String -> Driver ArpeggiosVoiceTup
 cfg2ArpeggioVocTup pre =

@@ -30,33 +30,33 @@ instance FromConfig (Pitch,Octave) where
   parseConfig = mkParseConfig pPitOctPr
 
 instance FromConfig Scale where
-  parseConfig = mkParseConfig (Scale . NE.fromList <$> mkPs parsePitch)
+  parseConfig = mkParseConfig (Scale <$> mkPs parsePitch)
 
-instance FromConfig [Accent] where
+instance FromConfig (NE.NonEmpty Accent) where
   parseConfig = mkParseConfig (mkPs pAccentStr)
 
-instance FromConfig [Dynamic] where
+instance FromConfig (NE.NonEmpty Dynamic) where
   parseConfig = mkParseConfig (mkPs pDynamicStr)
 
-instance FromConfig [Duration] where
+instance FromConfig (NE.NonEmpty Duration) where
   parseConfig = mkParseConfig (mkPs parseDuration)
 
-instance FromConfig [Maybe Int] where
+instance FromConfig (NE.NonEmpty (Maybe Int)) where
   parseConfig = mkParseConfig (mkPs pMInt)
 
-instance FromConfig [(Pitch,Octave)] where
+instance FromConfig (NE.NonEmpty (Pitch,Octave)) where
   parseConfig = mkParseConfig (mkPs pPitOctPr)
 
-instance FromConfig [[Accent]] where
+instance FromConfig (NE.NonEmpty (NE.NonEmpty Accent)) where
   parseConfig = mkParseConfig (mkPss pAccentStr)
 
-instance FromConfig [[Dynamic]] where
+instance FromConfig (NE.NonEmpty (NE.NonEmpty Dynamic)) where
   parseConfig = mkParseConfig (mkPss pDynamicStr)
 
-instance FromConfig [[Duration]] where
+instance FromConfig (NE.NonEmpty (NE.NonEmpty Duration)) where
   parseConfig = mkParseConfig (mkPss parseDuration)
 
-instance FromConfig [[Maybe Int]] where
+instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe Int))) where
   parseConfig = mkParseConfig (mkPss pMInt)
 
 mkParseConfig :: Parser a -> String -> a
@@ -65,10 +65,10 @@ mkParseConfig parser  = either (error . show) id . parse parser ""
 lexeme :: Parser a -> Parser a
 lexeme p = spaces *> p
 
-mkPs :: Parser a -> Parser [a]
-mkPs p = between (char '(') (char ')') (lexeme p `sepBy1` char ',')
+mkPs :: Parser a -> Parser (NE.NonEmpty a)
+mkPs p = NE.fromList <$> between (char '(') (char ')') (lexeme p `sepBy1` char ',')
 
-mkPss :: Parser a -> Parser [[a]]
+mkPss :: Parser a -> Parser (NE.NonEmpty (NE.NonEmpty a))
 mkPss = mkPs . mkPs
 
 mkParser :: String -> a -> Parser a
