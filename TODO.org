@@ -285,6 +285,47 @@ The notes tremolo'd together make up a sustained note that lasts the duration
 of one of the notated chords.
 There's examples to show flipping the tremolo across staves if I ever need
 it.
+** TODO Example Piano Score
+What components from Types.hs to capture for functions that
+generate textures?  Start simple.  Say a piano score of pairs
+of ascending/descending intervals:  overlapping, synchronous,
+echo.  So far:  composing routines are built around idea of a
+motto generated from lists of intervals/rests, durations, accents,
+and dynamics.  All driven by configuration information in YAML
+file, interpeted via (only) Main.hs through functions in Compose.hs.
+So to follow that pattern, I want a new config that specifies at a
+minimum: instrument, scale, matching lists of intervals and durations,
+and a low and a high octave.
+** TODO Re-Architect Driver
+First: ToLily doesn't need to be monadic at all, and can just be a 
+library routine.
+Second:, FromLily and FromConfig both use monadic parsers, but have 
+nothing to do with IO and there's no reason for them to be encapsulated, 
+either.  The only thing that happens in Driver is pasing in the path to 
+the config file as an Envioronment.
+Third: the random behavior all takes place with respect to MonadRandom,
+and can probably be run under the IO monad without the need of the 
+runDriver wrapper and free monad entirely.
+Fourth: generation of actual LilyPond file is just writeFile in IO.
+Really, there's no need for the free Monad without a grammar that's
+recursive in its own right.  But none of my syntax recurs, so all I
+get is composability throught the bind and sequence operators, which
+I don't actual make use of anyway.
+** TODO Rethink fold vs. unfold.
+The normative reference for free monad is a catamorphism e.g. fold.
+Reduction through evaluation of an expression captured via a syntax
+tree to a value.  The closest I come to this is the mapping of a 
+structured type like Score to a simple type like a String, with all
+the LilyPond syntax embodied in it.
+But when it comes to composition what I'm really talking about is 
+unfolding, an anamorphism, or a comonad, where there's some pre-defined
+stopping point to the unraveling or adumbration of the unfolding e.g.
+at some iteration count.  That's the generative process that yields
+either the Score or some abstraction that is then mapped to the Score
+before being reduced to a LilyPond string.
+The mental block I've experienced even back during Cisco days results
+from this basic inversion of the abstraction, the fact that what I seek
+is the unfold prior to the fold, the anamorphism prior to the catamorphism.
 ** TODO Tremolo Sample Texture
 Sustained one, two, and four-note tremolos seems reasonable, so long
 as the four-note tremolos are organized 2+2 and there's not too much

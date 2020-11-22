@@ -13,6 +13,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
 import Data.Aeson
+import qualified Data.List.NonEmpty as NE
 import GHC.Generics
 import System.Exit
 import System.Process
@@ -97,8 +98,8 @@ smallList :: Gen a -> Gen [a]
 smallList = resize 3 . listOf1
 
 instance Arbitrary Chord where
-  arbitrary = Chord <$> smallList arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-  shrink = genericShrink
+  arbitrary = Chord . NE.fromList <$> smallList arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  -- shrink = genericShrink
 
 instance Arbitrary Octave where
   arbitrary = genericArbitrary
@@ -137,7 +138,7 @@ instance Arbitrary Tempo where
 
 instance Arbitrary TimeSignature where
   arbitrary = TimeSignature <$> elements [1..10] <*> elements [WDur, HDur, QDur, EDur, SDur, SFDur, HTEDur]
-  shrink = genericShrink
+  -- shrink = genericShrink
 
 -- Duration can't be shorter than quarter note.  Two Durations in ChordTremolo should be the same.
 instance Arbitrary Tremolo where
@@ -146,8 +147,8 @@ instance Arbitrary Tremolo where
       arbNote = Note <$> arbitrary <*> arbitrary <*> elements [DWDur, WDur, DHDur, HDur, DQDur, QDur] <*>  arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       arbChordTremolo = do
         dur <- elements [DWDur, WDur, DHDur, HDur, DQDur, QDur]
-        arbChord1 <- flip Chord dur <$> smallList arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-        arbChord2 <- flip Chord dur <$> smallList arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+        arbChord1 <- (flip Chord dur) . NE.fromList <$> smallList arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+        arbChord2 <- (flip Chord dur) . NE.fromList <$> smallList arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
         pure $ ChordTremolo arbChord1 arbChord2
   shrink = genericShrink
 
@@ -160,9 +161,9 @@ propDurSum2Durs durs = sumDurs durs == (sumDurs . durSum2Durs . sumDurs) durs
 runTestDriver :: MonadIO m => Driver a -> m a
 runTestDriver action = liftIO $ getStdGen >>= runReaderT (runDriver action) . initEnv Null . show
 
-minVEvents :: [VoiceEvent]
-minVEvents = [VeClef Treble
-             ,VeTempo (TempoDur QDur 120)
+minVEvents :: NE.NonEmpty VoiceEvent
+minVEvents = VeClef Treble NE.:|
+             [VeTempo (TempoDur QDur 120)
              ,VeTimeSignature (TimeSignature 4 QDur)
              ,VeNote (Note C COct QDur Staccato Forte NoSwell False)
              ,VeNote (Note G COct QDur NoAccent NoDynamic NoSwell False)
@@ -176,22 +177,22 @@ pitchedVoice :: Voice
 pitchedVoice = PitchedVoice AcousticGrand minVEvents
 
 polyVoice :: Voice
-polyVoice = PolyVoice AcousticGrand [minVEvents,minVEvents]
+polyVoice = PolyVoice AcousticGrand (minVEvents NE.:| [minVEvents])
 
 voiceGroup :: Voice
-voiceGroup = VoiceGroup [pitchedVoice, pitchedVoice, polyVoice]
+voiceGroup = VoiceGroup (pitchedVoice NE.:| [pitchedVoice, polyVoice])
 
 minScore :: Score
-minScore = Score "comment" [pitchedVoice]
+minScore = Score "comment" (pitchedVoice NE.:| [])
 
 multiScore :: Score
-multiScore = Score "comment" [pitchedVoice,pitchedVoice]
+multiScore = Score "comment" (pitchedVoice NE.:| [pitchedVoice])
 
 polyScore :: Score
-polyScore = Score "comment" [polyVoice]
+polyScore = Score "comment" (polyVoice NE.:| [])
 
 groupScore :: Score
-groupScore = Score "comment" [voiceGroup, voiceGroup]
+groupScore = Score "comment" (voiceGroup NE.:| [voiceGroup])
 
 testLilypond :: FilePath -> Score -> Assertion
 testLilypond path score = do

@@ -24,6 +24,7 @@ module Types (Pitch (..)
              ,Score (..)
              ) where
 
+import Data.List.NonEmpty
 import Data.Natural
 
 data Pitch = Bs | C   | Bss | Dff | Cs
@@ -35,7 +36,7 @@ data Pitch = Bs | C   | Bss | Dff | Cs
            | Bf | Cff | Ass | B   | Cf
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-newtype Scale = Scale { _scPitches :: [Pitch] }
+newtype Scale = Scale { _scPitches :: NonEmpty Pitch }
   deriving (Eq, Ord, Show)
 
 data Octave = TwentyNineVBOct | TwentyTwoVBOct | FifteenVBOct | EightVBOct | COct | EightVAOct | FifteenVAOct | TwentyTwoVAOct
@@ -65,7 +66,7 @@ data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAc
 data Rest = Rest { _rdur :: Duration, _rdyn :: Dynamic }
   deriving (Eq, Ord, Show)
 
-data Chord = Chord { _chordPitOctPairs :: [(Pitch, Octave)] , _chordDur :: Duration, _chordAcc :: Accent, _chordDyn :: Dynamic, _chordSwell :: Swell, _chordSlur :: Bool }
+data Chord = Chord { _chordPitOctPairs :: NonEmpty(Pitch, Octave) , _chordDur :: Duration, _chordAcc :: Accent, _chordDyn :: Dynamic, _chordSwell :: Swell, _chordSlur :: Bool }
   deriving (Eq, Ord, Show)
 
 data Clef = Bass8VB | Bass | Tenor | Alto | Treble | Treble8VA
@@ -92,7 +93,7 @@ data KeySignature = KeySignature { _kspit :: Pitch, _ksmode :: Mode }
   deriving (Eq, Ord, Show)
 
 data TimeSignature = TimeSignature { _tsNum :: Int, _tsDenom :: Duration }
-                   | TimeSignatureGrouping { _tsgGroups :: [Int], tsgNum :: Int, tsgDenom :: Duration }
+                   | TimeSignatureGrouping { _tsgGroups :: NonEmpty Int, tsgNum :: Int, tsgDenom :: Duration }
   deriving (Eq, Ord, Show)
 
 data VoiceEvent =
@@ -154,12 +155,12 @@ data Instrument =
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 data Voice =
-  PitchedVoice { _svInstrument :: Instrument, _svVoiceEvents :: [VoiceEvent] }
-  | PercussionVoice { _pInstrument :: Instrument, _svVoiceEvents :: [VoiceEvent] }
-  | VoiceGroup { _vgVoices :: [Voice] }
-  | PolyVoice { _pvInstrument :: Instrument, _pvVoiceEvents :: [[VoiceEvent]] }
+  PitchedVoice { _svInstrument :: Instrument, _svVoiceEvents :: NonEmpty VoiceEvent }
+  | PercussionVoice { _pInstrument :: Instrument, _svVoiceEvents :: NonEmpty VoiceEvent }
+  | VoiceGroup { _vgVoices :: NonEmpty Voice }
+  | PolyVoice { _pvInstrument :: Instrument, _pvVoiceEvents :: NonEmpty (NonEmpty VoiceEvent) }
   deriving (Eq, Ord, Show)
 
-data Score = Score { _scoreComment :: String, _scoreVoices :: [Voice] }
+data Score = Score { _scoreComment :: String, _scoreVoices :: NonEmpty Voice }
   deriving (Eq, Ord, Show)
 

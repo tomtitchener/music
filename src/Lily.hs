@@ -16,6 +16,7 @@ module Lily (ToLily(..)
 
 import Control.Monad
 import Data.List
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Natural
@@ -213,8 +214,8 @@ instance FromLily Rest  where
 pitchOctavePairToLily :: (Pitch,Octave) -> String
 pitchOctavePairToLily (p,o) = toLily p <> toLily o
 
-pitchOctavePairsToLily :: [(Pitch,Octave)] -> String
-pitchOctavePairsToLily = unwords . map pitchOctavePairToLily
+pitchOctavePairsToLily :: NE.NonEmpty (Pitch,Octave) -> String
+pitchOctavePairsToLily = unwords . NE.toList . NE.map pitchOctavePairToLily
 
 instance ToLily Chord where
   toLily (Chord prs dur acc dyn swell slr) = "<" <> pitchOctavePairsToLily prs <> ">" <> toLily dur <> toLily acc <> toLily dyn <> toLily swell <> if slr then "~" else ""
@@ -222,8 +223,8 @@ instance ToLily Chord where
 parsePair :: Parser (Pitch,Octave)
 parsePair = (,) <$> parsePitch <*> parseOctave
 
-parsePairs :: Parser [(Pitch,Octave)]
-parsePairs = parsePair `sepBy` spaces
+parsePairs :: Parser (NE.NonEmpty (Pitch,Octave))
+parsePairs = NE.fromList <$> (parsePair `sepBy` spaces)
 
 parseChord :: Parser Chord
 parseChord = Chord <$> (string "<" *> parsePairs <* string ">") <*> parseDuration <*> parseAccent <*> parseDynamic <*> parseSwell <*> parseBool
@@ -283,7 +284,7 @@ instance ToLily Tremolo where
     where
       (reps,barring) = splitTremolo [durL,durR] [SFDur, HTEDur]
       pr2Lily (p,o) = toLily p <> toLily o
-      prs2Lily = intercalate " " . map pr2Lily
+      prs2Lily = intercalate " " . map pr2Lily . NE.toList
 
 splitTremolo :: [Duration] -> [Duration] -> (Int,Duration)
 splitTremolo durTot [] = error $ "splitTremolo unable to split " <> show durTot
@@ -352,14 +353,14 @@ instance FromLily KeySignature where
 
 instance ToLily TimeSignature where
   toLily (TimeSignature num denom) = "\\time " <> show num <> "/" <> toLily denom
-  toLily (TimeSignatureGrouping nums num denom) = "\\time #'(" <>  intercalate "," (map show nums) <> ")"  <> " " <> show num <> "/" <> toLily denom
+  toLily (TimeSignatureGrouping nums num denom) = "\\time #'(" <>  intercalate "," (map show (NE.toList nums)) <> ")"  <> " " <> show num <> "/" <> toLily denom
 
 parseTimeSignature :: Parser TimeSignature
 parseTimeSignature = choice [try (TimeSignatureGrouping <$> (string "\\time #'" *> parseIntList) <*> parseInt  <*> (string "/" *> parseDuration))
                             ,try (TimeSignature <$> (string "\\time " *> parseInt) <*> (string "/" *> parseDuration))]
 
-parseIntList :: Parser [Int]
-parseIntList = between (symbol '(') (symbol ')') (parseInt `sepBy` char ',')
+parseIntList :: Parser (NE.NonEmpty Int)
+parseIntList = NE.fromList <$> between (symbol '(') (symbol ')') (parseInt `sepBy` char ',')
 
 instance FromLily TimeSignature where
   parseLily = mkParseLily parseTimeSignature
@@ -520,55 +521,55 @@ instance ToLily Voice where
   toLily (VoiceGroup voices) = toVoiceGroup voices
   toLily (PolyVoice instr eventss) = toPolyVoice instr eventss
 
-toPitchedVoice :: Instrument -> [VoiceEvent] -> String
+toPitchedVoice :: Instrument -> NE.NonEmpty VoiceEvent -> String
 toPitchedVoice instr events =
   [str|\new Voice
       {\set Staff.instrumentName = ##"$shortInstrName instr$"\set Staff.midiInstrument = ##"$midiName instr$"
-      $unwords (map toLily events)$ \bar "|."
+      $unwords (map toLily (NE.toList events))$ \bar "|."
       }
       |]
 
-toPercussionVoice :: Instrument -> [VoiceEvent] -> String
+toPercussionVoice :: Instrument -> NE.NonEmpty VoiceEvent -> String
 toPercussionVoice instr events =
   [str|\new DrumStaff \with
       {drumStyleTable = ##percussion-style \override StaffSymbol ##'line-count = ##1 instrumentName = ##"$midiName instr$"}
       \drummode {
-      $unwords (map toLily events)$ \bar "|."
+      $unwords (map toLily (NE.toList events))$ \bar "|."
       }
       |]
 
-toVoiceGroup :: [Voice] -> String
+toVoiceGroup :: NE.NonEmpty Voice -> String
 toVoiceGroup voices = [str|\new StaffGroup
                           <<
-                          $mconcat (map toLily voices)$>>
+                          $mconcat (map toLily (NE.toList voices))$>>
                           |]
 
-eventsToPolyVoice :: [VoiceEvent] -> String
+eventsToPolyVoice :: NE.NonEmpty VoiceEvent -> String
 eventsToPolyVoice events  =
   [str|\new Staff {
       \new Voice {
-      $unwords (map toLily events)$ \bar "|."
+      $unwords (map toLily (NE.toList events))$ \bar "|."
       }
       }
       |]
 
-toPolyVoice :: Instrument -> [[VoiceEvent]] -> String
+toPolyVoice :: Instrument -> NE.NonEmpty (NE.NonEmpty VoiceEvent) -> String
 toPolyVoice instr eventss =
   [str|\new PianoStaff {
       <<
       \set PianoStaff.instrumentName = ##"$shortInstrName instr$"\set PianoStaff.midiInstrument = ##"$midiName instr$"
-      $mconcat (map eventsToPolyVoice eventss)$>>
+      $mconcat (map eventsToPolyVoice (NE.toList eventss))$>>
       }
       |]
 
-parsePolyVoiceEvents :: Parser [VoiceEvent]
-parsePolyVoiceEvents = string [str|\new Staff {
-                                  \new Voice {
-                                  |]
-                       *> parseVoiceEvent `endBy` space
-                       <* string [str|\bar "|."
-                                     }
-                                     }|]
+parsePolyVoiceEvents :: Parser (NE.NonEmpty VoiceEvent)
+parsePolyVoiceEvents = NE.fromList <$> (string [str|\new Staff {
+                                               \new Voice {
+                                              |]
+                                       *> parseVoiceEvent `endBy` space
+                                       <* string [str|\bar "|."
+                                         }
+                                         }|])
 
 parseVoice :: Parser Voice
 parseVoice = choice [
@@ -577,31 +578,31 @@ parseVoice = choice [
                         *> parseQuotedIdentifier
                         *> string [str|\set Staff.midiInstrument = ##"|]
                         *> parseInstrument <* string [str|"$endline$|])
-                   <*> (parseVoiceEvent `endBy` space
+                   <*> (NE.fromList <$> (parseVoiceEvent `endBy` space
                         <* string [str|\bar "|."
-                                      }|]))
+                                      }|])))
   ,try (PercussionVoice <$> (string [str|\new Voice
                                    {\set Staff.instrumentName = ##|]
                         *> parseQuotedIdentifier
                         *> string [str|\set Staff.midiInstrument = ##"|]
                         *> parseInstrument <* string [str|"$endline$|])
-                   <*> (parseVoiceEvent `endBy` space
+                   <*> (NE.fromList <$> (parseVoiceEvent `endBy` space
                         <* string [str|\bar "|."
-                                      }|]))
+                                      }|])))
   ,try (VoiceGroup <$> (string [str|\new StaffGroup
                                    <<
                                    |]
-                        *> (parseVoice `endBy` newline
-                            <* string ">>")))
+                        *> (NE.fromList <$> (parseVoice `endBy` newline
+                            <* string ">>"))))
   ,try (PolyVoice <$> (string [str|\new PianoStaff {
                                   <<
                                   \set PianoStaff.instrumentName = ##|]
                        *> parseQuotedIdentifier
                        *> string [str|\set PianoStaff.midiInstrument = ##"|]
                        *> parseInstrument <* string [str|"$endline$|])
-                       <*> (parsePolyVoiceEvents `endBy` newline
-                            <* string [str|>>
-                                          }|]))
+                       <*> (NE.fromList <$> (parsePolyVoiceEvents `endBy` newline
+                                             <* string [str|>>
+                                                           }|])))
   ]
 
 instance FromLily Voice where
@@ -618,7 +619,7 @@ instance ToLily Score where
         \version "2.18.2"
         structure = {
         <<
-        $mconcat (map toLily voices)$>>
+        $mconcat (map toLily (NE.toList voices))$>>
         }
         \score {\structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }
         \score { \unfoldRepeats \articulate \structure \midi {  } }
@@ -632,7 +633,7 @@ parseScore = Score <$> (string "% " *> parseQuotedString
                                        structure = {
                                        <<
                                        |])
-                       <*> parseVoice `endBy` newline
+                       <*> (NE.fromList <$> parseVoice `endBy` newline)
                        <* string [str|>>
                                      }
                                      \score {\structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }

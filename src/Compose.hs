@@ -4,23 +4,25 @@
 module Compose (cfg2MaxRandScore
                ,cfg2HomoPhonScore
                ,cfg2CanonScore
-               ,cfg2RandMotScore) where
+               ,cfg2RandMotScore
+               ,cfg2ArpeggiosScore) where
 
 import Control.Monad (zipWithM)
 import Data.Foldable (fold)
 import Data.List (zipWith4)
+import qualified Data.List.NonEmpty as NE
 import Data.Semigroup (stimesMonoid)
 
 import Driver
 import Types
 import Utils
 
-data VoiceTup = VoiceTup {_vtInstr :: Instrument
-                         ,_vtKey   :: KeySignature
-                         ,_vtClef  :: Clef
-                         ,_vtScale :: Scale
-                         ,_vtStart :: (Pitch,Octave)
-                         } deriving (Show)
+data MottoVoiceTup = MottoVoiceTup {_vtInstr :: Instrument
+                                   ,_vtKey   :: KeySignature
+                                   ,_vtClef  :: Clef
+                                   ,_vtScale :: Scale
+                                   ,_vtStart :: (Pitch,Octave)
+                                   } deriving (Show)
 
 data VoiceMottos = VoiceMottos {_vmMIntss :: [[Maybe Int]]
                                ,_vmDurss  :: [[Duration]]
@@ -44,17 +46,17 @@ lift2VocMots f VoiceMottos{..} = VoiceMottos (f _vmMIntss) (f _vmDurss) (f _vmAc
 --lift2VocMotsM :: (forall a . ([[a]] -> Driver [[a]])) -> VoiceMottos -> Driver VoiceMottos
 --lift2VocMotsM f VoiceMottos{..} = VoiceMottos <$> f _vmMIntss <*> f _vmDurss <*> f _vmAcctss <*> f _vmDynss
 
-cfg2VocTup :: String -> Driver VoiceTup
-cfg2VocTup pre =
-  VoiceTup
+cfg2MottoVocTup :: String -> Driver MottoVoiceTup
+cfg2MottoVocTup pre =
+  MottoVoiceTup
     <$> getConfigParam (pre <> ".instr")
     <*> getConfigParam (pre <> ".key")
     <*> getConfigParam (pre <> ".clef")
     <*> getConfigParam (pre <> ".scale")
     <*> getConfigParam (pre <> ".start")
 
-cfg2VocTups :: String -> [String] -> Driver [VoiceTup]
-cfg2VocTups root = mapM (\v -> cfg2VocTup (root <> "." <> v))
+cfg2MottoVocTups :: String -> [String] -> Driver [MottoVoiceTup]
+cfg2MottoVocTups root = mapM (\v -> cfg2MottoVocTup (root <> "." <> v))
 
 cfg2VocMottos :: String -> Driver VoiceMottos
 cfg2VocMottos title =
@@ -85,17 +87,17 @@ normalizeVoiceMottos :: VoiceMottos -> VoiceMottos
 normalizeVoiceMottos VoiceMottos{..} =
   fold $ zipWith4 normalizeVoiceMotto _vmMIntss _vmDurss _vmAcctss _vmDynss
 
-genMaxRandVoc :: Int -> VoiceMottos -> VoiceTup -> GenVoiceMottos -> Driver Voice
-genMaxRandVoc reps VoiceMottos{..} VoiceTup{..} _ = do
+genMaxRandVoc :: Int -> VoiceMottos -> MottoVoiceTup -> GenVoiceMottos -> Driver Voice
+genMaxRandVoc reps VoiceMottos{..} MottoVoiceTup{..} _ = do
   mots <- concatMap (mtranspose _vtScale _vtStart) . take reps <$> randomElements _vmMIntss
   durs <- concat . take reps <$> randomElements _vmDurss
   accs <- concat . take reps <$> randomElements _vmAcctss
   dyns <- concat . take reps <$> randomElements _vmDynss
-  pure $ PitchedVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
+  pure $ PitchedVoice _vtInstr (NE.fromList (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns))
 
-genVoc :: Int -> VoiceMottos -> VoiceTup -> GenVoiceMottos -> Driver Voice
-genVoc reps vocmots VoiceTup{..} GenVoiceMottos{..} =
-  pure $ PitchedVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
+genVoc :: Int -> VoiceMottos -> MottoVoiceTup -> GenVoiceMottos -> Driver Voice
+genVoc reps vocmots MottoVoiceTup{..} GenVoiceMottos{..} =
+  pure $ PitchedVoice _vtInstr (NE.fromList (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns))
   where
     mots = concatMap (mtranspose _vtScale _vtStart) _vmMIntss
     durs = concat _vmDurss
@@ -103,34 +105,34 @@ genVoc reps vocmots VoiceTup{..} GenVoiceMottos{..} =
     dyns = concat _vmDynss
     VoiceMottos{..} = stimesMonoid reps $ normalizeVoiceMottos (_genVoiceMottos vocmots)
 
-genVocM :: Int -> VoiceMottos -> VoiceTup -> GenVoiceMottosM -> Driver Voice
-genVocM _ vocmots VoiceTup{..} GenVoiceMottosM{..} = do
+genVocM :: Int -> VoiceMottos -> MottoVoiceTup -> GenVoiceMottosM -> Driver Voice
+genVocM _ vocmots MottoVoiceTup{..} GenVoiceMottosM{..} = do
   VoiceMottos{..} <- _genVoiceMottosM vocmots
   let mots = concatMap (mtranspose _vtScale _vtStart) _vmMIntss
       durs = concat _vmDurss
       accs = concat _vmAcctss
       dyns = concat _vmDynss
-  pure $ PitchedVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
+  pure $ PitchedVoice _vtInstr (NE.fromList (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns))
 
-newtype GenVoice = GenVoice { _genRandVoc :: Int -> VoiceMottos -> VoiceTup -> GenVoiceMottos -> Driver Voice }
+newtype GenVoice = GenVoice { _genRandVoc :: Int -> VoiceMottos -> MottoVoiceTup -> GenVoiceMottos -> Driver Voice }
 
 newtype GenVoiceMottos = GenVoiceMottos { _genVoiceMottos :: VoiceMottos -> VoiceMottos }
 
-newtype GenVoiceM = GenVoiceM { _genRandVocM :: Int -> VoiceMottos -> VoiceTup -> GenVoiceMottosM -> Driver Voice }
+newtype GenVoiceM = GenVoiceM { _genRandVocM :: Int -> VoiceMottos -> MottoVoiceTup -> GenVoiceMottosM -> Driver Voice }
 
 newtype GenVoiceMottosM = GenVoiceMottosM { _genVoiceMottosM :: VoiceMottos -> Driver VoiceMottos }
 
-genVoices :: GenVoice -> Int -> VoiceMottos -> [VoiceTup] -> [GenVoiceMottos] -> Driver [Voice]
-genVoices GenVoice{..} reps vocmots = zipWithM (_genRandVoc reps vocmots)
+genVoices :: GenVoice -> Int -> VoiceMottos -> [MottoVoiceTup] -> [GenVoiceMottos] -> Driver (NE.NonEmpty Voice)
+genVoices GenVoice{..} reps vocmots tups mottos = NE.fromList <$> zipWithM (_genRandVoc reps vocmots) tups mottos
 
-genVoicesM :: GenVoiceM -> Int -> VoiceMottos -> [VoiceTup] -> [GenVoiceMottosM] -> Driver [Voice]
-genVoicesM GenVoiceM{..} reps vocmots = zipWithM (_genRandVocM reps vocmots)
+genVoicesM :: GenVoiceM -> Int -> VoiceMottos -> [MottoVoiceTup] -> [GenVoiceMottosM] -> Driver (NE.NonEmpty Voice)
+genVoicesM GenVoiceM{..} reps vocmots tups mots = NE.fromList <$> zipWithM (_genRandVocM reps vocmots) tups mots
 
-cfg2ConfigTup :: String -> Driver (Int, [VoiceTup], VoiceMottos)
-cfg2ConfigTup title =
+cfg2MottoConfigTup :: String -> Driver (Int, [MottoVoiceTup], VoiceMottos)
+cfg2MottoConfigTup title =
   (,,)
   <$> getConfigParam (title <> ".reps")
-  <*> cfg2VocTups title ["voice1","voice2","voice3","voice4"]
+  <*> cfg2MottoVocTups title ["voice1","voice2","voice3","voice4"]
   <*> cfg2VocMottos title
 
 -- Select randomly from lists of mottos, durations, accents, and dynamics
@@ -139,14 +141,14 @@ cfg2ConfigTup title =
 -- accss, dynss, and reps.
 cfg2MaxRandScore :: String -> Driver ()
 cfg2MaxRandScore title = do
-  (reps, voctups, vocmots) <- cfg2ConfigTup title
+  (reps, voctups, vocmots) <- cfg2MottoConfigTup title
   voices  <- genVoices (GenVoice genMaxRandVoc) reps vocmots voctups []
   writeScore title $ Score title voices
 
 -- reps repetitions of the mottos all in the same order, no randomization, just repeats
 cfg2HomoPhonScore :: String -> Driver ()
 cfg2HomoPhonScore title = do
-  (reps, voctups, vocmots) <- cfg2ConfigTup title
+  (reps, voctups, vocmots) <- cfg2MottoConfigTup title
   let genVocMots = replicate (length voctups) $ GenVoiceMottos id
   voices  <- genVoices (GenVoice genVoc) reps vocmots voctups genVocMots
   writeScore title $ Score title voices
@@ -154,7 +156,7 @@ cfg2HomoPhonScore title = do
 -- effectively canon after lead-in with all voices running at same imitative distance repeatedly
 cfg2CanonScore :: String -> Driver ()
 cfg2CanonScore title = do
-  (reps, voctups, vocmots) <- cfg2ConfigTup title
+  (reps, voctups, vocmots) <- cfg2MottoConfigTup title
   let genVocMot n = GenVoiceMottos $ lift2VocMots (rotNFor n)
       genVocMots = map genVocMot [0..(length voctups) - 1]
   voices <- genVoices (GenVoice genVoc) reps vocmots voctups genVocMots
@@ -172,11 +174,49 @@ genRandVoiceMottos reps vocmots = do
 
 cfg2RandMotScore :: String -> Driver ()
 cfg2RandMotScore title = do
-  (reps, voctups, vocmots) <- cfg2ConfigTup title
+  (reps, voctups, vocmots) <- cfg2MottoConfigTup title
   let genVocMotM = GenVoiceMottosM $ genRandVoiceMottos reps
       genVocMotMs = replicate (length voctups) genVocMotM
   voices  <- genVoicesM (GenVoiceM genVocM) reps vocmots voctups genVocMotMs
   writeScore title $ Score title voices
+
+{--
+Arpeggios
+--}
+
+data ArpeggiosVoiceTup = ArpeggiosVoiceTup {_atInstr :: Instrument
+                                           ,_atKey   :: KeySignature
+                                           ,_atScale :: Scale
+                                           ,_atLow   :: (Pitch,Octave)
+                                           ,_atHigh  :: (Pitch,Octave)
+                                           } deriving (Show)
+
+cfg2ArpeggiosScore :: String -> Driver ()
+cfg2ArpeggiosScore title = do
+  (voctups, mInts, durs) <- cfg2ArpeggiosConfigTup title
+  Driver.print voctups
+  Driver.print mInts
+  Driver.print durs
+  pure ()
+
+cfg2ArpeggiosConfigTup :: String -> Driver ([ArpeggiosVoiceTup], [Maybe Int], [Duration])
+cfg2ArpeggiosConfigTup title =
+  (,,)
+  <$> cfg2ArpeggiosVocTups title ["voice"]
+  <*> getConfigParam (title <> ".intervals")
+  <*> getConfigParam (title <> ".durations")
+
+cfg2ArpeggioVocTup :: String -> Driver ArpeggiosVoiceTup
+cfg2ArpeggioVocTup pre =
+  ArpeggiosVoiceTup
+    <$> getConfigParam (pre <> ".instr")
+    <*> getConfigParam (pre <> ".key")
+    <*> getConfigParam (pre <> ".scale")
+    <*> getConfigParam (pre <> ".low")
+    <*> getConfigParam (pre <> ".high")
+
+cfg2ArpeggiosVocTups :: String -> [String] -> Driver [ArpeggiosVoiceTup]
+cfg2ArpeggiosVocTups root = mapM (\v -> cfg2ArpeggioVocTup (root <> "." <> v))
 
 {--
 matchLen :: Int -> [a] -> [a]
@@ -187,8 +227,8 @@ matchLen n arr
   where
     lenArr = length arr
 
-genHomoPhonVoc :: Int -> VoiceMottos -> VoiceTup -> GenVoiceMottos -> Driver Voice
-genHomoPhonVoc reps vocmots VoiceTup{..} _ =
+genHomoPhonVoc :: Int -> VoiceMottos -> MottoVoiceTup -> GenVoiceMottos -> Driver Voice
+genHomoPhonVoc reps vocmots MottoVoiceTup{..} _ =
   pure $ PitchedVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
   where
     mots = concatMap (mtranspose _vtScale _vtStart) _vmMIntss
@@ -197,8 +237,8 @@ genHomoPhonVoc reps vocmots VoiceTup{..} _ =
     dyns = concat _vmDynss
     VoiceMottos{..} = stimesMonoid reps $ normalizeVoiceMottos vocmots
 
-genRot1RandVoc :: Int -> VoiceMottos -> VoiceTup -> GenVoiceMottos -> Driver Voice
-genRot1RandVoc reps vocmots VoiceTup{..} GenVoiceMottos{..} =
+genRot1RandVoc :: Int -> VoiceMottos -> MottoVoiceTup -> GenVoiceMottos -> Driver Voice
+genRot1RandVoc reps vocmots MottoVoiceTup{..} GenVoiceMottos{..} =
   pure $ PitchedVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
   where
     mots = concatMap (mtranspose _vtScale _vtStart) _vmMIntss

@@ -6,6 +6,7 @@ import Text.Parsec
 import Text.Parsec.Number
 import Text.Parsec.String
 
+import qualified Data.List.NonEmpty as NE
 import Lily
 import Types
 
@@ -29,13 +30,16 @@ instance FromConfig (Pitch,Octave) where
   parseConfig = mkParseConfig pPitOctPr
 
 instance FromConfig Scale where
-  parseConfig = mkParseConfig (Scale <$> mkPs parsePitch)
+  parseConfig = mkParseConfig (Scale . NE.fromList <$> mkPs parsePitch)
 
 instance FromConfig [Accent] where
   parseConfig = mkParseConfig (mkPs pAccentStr)
 
 instance FromConfig [Dynamic] where
   parseConfig = mkParseConfig (mkPs pDynamicStr)
+
+instance FromConfig [Duration] where
+  parseConfig = mkParseConfig (mkPs parseDuration)
 
 instance FromConfig [Maybe Int] where
   parseConfig = mkParseConfig (mkPs pMInt)

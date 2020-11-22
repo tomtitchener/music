@@ -42,3 +42,13 @@ example_texture:
   durss:    ((8,8,4,8.,16,8,8),(8,16,16,16,16,8,8,8),(8.,16,16,16,8,16,16,16,16),(16,16,16,16,16,8.,16,16,16,16))
   accss:    ((^,~,^,-,.,~,.),(~,>,~,>,~,>,~),(>,>,~,~,>,>,~),(~,~,~,~,>,~))
   dynss:    ((ff,~,~,~,pp,~,~),(mf,~,mp,~,f,~,ff),(p,~,~,~,mp,~,mf),(f,~,~,~,~,~,~))
+
+example_arpeggios:
+  voice:
+    instr:   acoustic grand
+    key:     c major
+    scale:   (c,d,e,f,g,a,b)
+    low:     (c,-2)
+    high:    (c,3)
+  intervals: (3,2,4,2,5)
+  durations: (8,16,8,16,8)

@@ -1,6 +1,7 @@
 module Utils where
 
 import Data.List hiding (transpose)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as M
 import Data.Maybe
 
@@ -90,12 +91,12 @@ xp :: Scale -> (Pitch,Octave) -> Int -> (Pitch,Octave)
 xp (Scale scale) (p,o) off = (p',o')
   where
     cntSteps = length scale
-    normScale = sort scale -- To [C..B] or closest enharmonic to compute new octave
-    pitInt = fromMaybe (error $ "pitch " <> show p <> " not in scale " <> show scale) $ elemIndex p normScale
+    normScale = NE.sort scale -- To [C..B] or closest enharmonic to compute new octave
+    pitInt = fromMaybe (error $ "pitch " <> show p <> " not in scale " <> show scale) $ elemIndex p (NE.toList normScale)
     cntOcts = (pitInt + off) `div` cntSteps
     o' = if off < 0 then fpow (abs cntOcts) decrOct o; else fpow cntOcts incrOct o
     pitIdx = (pitInt + off) `rem` cntSteps
-    p' = if pitIdx < 0 then normScale !! (cntSteps + pitIdx); else normScale !! pitIdx
+    p' = if pitIdx < 0 then normScale NE.!! (cntSteps + pitIdx); else normScale NE.!! pitIdx
 
 -- https://stackoverflow.com/questions/7423123/how-to-call-the-same-function-n-times
 fpow :: Int -> (a -> a) -> a -> a
