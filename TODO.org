@@ -285,6 +285,17 @@ The notes tremolo'd together make up a sustained note that lasts the duration
 of one of the notated chords.
 There's examples to show flipping the tremolo across staves if I ever need
 it.
+** DONE NonEmpty Lists
+Follow Alexis King suggestion about non-empty lists as a type:
+  https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/
+Has the benefit of making non-empty lists visible to the type checker.
+On parsing still run-time detection but part of parsing from config
+data to internal data types vs. explicit check (which I wasn't doing
+anyway).
+Experience implementing it:  headed into trouble with monoid instance
+for mappend of motto components, so there's some residual ordinary 
+list processing in Compose.hs.  Points to usefulness of empty lists
+when processing lists.
 ** TODO Example Piano Score
 What components from Types.hs to capture for functions that
 generate textures?  Start simple.  Say a piano score of pairs
@@ -296,6 +307,8 @@ file, interpeted via (only) Main.hs through functions in Compose.hs.
 So to follow that pattern, I want a new config that specifies at a
 minimum: instrument, scale, matching lists of intervals and durations,
 and a low and a high octave.
+*** DONE Configuration: instr, key, scale, low octave, high octave,
+*** TODO Arpeggio generator: scale -> interval -> duration -> start octave -> finish octave
 ** TODO Re-Architect Driver
 First: ToLily doesn't need to be monadic at all, and can just be a 
 library routine.

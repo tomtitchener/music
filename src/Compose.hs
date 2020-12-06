@@ -188,26 +188,31 @@ Arpeggios
 --}
 
 data ArpeggiosVoiceTup = ArpeggiosVoiceTup {_atInstr :: Instrument
-                                           ,_atKey   :: KeySignature
-                                           ,_atScale :: Scale
-                                           ,_atLow   :: (Pitch,Octave)
-                                           ,_atHigh  :: (Pitch,Octave)
+                                           ,_atKey    :: KeySignature
+                                           ,_atScale  :: Scale
+                                           ,_atStarts :: [(Pitch,Octave)]
+                                           ,_atStops  :: [(Pitch,Octave)]
                                            } deriving (Show)
+
+
+data ArpeggiosMottos = ArpeggiosMottos {_amMIntss :: [[Maybe Int]]
+                                       ,_amDurss  :: [[Duration]]
+                                       ,_amAcctss :: [[Accent]]
+                                       ,_amDynss  :: [[Dynamic]]
+                                       ,_amSlurss :: [[Bool]]
+                                       } deriving (Show)
 
 cfg2ArpeggiosScore :: String -> Driver ()
 cfg2ArpeggiosScore title = do
-  (voctups, mInts, durs) <- cfg2ArpeggiosConfigTup title
+  (voctups, vocMottos) <- cfg2ArpeggiosConfigTup title
   Driver.print voctups
-  Driver.print mInts
-  Driver.print durs
-  pure ()
+  Driver.print vocMottos
 
-cfg2ArpeggiosConfigTup :: String -> Driver ([ArpeggiosVoiceTup], [Maybe Int], [Duration])
+cfg2ArpeggiosConfigTup :: String -> Driver ([ArpeggiosVoiceTup], ArpeggiosMottos)
 cfg2ArpeggiosConfigTup title =
-  (,,)
+  (,)
   <$> cfg2ArpeggiosVocTups title ["voice"]
-  <*> (NE.toList <$> getConfigParam (title <> ".intervals"))
-  <*> (NE.toList <$> getConfigParam (title <> ".durations"))
+  <*> cfg2ArpeggiosMottos title
 
 cfg2ArpeggioVocTup :: String -> Driver ArpeggiosVoiceTup
 cfg2ArpeggioVocTup pre =
@@ -215,11 +220,20 @@ cfg2ArpeggioVocTup pre =
     <$> getConfigParam (pre <> ".instr")
     <*> getConfigParam (pre <> ".key")
     <*> getConfigParam (pre <> ".scale")
-    <*> getConfigParam (pre <> ".low")
-    <*> getConfigParam (pre <> ".high")
+    <*> (NE.toList <$> getConfigParam (pre <> ".starts"))
+    <*> (NE.toList <$> getConfigParam (pre <> ".stops"))
 
 cfg2ArpeggiosVocTups :: String -> [String] -> Driver [ArpeggiosVoiceTup]
 cfg2ArpeggiosVocTups root = mapM (\v -> cfg2ArpeggioVocTup (root <> "." <> v))
+
+cfg2ArpeggiosMottos :: String -> Driver ArpeggiosMottos
+cfg2ArpeggiosMottos title =
+  ArpeggiosMottos
+    <$> (nes2arrs <$> getConfigParam (title <> ".intss"))
+    <*> (nes2arrs <$> getConfigParam (title <> ".durss"))
+    <*> (nes2arrs <$> getConfigParam (title <> ".accss"))
+    <*> (nes2arrs <$> getConfigParam (title <> ".dynss"))
+    <*> (nes2arrs <$> getConfigParam (title <> ".slurss"))
 
 {--
 matchLen :: Int -> [a] -> [a]

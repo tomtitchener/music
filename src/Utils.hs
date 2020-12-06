@@ -4,6 +4,7 @@ import Data.List hiding (transpose)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Tuple
 
 import Types
 
@@ -81,10 +82,38 @@ transpose :: Scale -> (Pitch,Octave) -> [Int] -> [(Pitch,Octave)]
 transpose scale pr = map (xp scale pr) . scanl1 (+) . map intervalToOffset
 
 mtranspose :: Scale -> (Pitch,Octave) -> [Maybe Int] -> [Maybe (Pitch,Octave)]
-mtranspose scale pr = map (xp scale pr <$>) . reverse . snd . foldl' f (0,[])
+mtranspose scale start = map (xp scale start <$>) . reverse . snd . foldl' f (0,[])
   where
     f (s,l) Nothing  = (s, Nothing:l)
     f (s,l) (Just i) = (s + intervalToOffset i, Just (s + intervalToOffset i):l)
+
+-- sequentially transpose for Scale from start given mintlist until current (Pitch,Octave) equals or exceeds stop
+seqMTranspose :: Scale -> (Pitch,Octave) -> (Pitch,Octave) -> [Maybe Int] -> [Maybe (Pitch,Octave)]
+seqMTranspose scale start stop mintlist
+  | intDir == GT && pitDir == GT = safeSeqMTranspose (<) start []
+  | intDir == LT && pitDir == LT = safeSeqMTranspose (>) start []
+  | intDir == EQ && pitDir == EQ = error $ "seqMTranpose intervals " <> show mintlist <> " and pitches " <> show start <> " " <> show stop <> " are both EQ "
+  | otherwise = error $ "seqMTranspose int direction: " <> show intDir <> " " <> show mintlist <> " does not equal pitch direction " <> show pitDir <> " " <> show start <> " " <> show stop
+  where
+    safeSeqMTranspose cmp start' ret
+      | (swap start') `cmp` (swap stop) = safeSeqMTranspose cmp (mkStart start' ret) ret'
+      | otherwise = ret
+      where
+        ret' = ret ++ mtranspose scale start' mintlist
+        mkStart s r = if null r then s else last . catMaybes $ r
+    intDir
+       | tot > 0   = GT
+       | tot < 0   = LT
+       | otherwise = EQ
+       where
+         tot = sum . map intervalToOffset . catMaybes $ mintlist -- (> 0, (< 0), or 0
+    pitDir
+      | start' < stop' = GT
+      | start' > stop' = LT
+      | otherwise      = EQ
+      where
+        start' = swap start
+        stop'  = swap stop
 
 -- partial if Pitch from (Pitch,Octave) is not element of Scale
 xp :: Scale -> (Pitch,Octave) -> Int -> (Pitch,Octave)
