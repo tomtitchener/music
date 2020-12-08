@@ -44,7 +44,7 @@ composedDur reps dur =
   durVal2Duration M.! durVal
   where
     denom :: Int
-    denom  = truncate (fromIntegral (128::Int) / (fromIntegral $ dur2DurVal dur)::Double)
+    denom  = truncate (fromIntegral (128::Int) / fromIntegral (dur2DurVal dur)::Double)
     durVal :: Int
     durVal = truncate (128 * (fromIntegral reps / fromIntegral denom)::Double)
 
@@ -72,41 +72,50 @@ durSum2Durs = unfoldr f
 
 -- in interval arithmetic 0 doesn't make any sense, 1/-1 is unison, 2/-2 is a second, etc.
 -- to convert to offset from current pitch, 0 => exception, 1/-1 => 0, 2/-2 = 1/-1, etc.
-intervalToOffset :: Int -> Int
-intervalToOffset i
+int2Off :: Int -> Int
+int2Off i
   | i < 0 = i + 1
-  | i == 0 = error "intervalToOffset invalid interval 0"
+  | i == 0 = error "int2Off invalid interval 0"
   | otherwise = i - 1
 
 transpose :: Scale -> (Pitch,Octave) -> [Int] -> [(Pitch,Octave)]
-transpose scale pr = map (xp scale pr) . scanl1 (+) . map intervalToOffset
+transpose scale pr = map (xp scale pr) . scanl1 (+) . map int2Off
 
 mtranspose :: Scale -> (Pitch,Octave) -> [Maybe Int] -> [Maybe (Pitch,Octave)]
 mtranspose scale start = map (xp scale start <$>) . reverse . snd . foldl' f (0,[])
   where
     f (s,l) Nothing  = (s, Nothing:l)
-    f (s,l) (Just i) = (s + intervalToOffset i, Just (s + intervalToOffset i):l)
+    f (s,l) (Just i) = (s', Just s':l)
+      where
+        s' = s + int2Off i
 
 -- sequentially transpose for Scale from start given mintlist until current (Pitch,Octave) equals or exceeds stop
 seqMTranspose :: Scale -> (Pitch,Octave) -> (Pitch,Octave) -> [Maybe Int] -> [Maybe (Pitch,Octave)]
-seqMTranspose scale start stop mintlist
-  | intDir == GT && pitDir == GT = safeSeqMTranspose (<) start []
-  | intDir == LT && pitDir == LT = safeSeqMTranspose (>) start []
-  | intDir == EQ && pitDir == EQ = error $ "seqMTranpose intervals " <> show mintlist <> " and pitches " <> show start <> " " <> show stop <> " are both EQ "
-  | otherwise = error $ "seqMTranspose int direction: " <> show intDir <> " " <> show mintlist <> " does not equal pitch direction " <> show pitDir <> " " <> show start <> " " <> show stop
+seqMTranspose scale start stop mIntList
+  | intDir == GT && pitDir == GT = unfoldr (f (<)) (0,0)
+  | intDir == LT && pitDir == LT = unfoldr (f (>)) (0,0)
+  | intDir == EQ && pitDir == EQ = error $ "seqMTranpose intervals " <> show mIntList <> " and pitches " <> show start <> " " <> show stop <> " are both EQ "
+  | otherwise = error $ "seqMTranspose int direction: " <> show intDir <> " " <> show mIntList <> " does not equal pitch direction " <> show pitDir <> " " <> show start <> " " <> show stop
   where
-    safeSeqMTranspose cmp start' ret
-      | (swap start') `cmp` (swap stop) = safeSeqMTranspose cmp (mkStart start' ret) ret'
-      | otherwise = ret
+    f _ (0,0) = case head mIntList of
+                  Nothing -> Just (Nothing,(1,0))
+                  Just i  -> Just (Just (xp scale start (int2Off i)),(1,int2Off i))
+    f cmp (ix,prv) = case mPitOct of
+                       Nothing -> Just (Nothing,(ix',prv'))
+                       Just next -> case swap next `cmp` swap stop of
+                                      True -> Just (mPitOct,(ix',prv'))
+                                      False -> Nothing
       where
-        ret' = ret ++ mtranspose scale start' mintlist
-        mkStart s r = if null r then s else last . catMaybes $ r
+        ix' = if ix == length mIntList - 1 then 0 else ix + 1
+        mPitOct = xp scale start . (+) prv . int2Off <$> mInt
+        prv' = maybe prv ((prv +) . int2Off) mInt
+        mInt = mIntList !! ix
     intDir
        | tot > 0   = GT
        | tot < 0   = LT
        | otherwise = EQ
        where
-         tot = sum . map intervalToOffset . catMaybes $ mintlist -- (> 0, (< 0), or 0
+         tot = sum . map int2Off . catMaybes $ mIntList -- (> 0, (< 0), or 0
     pitDir
       | start' < stop' = GT
       | start' > stop' = LT
@@ -114,6 +123,7 @@ seqMTranspose scale start stop mintlist
       where
         start' = swap start
         stop'  = swap stop
+
 
 -- partial if Pitch from (Pitch,Octave) is not element of Scale
 xp :: Scale -> (Pitch,Octave) -> Int -> (Pitch,Octave)

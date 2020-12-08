@@ -202,12 +202,6 @@ data ArpeggiosMottos = ArpeggiosMottos {_amMIntss :: [[Maybe Int]]
                                        ,_amSlurss :: [[Bool]]
                                        } deriving (Show)
 
-cfg2ArpeggiosScore :: String -> Driver ()
-cfg2ArpeggiosScore title = do
-  (voctups, vocMottos) <- cfg2ArpeggiosConfigTup title
-  Driver.print voctups
-  Driver.print vocMottos
-
 cfg2ArpeggiosConfigTup :: String -> Driver ([ArpeggiosVoiceTup], ArpeggiosMottos)
 cfg2ArpeggiosConfigTup title =
   (,)
@@ -234,6 +228,12 @@ cfg2ArpeggiosMottos title =
     <*> (nes2arrs <$> getConfigParam (title <> ".accss"))
     <*> (nes2arrs <$> getConfigParam (title <> ".dynss"))
     <*> (nes2arrs <$> getConfigParam (title <> ".slurss"))
+
+cfg2ArpeggiosScore :: String -> Driver ()
+cfg2ArpeggiosScore title = do
+  (voctups, vocMottos) <- cfg2ArpeggiosConfigTup title
+  Driver.print voctups
+  Driver.print vocMottos
 
 {--
 matchLen :: Int -> [a] -> [a]
