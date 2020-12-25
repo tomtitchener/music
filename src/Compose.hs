@@ -202,12 +202,6 @@ data ArpeggiosMottos = ArpeggiosMottos {_amMIntss :: [[Maybe Int]]
                                        ,_amSlurss :: [[Bool]]
                                        } deriving (Show)
 
-cfg2ArpeggiosConfigTup :: String -> Driver ([ArpeggiosVoiceTup], ArpeggiosMottos)
-cfg2ArpeggiosConfigTup title =
-  (,)
-  <$> cfg2ArpeggiosVocTups title ["voice"]
-  <*> cfg2ArpeggiosMottos title
-
 cfg2ArpeggioVocTup :: String -> Driver ArpeggiosVoiceTup
 cfg2ArpeggioVocTup pre =
   ArpeggiosVoiceTup
@@ -229,11 +223,42 @@ cfg2ArpeggiosMottos title =
     <*> (nes2arrs <$> getConfigParam (title <> ".dynss"))
     <*> (nes2arrs <$> getConfigParam (title <> ".slurss"))
 
+cfg2ArpeggiosConfigTup :: String -> Driver ([ArpeggiosVoiceTup], ArpeggiosMottos)
+cfg2ArpeggiosConfigTup title =
+  (,)
+  <$> cfg2ArpeggiosVocTups title ["voice"]
+  <*> cfg2ArpeggiosMottos title
+
 cfg2ArpeggiosScore :: String -> Driver ()
 cfg2ArpeggiosScore title = do
-  (voctups, vocMottos) <- cfg2ArpeggiosConfigTup title
-  Driver.print voctups
-  Driver.print vocMottos
+  (arpTups, arpMottos) <- cfg2ArpeggiosConfigTup title
+  -- wrangle seqMTranspose :: Scale -> (Pitch,Octave) -> (Pitch,Octave) -> [Maybe Int] -> [Maybe (Pitch,Octave)]
+  -- multiples are _atStarts, _atStops, _amMIntss gives [[Maybe (Pitch,Octave)]], each per voice
+  let arpMPOss = map (\ArpeggiosVoiceTup{..} -> concat $ zipWith3 (seqMTranspose _atScale) _atStarts _atStops (_amMIntss arpMottos)) arpTups
+  -- next need to take [[Just (C,FifteenVBOct),Nothing,..]] into [[Note]] using _amDurss, _amAcctss, _amDynss, _amSlurss
+  -- keeping in mind length of each [Maybe(Pitch,Oct)] will be longer than each [Note].
+  -- That means filling-out the lengths of the shorter lists to match the length of the longer
+  -- list with repetitions of the shorter list, could be just take n from (concat . repeat $ _foo),
+  -- e.g.: (take 4 (concat (repeat [1])))
+  -- need engine to compose note:
+  -- data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAcc :: Accent, _noteDyn :: Dynamic, _noteSwell :: Swell, _noteSlur :: Bool }
+  -- except don't forget Nothing, which turns into a Rest.  Which means what I actually want are VoiceEvents, with instances VeNote and VeRest
+  -- so type is [Maybe (Pitch,Octave)] -> [Duration] -> [Accent] -> [Dynamic] -> [Swell] -> [Bool] -> [VoiceEvent]
+  -- which at one level lower means Maybe (Pitch,Octave) -> Duration -> Accent -> Dynamic -> Swell -> Slur -> VoiceEvent
+  Driver.print arpMPOss
+  Driver.print arpMottos
+
+{--
+genVE :: Maybe (Pitch,Octave) -> Duration -> Accent -> Dynamic -> Swell -> Bool -> VoiceEvent
+genVE Nothing dur _ dyn _ _ = VeRest (Rest dur dyn)
+genVE (Just (pit,oct)) dur acc dyn swl slr = VeNote (Note pit oct dur acc dyn swl slr)
+
+genVEs :: [Maybe (Pitch,Octave)] -> [Duration] -> [Accent] -> [Dynamic] -> [Swell] -> [Bool] -> [VoiceEvent]
+genVEs mpos durs accs dyns swls slrs = zipWith6 genVE mpos durs accs dyns swls slrs
+
+matchLen :: [a] -> [b] -> [b]
+matchLen src trg = take (length src) (concat . repeat $ trg)
+--}
 
 {--
 matchLen :: Int -> [a] -> [a]

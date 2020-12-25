@@ -207,6 +207,22 @@ parseRest = Rest <$> (char 'r' *> parseDuration) <*> parseDynamic
 instance FromLily Rest  where
   parseLily = mkParseLily parseRest
 
+------------
+-- Tuplet --
+------------
+
+instance ToLily Tuplet where
+  toLily (Tuplet num denom dur notes) = "\\tuplet " <> show num <> "/" <> show denom <> toLily dur <> " { " <> (unwords . NE.toList . NE.map toLily $ notes) <> " } "
+
+parseNotes :: Parser (NE.NonEmpty Note)
+parseNotes = NE.fromList <$> (parseNote `sepBy` spaces)
+
+parseTuplet :: Parser Tuplet
+parseTuplet = Tuplet <$> (string "\\tuplet" *> parseInt) <*> (string "/" *> parseInt) <*> parseDuration <*> (string "{" *> parseNotes <* string "}")
+
+instance FromLily Tuplet where
+  parseLily = mkParseLily parseTuplet
+
 -----------
 -- Chord --
 -----------
@@ -373,6 +389,7 @@ instance ToLily VoiceEvent where
   toLily (VeNote note) = toLily note
   toLily (VeRhythm rhythm) = toLily rhythm
   toLily (VeRest rest) = toLily rest
+  toLily (VeTuplet tup) = toLily tup
   toLily (VeChord chord) = toLily chord
   toLily (VeClef clef) = toLily clef
   toLily (VeTempo tempo) = toLily tempo

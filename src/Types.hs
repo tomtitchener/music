@@ -11,6 +11,7 @@ module Types (Pitch (..)
              ,Note (..)
              ,Rhythm (..)
              ,Rest (..)
+             ,Tuplet (..)
              ,Chord (..)
              ,Clef (..)
              ,Tempo (..)
@@ -66,6 +67,9 @@ data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAc
 data Rest = Rest { _rdur :: Duration, _rdyn :: Dynamic }
   deriving (Eq, Ord, Show)
 
+data Tuplet = Tuplet { _tupNum :: Int, _tupDenom :: Int, _tupDur :: Duration, _tupNotes :: NonEmpty Note }
+  deriving (Eq, Ord, Show)
+
 data Chord = Chord { _chordPitOctPairs :: NonEmpty(Pitch, Octave) , _chordDur :: Duration, _chordAcc :: Accent, _chordDyn :: Dynamic, _chordSwell :: Swell, _chordSlur :: Bool }
   deriving (Eq, Ord, Show)
 
@@ -100,6 +104,7 @@ data VoiceEvent =
     VeNote { _veNote :: Note }
   | VeRest { _veRest :: Rest }
   | VeRhythm { _veRhythm :: Rhythm }
+  | VeTuplet { _veTuplet :: Tuplet }
   | VeChord { _veChord :: Chord }
   | VeClef { _veClef :: Clef }
   | VeTempo { _veTempo :: Tempo }

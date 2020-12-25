@@ -175,3 +175,17 @@ rotNRev i xs = iterate rotRev xs !! i
 -- [(1,a),(1,a),(2,a)] => [25%,25%,50%]
 genByWeight :: [(Int,a)] -> [a]
 genByWeight = concatMap (uncurry replicate)
+
+-- Constraints:
+--  * num > denom,
+--  * length _tupNotes `mod` num == 0,
+--  * 1 == length . nub . map _noteDur $ _tupNotes,
+mkTuplet :: Int -> Int -> NE.NonEmpty Note -> Tuplet
+mkTuplet num denom notes
+  | num <= denom                 = error $ "tuplet num: " <> show num <> " <= denom: " <> show denom
+  | 0 /= numNotes `mod` num      = error $ "tuplet length notes: " <> show numNotes <> " not evenly divisible by num " <> show num
+  | 1 /= NE.length (NE.nub durs) = error $ "tuplet non-uniform durations: " <> show durs
+  | otherwise = Tuplet num denom (NE.head durs) notes
+  where
+    durs = NE.map _noteDur notes
+    numNotes = NE.length notes
