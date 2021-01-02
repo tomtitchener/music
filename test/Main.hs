@@ -49,6 +49,7 @@ tests =
   ,testProperty "parseLily . toLily Tempo == id" (propParseLilytoLilyVal @Tempo)
   ,testProperty "parseLily . toLily TimeSignature == id" (propParseLilytoLilyVal @TimeSignature)
   ,testProperty "parseLily . toLily Chord == id" (propParseLilytoLilyVal @Chord)
+  ,testProperty "parseLily . toLily Tuplet == id" (propParseLilytoLilyVal @Tuplet)
   ,testProperty "parseLily . toLily Tremolo == id" (propParseLilytoLilyVal @Tremolo)
   --
   ,testCase     "parseLily . toLily PitchedVoice" (assertParseLilytoLilyVal pitchedVoice)
@@ -69,6 +70,7 @@ tests =
 
 deriving instance Generic Accent
 deriving instance Generic Chord
+deriving instance Generic Tuplet
 deriving instance Generic Tremolo
 deriving instance Generic Duration
 deriving instance Generic Dynamic
@@ -93,13 +95,26 @@ instance Arbitrary Rest where
   arbitrary = genericArbitrary
   shrink = genericShrink
 
+fixedList :: Int -> Gen a -> Gen [a]
+fixedList n = resize n . listOf1
+
 -- | make lists of maximum length 3
-smallList :: Gen a -> Gen [a]
-smallList = resize 3 . listOf1
+chordNotes :: Gen a -> Gen [a]
+chordNotes = fixedList 3
 
 instance Arbitrary Chord where
-  arbitrary = Chord . NE.fromList <$> smallList arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = Chord . NE.fromList <$> chordNotes  arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
   -- shrink = genericShrink
+
+instance Arbitrary Tuplet where
+  arbitrary = tup
+    where
+      tup = do
+        let note = Note C COct QDur NoAccent NoDynamic NoSwell False
+            dur = QDur
+        arbNum :: Int <- elements [3..7]
+        let notes = NE.fromList $ take arbNum (repeat note)
+        pure $ Tuplet arbNum (arbNum - 1) dur notes
 
 instance Arbitrary Octave where
   arbitrary = genericArbitrary
@@ -147,8 +162,8 @@ instance Arbitrary Tremolo where
       arbNote = Note <$> arbitrary <*> arbitrary <*> elements [DWDur, WDur, DHDur, HDur, DQDur, QDur] <*>  arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       arbChordTremolo = do
         dur <- elements [DWDur, WDur, DHDur, HDur, DQDur, QDur]
-        arbChord1 <- (flip Chord dur) . NE.fromList <$> smallList arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-        arbChord2 <- (flip Chord dur) . NE.fromList <$> smallList arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+        arbChord1 <- (flip Chord dur) . NE.fromList <$> chordNotes arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+        arbChord2 <- (flip Chord dur) . NE.fromList <$> chordNotes arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
         pure $ ChordTremolo arbChord1 arbChord2
   shrink = genericShrink
 
