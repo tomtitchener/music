@@ -147,6 +147,12 @@ genNotes = zipWith4 f
     f Nothing du _ dy = VeRest $ Rest du dy
     f (Just (p,o)) du a dy = VeNote (Note p o du a dy NoSwell False)
 
+genNotesWithSlurs :: [Maybe (Pitch,Octave)] -> [Duration] -> [Accent] -> [Dynamic] -> [Bool] -> [VoiceEvent]
+genNotesWithSlurs = zipWith5 f
+  where
+    f Nothing du _ dy _ = VeRest $ Rest du dy
+    f (Just (p,o)) du a dy sl = VeNote (Note p o du a dy NoSwell sl)
+
 genNotess :: [[Maybe (Pitch,Octave)]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> [[VoiceEvent]]
 genNotess = zipWith4 genNotes
 
@@ -177,12 +183,12 @@ genByWeight :: [(Int,a)] -> [a]
 genByWeight = concatMap (uncurry replicate)
 
 -- Constraints:
---  * num > denom,
+--  * num > denom, -- no, this is wrong!
 --  * length _tupNotes `mod` num == 0,
 --  * 1 == length . nub . map _noteDur $ _tupNotes,
 mkTuplet :: Int -> Int -> NE.NonEmpty Note -> Tuplet
 mkTuplet num denom notes
-  | num <= denom                 = error $ "tuplet num: " <> show num <> " <= denom: " <> show denom
+--  | num <= denom                 = error $ "tuplet num: " <> show num <> " <= denom: " <> show denom
   | 0 /= numNotes `mod` num      = error $ "tuplet length notes: " <> show numNotes <> " not evenly divisible by num " <> show num
   | 1 /= NE.length (NE.nub durs) = error $ "tuplet non-uniform durations: " <> show durs
   | otherwise = Tuplet num denom (NE.head durs) notes

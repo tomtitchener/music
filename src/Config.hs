@@ -29,6 +29,9 @@ instance FromConfig Clef where
 instance FromConfig (Pitch,Octave) where
   parseConfig = mkParseConfig pPitOctPr
 
+instance FromConfig ((Pitch,Octave),(Pitch,Octave)) where
+  parseConfig = mkParseConfig pPitOctsPr
+
 instance FromConfig Scale where
   parseConfig = mkParseConfig (Scale <$> mkPs parsePitch)
 
@@ -46,6 +49,9 @@ instance FromConfig (NE.NonEmpty (Maybe Int)) where
 
 instance FromConfig (NE.NonEmpty (Pitch,Octave)) where
   parseConfig = mkParseConfig (mkPs pPitOctPr)
+
+instance FromConfig (NE.NonEmpty ((Pitch,Octave),(Pitch,Octave))) where
+  parseConfig = mkParseConfig (mkPs pPitOctsPr)
 
 instance FromConfig (NE.NonEmpty (NE.NonEmpty Accent)) where
   parseConfig = mkParseConfig (mkPss pAccentStr)
@@ -118,6 +124,9 @@ pOctaveStr = choice (zipWith mkParser octaveInts [TwentyNineVBOct .. TwentyTwoVA
 
 pPitOctPr :: Parser (Pitch,Octave)
 pPitOctPr = between (char '(') (char ')') ((,) <$> parsePitch <*> (char ',' *> pOctaveStr))
+
+pPitOctsPr :: Parser ((Pitch,Octave),(Pitch,Octave))
+pPitOctsPr = between (char '(') (char ')') ((,) <$> pPitOctPr <*> (char ',' *> pPitOctPr))
 
 clefStrs :: [String]
 clefStrs = ["bass_8", "bass", "tenor", "alto", "treble", "treble^8"]

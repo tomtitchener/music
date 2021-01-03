@@ -9,7 +9,7 @@ module Compose (cfg2MaxRandScore
 
 import Control.Monad (zipWithM)
 import Data.Foldable (fold)
-import Data.List (zipWith4)
+import Data.List (zipWith4, zipWith7)
 import qualified Data.List.NonEmpty as NE
 import Data.Semigroup (stimesMonoid)
 
@@ -184,17 +184,30 @@ cfg2RandMotScore title = do
   writeScore title $ Score title voices
 
 {--
-Arpeggios
+Arpeggios:  weave of voices all arpeggios cycling up/down
+  - voices can vary by
+    * range: so e.g. at the same duration, one may occupy the full range
+      while another would cycle at double speed over lower half and another
+      over upper half -- you'd get doubling with bottom and outer voice for
+      first and last eighths, while half-range voices moved in parallel
+    * intervals for harmony and for total duration e.g. if count of notes
+      to span same range is greater or less
+    * accent for motive/melody against background
+  - plan:
+    * start with unique voice data of scale, instrument, and range only,
+      uniform for everything else
+    * move data from mottos to voice or find a way to programmatically
+      sequence using more general input in mottos
 --}
 
+-- Data that varies voice-by-voice:
 data ArpeggiosVoiceTup = ArpeggiosVoiceTup {_atInstr :: Instrument
                                            ,_atKey    :: KeySignature
                                            ,_atScale  :: Scale
-                                           ,_atStarts :: [(Pitch,Octave)]
-                                           ,_atStops  :: [(Pitch,Octave)]
+                                           ,_atRanges :: [((Pitch,Octave),(Pitch,Octave))]
                                            } deriving (Show)
 
-
+-- Data that stays the same for all voices:
 data ArpeggiosMottos = ArpeggiosMottos {_amMIntss :: [[Maybe Int]]
                                        ,_amDurss  :: [[Duration]]
                                        ,_amAcctss :: [[Accent]]
@@ -208,8 +221,7 @@ cfg2ArpeggioVocTup pre =
     <$> getConfigParam (pre <> ".instr")
     <*> getConfigParam (pre <> ".key")
     <*> getConfigParam (pre <> ".scale")
-    <*> (NE.toList <$> getConfigParam (pre <> ".starts"))
-    <*> (NE.toList <$> getConfigParam (pre <> ".stops"))
+    <*> (NE.toList <$> getConfigParam (pre <> ".ranges"))
 
 cfg2ArpeggiosVocTups :: String -> [String] -> Driver [ArpeggiosVoiceTup]
 cfg2ArpeggiosVocTups root = mapM (\v -> cfg2ArpeggioVocTup (root <> "." <> v))
@@ -229,24 +241,22 @@ cfg2ArpeggiosConfigTup title =
   <$> cfg2ArpeggiosVocTups title ["voice"]
   <*> cfg2ArpeggiosMottos title
 
+genArpVEs :: Scale -> [((Pitch,Octave),(Pitch,Octave))] -> [[Maybe Int]] -> [Duration] -> [Accent] -> [Dynamic] -> [Bool] -> [VoiceEvent]
+genArpVEs scale ranges mIntss durs accts dyns slurs =
+  genNotesWithSlurs mPOs durs' accts' dyns' slurs'
+  where
+    mPOs = concat $ zipWith (\(start,stop) mInts -> seqMTranspose scale start stop mInts) ranges mIntss
+    durs' = concat . repeat $ durs
+    accts' = concat . repeat $ accts
+    dyns' = concat . repeat $ dyns
+    slurs' = concat . repeat $ slurs
+
 cfg2ArpeggiosScore :: String -> Driver ()
 cfg2ArpeggiosScore title = do
-  (arpTups, arpMottos) <- cfg2ArpeggiosConfigTup title
-  -- wrangle seqMTranspose :: Scale -> (Pitch,Octave) -> (Pitch,Octave) -> [Maybe Int] -> [Maybe (Pitch,Octave)]
-  -- multiples are _atStarts, _atStops, _amMIntss gives [[Maybe (Pitch,Octave)]], each per voice
-  let arpMPOss = map (\ArpeggiosVoiceTup{..} -> concat $ zipWith3 (seqMTranspose _atScale) _atStarts _atStops (_amMIntss arpMottos)) arpTups
-  -- next need to take [[Just (C,FifteenVBOct),Nothing,..]] into [[Note]] using _amDurss, _amAcctss, _amDynss, _amSlurss
-  -- keeping in mind length of each [Maybe(Pitch,Oct)] will be longer than each [Note].
-  -- That means filling-out the lengths of the shorter lists to match the length of the longer
-  -- list with repetitions of the shorter list, could be just take n from (concat . repeat $ _foo),
-  -- e.g.: (take 4 (concat (repeat [1])))
-  -- need engine to compose note:
-  -- data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAcc :: Accent, _noteDyn :: Dynamic, _noteSwell :: Swell, _noteSlur :: Bool }
-  -- except don't forget Nothing, which turns into a Rest.  Which means what I actually want are VoiceEvents, with instances VeNote and VeRest
-  -- so type is [Maybe (Pitch,Octave)] -> [Duration] -> [Accent] -> [Dynamic] -> [Swell] -> [Bool] -> [VoiceEvent]
-  -- which at one level lower means Maybe (Pitch,Octave) -> Duration -> Accent -> Dynamic -> Swell -> Slur -> VoiceEvent
-  Driver.print arpMPOss
-  Driver.print arpMottos
+  (arpVocTups, ArpeggiosMottos{..}) <- cfg2ArpeggiosConfigTup title
+  let vess = zipWith7 genArpVEs (map _atScale arpVocTups) (map _atRanges arpVocTups) (repeat _amMIntss) _amDurss _amAcctss _amDynss _amSlurss
+  -- TBD
+  Driver.print vess
 
 {--
 genVE :: Maybe (Pitch,Octave) -> Duration -> Accent -> Dynamic -> Swell -> Bool -> VoiceEvent
