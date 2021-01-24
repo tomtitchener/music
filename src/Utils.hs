@@ -90,32 +90,32 @@ mtranspose scale start = map (xp scale start <$>) . reverse . snd . foldl' f (0,
         s' = s + int2Off i
 
 -- sequentially transpose for Scale from start given mintlist until current (Pitch,Octave) equals or exceeds stop
-seqMTranspose :: Scale -> (Pitch,Octave) -> (Pitch,Octave) -> [Maybe Int] -> [Maybe (Pitch,Octave)]
-seqMTranspose scale start stop mIntList
-  | intDir == GT && pitDir == GT = unfoldr (f (<)) (0,0)
-  | intDir == LT && pitDir == LT = unfoldr (f (>)) (0,0)
+seqMTranspose :: Scale -> NE.NonEmpty (Maybe Int) -> ((Pitch,Octave),(Pitch,Octave)) -> NE.NonEmpty (Maybe (Pitch,Octave))
+seqMTranspose scale mIntList (start,stop)
+  | intDir == GT && pitDir == GT = NE.unfoldr (f (<)) (0,0)
+  | intDir == LT && pitDir == LT = NE.unfoldr (f (>)) (0,0)
   | intDir == EQ && pitDir == EQ = error $ "seqMTranpose intervals " <> show mIntList <> " and pitches " <> show start <> " " <> show stop <> " are both EQ "
   | otherwise = error $ "seqMTranspose int direction: " <> show intDir <> " " <> show mIntList <> " does not equal pitch direction " <> show pitDir <> " " <> show start <> " " <> show stop
   where
-    f _ (0,0) = case head mIntList of
-                  Nothing -> Just (Nothing,(1,0))
-                  Just i  -> Just (Just (xp scale start (int2Off i)),(1,int2Off i))
+    f _ (0,0) = case NE.head mIntList of
+                  Nothing -> (Nothing, Just (1,0))
+                  Just i  -> (Just (xp scale start (int2Off i)),Just (1,int2Off i))
     f cmp (ix,prv) = case mPitOct of
-                       Nothing -> Just (Nothing,(ix',prv'))
+                       Nothing -> (Nothing,Just (ix',prv'))
                        Just next -> case swap next `cmp` swap stop of
-                                      True -> Just (mPitOct,(ix',prv'))
-                                      False -> Nothing
+                                      True -> (mPitOct,Just (ix',prv'))
+                                      False -> (mPitOct,Nothing)
       where
-        ix' = if ix == length mIntList - 1 then 0 else ix + 1
+        ix' = if ix == (NE.length mIntList) - 1 then 0 else ix + 1
         mPitOct = xp scale start . (+) prv . int2Off <$> mInt
         prv' = maybe prv ((prv +) . int2Off) mInt
-        mInt = mIntList !! ix
+        mInt = mIntList NE.!! ix
     intDir
        | tot > 0   = GT
        | tot < 0   = LT
        | otherwise = EQ
        where
-         tot = sum . map int2Off . catMaybes $ mIntList -- (> 0, (< 0), or 0
+         tot = sum (maybe 0 int2Off <$> mIntList) -- (> 0), (< 0), or 0
     pitDir
       | start' < stop' = GT
       | start' > stop' = LT
@@ -123,7 +123,6 @@ seqMTranspose scale start stop mIntList
       where
         start' = swap start
         stop'  = swap stop
-
 
 -- partial if Pitch from (Pitch,Octave) is not element of Scale
 xp :: Scale -> (Pitch,Octave) -> Int -> (Pitch,Octave)
@@ -147,14 +146,14 @@ genNotes = zipWith4 f
     f Nothing du _ dy = VeRest $ Rest du dy
     f (Just (p,o)) du a dy = VeNote (Note p o du a dy NoSwell False)
 
-genNotesWithSlurs :: [Maybe (Pitch,Octave)] -> [Duration] -> [Accent] -> [Dynamic] -> [Bool] -> [VoiceEvent]
-genNotesWithSlurs = zipWith5 f
-  where
-    f Nothing du _ dy _ = VeRest $ Rest du dy
-    f (Just (p,o)) du a dy sl = VeNote (Note p o du a dy NoSwell sl)
-
 genNotess :: [[Maybe (Pitch,Octave)]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> [[VoiceEvent]]
 genNotess = zipWith4 genNotes
+
+genNotesWithSlurs :: NE.NonEmpty (Maybe (Pitch,Octave)) -> NE.NonEmpty Duration -> NE.NonEmpty Accent -> NE.NonEmpty Dynamic -> NE.NonEmpty Bool -> NE.NonEmpty VoiceEvent
+genNotesWithSlurs = neZipWith5 f
+  where
+    f Nothing du _ dy _ = VeRest $ Rest du dy
+    f (Just (p,o)) du a dy sl = VeNote $ Note p o du a dy NoSwell sl
 
 -- partial, panic on empty list
 -- rotate a list forward by 1 step
@@ -195,3 +194,16 @@ mkTuplet num denom notes
   where
     durs = NE.map _noteDur notes
     numNotes = NE.length notes
+
+-- Cloned from https://hackage.haskell.org/package/base-4.14.1.0/docs/src/Data.List.NonEmpty.html#zipWith
+neZipWith3 :: (a1 -> a2 -> a3 -> a4) -> NE.NonEmpty a1 -> NE.NonEmpty a2 -> NE.NonEmpty a3 -> NE.NonEmpty a4
+neZipWith3 f ~(x1 NE.:| x1s) ~(x2 NE.:| x2s) ~(x3 NE.:| x3s) = f x1 x2 x3 NE.:| zipWith3 f x1s x2s x3s
+
+neZipWith5 :: (a1 -> a2 -> a3 -> a4 ->a5 -> a6) -> NE.NonEmpty a1 -> NE.NonEmpty a2 -> NE.NonEmpty a3 -> NE.NonEmpty a4 -> NE.NonEmpty a5 -> NE.NonEmpty a6
+neZipWith5 f ~(x1 NE.:| x1s) ~(x2 NE.:| x2s) ~(x3 NE.:| x3s) ~(x4 NE.:| x4s) ~(x5 NE.:| x5s) = f x1 x2 x3 x4 x5 NE.:| zipWith5 f x1s x2s x3s x4s x5s
+
+neZipWith7 :: (a1 -> a2 -> a3 -> a4 -> a5 -> a6 -> a7 -> a8)
+           -> NE.NonEmpty a1 -> NE.NonEmpty a2 -> NE.NonEmpty a3 -> NE.NonEmpty a4 -> NE.NonEmpty a5 -> NE.NonEmpty a6 -> NE.NonEmpty a7
+           -> NE.NonEmpty a8
+neZipWith7 f ~(x1 NE.:| x1s) ~(x2 NE.:| x2s) ~(x3 NE.:| x3s) ~(x4 NE.:| x4s) ~(x5 NE.:| x5s)  ~(x6 NE.:| x6s) ~(x7 NE.:| x7s) =
+  f x1 x2 x3 x4 x5 x6 x7 NE.:| zipWith7 f x1s x2s x3s x4s x5s x6s x7s

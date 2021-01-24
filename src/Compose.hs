@@ -1,17 +1,20 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
-module Compose (cfg2MaxRandScore
+
+module Compose {--(cfg2MaxRandScore
                ,cfg2HomoPhonScore
                ,cfg2CanonScore
                ,cfg2RandMotScore
-               ,cfg2ArpeggiosScore) where
+               ,cfg2ArpeggiosScore) --} where
 
 import Control.Monad (zipWithM)
 import Data.Foldable (fold)
-import Data.List (zipWith4, zipWith7)
+import Data.List (zipWith4)
 import qualified Data.List.NonEmpty as NE
 import Data.Semigroup (stimesMonoid)
+import GHC.Base (sconcat)
 
 import Driver
 import Types
@@ -204,15 +207,15 @@ Arpeggios:  weave of voices all arpeggios cycling up/down
 data ArpeggiosVoiceTup = ArpeggiosVoiceTup {_atInstr :: Instrument
                                            ,_atKey    :: KeySignature
                                            ,_atScale  :: Scale
-                                           ,_atRanges :: [((Pitch,Octave),(Pitch,Octave))]
+                                           ,_atRanges :: NE.NonEmpty ((Pitch,Octave),(Pitch,Octave))
                                            } deriving (Show)
 
 -- Data that stays the same for all voices:
-data ArpeggiosMottos = ArpeggiosMottos {_amMIntss :: [[Maybe Int]]
-                                       ,_amDurss  :: [[Duration]]
-                                       ,_amAcctss :: [[Accent]]
-                                       ,_amDynss  :: [[Dynamic]]
-                                       ,_amSlurss :: [[Bool]]
+data ArpeggiosMottos = ArpeggiosMottos {_amMIntss :: NE.NonEmpty (NE.NonEmpty (Maybe Int))
+                                       ,_amDurss  :: NE.NonEmpty (NE.NonEmpty Duration)
+                                       ,_amAcctss :: NE.NonEmpty (NE.NonEmpty Accent)
+                                       ,_amDynss  :: NE.NonEmpty (NE.NonEmpty Dynamic)
+                                       ,_amSlurss :: NE.NonEmpty (NE.NonEmpty Bool)
                                        } deriving (Show)
 
 cfg2ArpeggioVocTup :: String -> Driver ArpeggiosVoiceTup
@@ -221,42 +224,56 @@ cfg2ArpeggioVocTup pre =
     <$> getConfigParam (pre <> ".instr")
     <*> getConfigParam (pre <> ".key")
     <*> getConfigParam (pre <> ".scale")
-    <*> (NE.toList <$> getConfigParam (pre <> ".ranges"))
+    <*> (getConfigParam (pre <> ".ranges"))
 
-cfg2ArpeggiosVocTups :: String -> [String] -> Driver [ArpeggiosVoiceTup]
-cfg2ArpeggiosVocTups root = mapM (\v -> cfg2ArpeggioVocTup (root <> "." <> v))
+cfg2ArpeggiosVocTups :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty ArpeggiosVoiceTup)
+cfg2ArpeggiosVocTups root = traverse (\v -> cfg2ArpeggioVocTup (root <> "." <> v))
 
 cfg2ArpeggiosMottos :: String -> Driver ArpeggiosMottos
 cfg2ArpeggiosMottos title =
   ArpeggiosMottos
-    <$> (nes2arrs <$> getConfigParam (title <> ".intss"))
-    <*> (nes2arrs <$> getConfigParam (title <> ".durss"))
-    <*> (nes2arrs <$> getConfigParam (title <> ".accss"))
-    <*> (nes2arrs <$> getConfigParam (title <> ".dynss"))
-    <*> (nes2arrs <$> getConfigParam (title <> ".slurss"))
+    <$> (getConfigParam (title <> ".intss"))
+    <*> (getConfigParam (title <> ".durss"))
+    <*> (getConfigParam (title <> ".accss"))
+    <*> (getConfigParam (title <> ".dynss"))
+    <*> (getConfigParam (title <> ".slurss"))
 
-cfg2ArpeggiosConfigTup :: String -> Driver ([ArpeggiosVoiceTup], ArpeggiosMottos)
+cfg2ArpeggiosConfigTup :: String -> Driver (NE.NonEmpty ArpeggiosVoiceTup, ArpeggiosMottos)
 cfg2ArpeggiosConfigTup title =
   (,)
-  <$> cfg2ArpeggiosVocTups title ["voice"]
+  <$> cfg2ArpeggiosVocTups title ("voice1" NE.:| ["voice2"])
   <*> cfg2ArpeggiosMottos title
 
-genArpVEs :: Scale -> [((Pitch,Octave),(Pitch,Octave))] -> [[Maybe Int]] -> [Duration] -> [Accent] -> [Dynamic] -> [Bool] -> [VoiceEvent]
+-- mIntss and ranges give [Maybe (Pitch,Octave)] via seqMTranspose scale.
+-- Expand durs, accts, dyns, slurs to be at least as long as [Maybe (Pitch,Octave)]
+-- for input to genNotesWithSlurs to answer [VoiceEvent] for a particular voice.
+genArpVEs ::
+  Scale
+  -> NE.NonEmpty ((Pitch,Octave),(Pitch,Octave))
+  -> NE.NonEmpty (NE.NonEmpty (Maybe Int))
+  -> NE.NonEmpty Duration
+  -> NE.NonEmpty Accent
+  -> NE.NonEmpty Dynamic
+  -> NE.NonEmpty Bool
+  -> NE.NonEmpty VoiceEvent
 genArpVEs scale ranges mIntss durs accts dyns slurs =
-  genNotesWithSlurs mPOs durs' accts' dyns' slurs'
+  genNotesWithSlurs mPOs (NE.cycle durs) (NE.cycle accts) (NE.cycle dyns) (NE.cycle slurs)
   where
-    mPOs = concat $ zipWith (\(start,stop) mInts -> seqMTranspose scale start stop mInts) ranges mIntss
-    durs' = concat . repeat $ durs
-    accts' = concat . repeat $ accts
-    dyns' = concat . repeat $ dyns
-    slurs' = concat . repeat $ slurs
+    mPOs = sconcat $ NE.zipWith (seqMTranspose scale) mIntss ranges
+
+genArpVocs :: Instrument -> KeySignature -> NE.NonEmpty VoiceEvent -> Voice
+genArpVocs instr keySig ves = PitchedVoice instr (VeKeySignature keySig NE.<| ves)
 
 cfg2ArpeggiosScore :: String -> Driver ()
 cfg2ArpeggiosScore title = do
   (arpVocTups, ArpeggiosMottos{..}) <- cfg2ArpeggiosConfigTup title
-  let vess = zipWith7 genArpVEs (map _atScale arpVocTups) (map _atRanges arpVocTups) (repeat _amMIntss) _amDurss _amAcctss _amDynss _amSlurss
-  -- TBD
-  Driver.print vess
+  let instrs = _atInstr   <$> arpVocTups
+      scales = _atScale   <$> arpVocTups
+      keys   = _atKey     <$> arpVocTups
+      ranges = _atRanges  <$> arpVocTups
+      vess   = neZipWith7 genArpVEs scales ranges (NE.repeat _amMIntss) _amDurss _amAcctss  _amDynss _amSlurss
+      voices = neZipWith3 genArpVocs instrs keys vess
+  writeScore title $ Score "no comment" voices
 
 {--
 genVE :: Maybe (Pitch,Octave) -> Duration -> Accent -> Dynamic -> Swell -> Bool -> VoiceEvent

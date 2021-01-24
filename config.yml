@@ -44,13 +44,18 @@ example_texture:
   dynss:    ((ff,~,~,~,pp,~,~),(mf,~,mp,~,f,~,ff),(p,~,~,~,mp,~,mf),(f,~,~,~,~,~,~))
 
 example_arpeggios:
-  voice:
+  voice1:
     instr:   acoustic grand
     key:     c major
     scale:   (c,d,e,f,g,a,b)
     ranges:  (((c,-2),(c,3)),((c,3),(c,-2)))
+  voice2:
+    instr:   acoustic grand
+    key:     c major
+    scale:   (c,d,e,f,g,a,b)
+    ranges:  (((c,-2),(c,2)),((c,2),(c,-2)))
   intss:     ((1,r,1,3),(1,r,1,-3))
   durss:     ((8,8,8,8),(8,8,8,8))
   accss:     ((~,~,~,~),(~,~,~,~))
-  dynss:     ((mp,~,~,ff),(mp,~,~,ff))
-  slurss:    ((~,~,s,~),(~,~,s,~))
+  dynss:     ((p,~,f,~),(f,~,p,~))
+  slurss:    ((~,~,~,~),(~,~,~,~))
