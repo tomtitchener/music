@@ -24,7 +24,7 @@ jobs:
         cache-name: cache-stack
       with:
         path: ~/.stack
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.stack') }}-${{ hashFiles('**/stack.project') }}
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.stack-work') }}-${{ hashFiles('**/stack.project') }}
         restore-keys: |
           ${{ runner.os }}-build-${{ env.cache-name }}-
           ${{ runner.os }}-build-
@@ -32,9 +32,11 @@ jobs:
 
     - name: Install dependencies
       run: |
-        stack update
         stack build --only-dependencies
     - name: Build
       run: stack build
     - name: Run tests
-      run: stack test
+      run: |
+        wget https://lilypond.org/download/binaries/linux-64/lilypond-2.22.0-1.linux-64.sh
+        sh lilypond-2.22.0-1.linux-64.sh --batch
+        stack test
