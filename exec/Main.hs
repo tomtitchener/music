@@ -47,7 +47,7 @@ main =  do
     then either (error . show) identity <$> Y.decodeFileEither _optConfigYaml
     else pure Null
   unless (null _optRandomSeed) $
-    setStdGen (read _optRandomSeed::StdGen)
+    setStdGen ((read _optRandomSeed)::StdGen)
   gen <- getStdGen
   void . liftIO $ runReaderT (runDriver (cfg2ArpeggiosScore "example_arpeggios")) (initEnv config (show gen))
   -- void . liftIO $ runReaderT (runDriver (cfg2RandMotScore "example_texture")) (initEnv config (show gen))
