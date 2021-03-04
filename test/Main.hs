@@ -15,6 +15,7 @@ import Control.Monad.Trans.Reader
 import Data.Aeson
 import qualified Data.List.NonEmpty as NE
 import GHC.Generics
+import System.Environment
 import System.Exit
 import System.Process
 import System.Random
@@ -211,8 +212,8 @@ groupScore = Score "comment" (voiceGroup NE.:| [voiceGroup])
 
 testLilypond :: FilePath -> Score -> Assertion
 testLilypond path score = do
+  home <- liftIO $ getEnv "HOME"
   void $ runTestDriver (writeScore ("test/"<>path) score)
-  (code, _, stderr) <- readProcessWithExitCode "lilypond" ["-s","-o","test", "test/"<>path] ""
+  (code, _, stderr) <- readProcessWithExitCode (home <> "/bin/lilypond") ["-s","-o","test", "test/"<>path] ""
   unless (ExitSuccess == code) (putStr $ "\n" <> stderr)
   assertEqual "lilypond exit code" ExitSuccess code
-
