@@ -1,0 +1,13 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "music:lib"
+
+    - path: "./exec/Main.hs"
+      component: "music:exe:music"
+
+    - path: "./test"
+      component: "music:test:tests"
+
+    - path: "./src"
+      component: "music:test:tests"
