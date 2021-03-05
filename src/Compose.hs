@@ -3,11 +3,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 
-module Compose {--(cfg2MaxRandScore
+module Compose (cfg2MaxRandScore
                ,cfg2HomoPhonScore
                ,cfg2CanonScore
                ,cfg2RandMotScore
-               ,cfg2ArpeggiosScore) --} where
+               ,cfg2ArpeggiosScore) where
 
 import Control.Monad (zipWithM)
 import Data.Foldable (fold)
@@ -274,47 +274,5 @@ cfg2ArpeggiosScore title = do
       vess   = neZipWith7 genArpVEs scales ranges (NE.repeat _amMIntss) _amDurss _amAcctss  _amDynss _amSlurss
       voices = neZipWith3 genArpVocs instrs keys vess
   writeScore title $ Score "no comment" voices
-
-{--
-genVE :: Maybe (Pitch,Octave) -> Duration -> Accent -> Dynamic -> Swell -> Bool -> VoiceEvent
-genVE Nothing dur _ dyn _ _ = VeRest (Rest dur dyn)
-genVE (Just (pit,oct)) dur acc dyn swl slr = VeNote (Note pit oct dur acc dyn swl slr)
-
-genVEs :: [Maybe (Pitch,Octave)] -> [Duration] -> [Accent] -> [Dynamic] -> [Swell] -> [Bool] -> [VoiceEvent]
-genVEs mpos durs accs dyns swls slrs = zipWith6 genVE mpos durs accs dyns swls slrs
-
-matchLen :: [a] -> [b] -> [b]
-matchLen src trg = take (length src) (concat . repeat $ trg)
---}
-
-{--
-matchLen :: Int -> [a] -> [a]
-matchLen n arr
-  | lenArr < n = take n arr
-  | lenArr > n = concat $ replicate n arr
-  | otherwise = arr
-  where
-    lenArr = length arr
-
-genHomoPhonVoc :: Int -> VoiceMottos -> MottoVoiceTup -> GenVoiceMottos -> Driver Voice
-genHomoPhonVoc reps vocmots MottoVoiceTup{..} _ =
-  pure $ PitchedVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
-  where
-    mots = concatMap (mtranspose _vtScale _vtStart) _vmMIntss
-    durs = concat _vmDurss
-    accs = concat _vmAcctss
-    dyns = concat _vmDynss
-    VoiceMottos{..} = stimesMonoid reps $ normalizeVoiceMottos vocmots
-
-genRot1RandVoc :: Int -> VoiceMottos -> MottoVoiceTup -> GenVoiceMottos -> Driver Voice
-genRot1RandVoc reps vocmots MottoVoiceTup{..} GenVoiceMottos{..} =
-  pure $ PitchedVoice _vtInstr (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns)
-  where
-    mots = concatMap (mtranspose _vtScale _vtStart) _vmMIntss
-    durs = concat _vmDurss
-    accs = concat _vmAcctss
-    dyns = concat _vmDynss
-    VoiceMottos{..} = stimesMonoid reps $ normalizeVoiceMottos (_genVoiceMottos vocmots)
---}
 
 

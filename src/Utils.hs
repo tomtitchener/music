@@ -102,11 +102,11 @@ seqMTranspose scale mIntList (start,stop)
                   Just i  -> (Just (xp scale start (int2Off i)),Just (1,int2Off i))
     f cmp (ix,prv) = case mPitOct of
                        Nothing -> (Nothing,Just (ix',prv'))
-                       Just next -> case swap next `cmp` swap stop of
-                                      True -> (mPitOct,Just (ix',prv'))
-                                      False -> (mPitOct,Nothing)
+                       Just next -> if swap next `cmp` swap stop
+                                    then (mPitOct,Just (ix',prv'))
+                                    else (mPitOct,Nothing)
       where
-        ix' = if ix == (NE.length mIntList) - 1 then 0 else ix + 1
+        ix' = if ix == NE.length mIntList - 1 then 0 else ix + 1
         mPitOct = xp scale start . (+) prv . int2Off <$> mInt
         prv' = maybe prv ((prv +) . int2Off) mInt
         mInt = mIntList NE.!! ix
