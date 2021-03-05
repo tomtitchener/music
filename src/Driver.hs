@@ -56,7 +56,7 @@ runDriver (Free (DoActionThen act k)) =
     RandomElement  l    -> getRandomR (0, length l - 1) >>= runDriver . k . (l !!)
     RandomElements l    -> getRandomRs (0, length l - 1) >>= runDriver . k . map (l !!)
     RandomizeList  l    -> shuffleM l >>= runDriver . k
-    GetConfigParam path -> (lookupConfig path <$> asks _config) >>= runDriver . k
+    GetConfigParam path -> asks (lookupConfig path . _config) >>= runDriver . k
 runDriver (Free (DoAction act k)) =
   case act of
     WriteScore fn (Score c vs) -> asks _seed >>= (\s -> liftIO (writeFile fn (toLily (Score (c <> " " <> s) vs))) *> runDriver k)

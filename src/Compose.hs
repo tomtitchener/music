@@ -232,11 +232,11 @@ cfg2ArpeggiosVocTups root = traverse (\v -> cfg2ArpeggioVocTup (root <> "." <> v
 cfg2ArpeggiosMottos :: String -> Driver ArpeggiosMottos
 cfg2ArpeggiosMottos title =
   ArpeggiosMottos
-    <$> (getConfigParam (title <> ".intss"))
-    <*> (getConfigParam (title <> ".durss"))
-    <*> (getConfigParam (title <> ".accss"))
-    <*> (getConfigParam (title <> ".dynss"))
-    <*> (getConfigParam (title <> ".slurss"))
+    <$> getConfigParam (title <> ".intss")
+    <*> getConfigParam (title <> ".durss")
+    <*> getConfigParam (title <> ".accss")
+    <*> getConfigParam (title <> ".dynss")
+    <*> getConfigParam (title <> ".slurss")
 
 cfg2ArpeggiosConfigTup :: String -> Driver (NE.NonEmpty ArpeggiosVoiceTup, ArpeggiosMottos)
 cfg2ArpeggiosConfigTup title =
