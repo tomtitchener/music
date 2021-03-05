@@ -84,38 +84,12 @@ deriving instance Generic Pitch
 deriving instance Generic Rest
 deriving instance Generic TimeSignature
 
+--
+-- Select one from enum
+--
 instance Arbitrary Duration where
   arbitrary = genericArbitrary
   shrink = genericShrink
-
-instance Arbitrary Note where
-  arbitrary = genericArbitrary
-  shrink = genericShrink
-
-instance Arbitrary Rest where
-  arbitrary = genericArbitrary
-  shrink = genericShrink
-
-fixedList :: Int -> Gen a -> Gen [a]
-fixedList n = resize n . listOf1
-
--- | make lists of maximum length 3
-chordNotes :: Gen a -> Gen [a]
-chordNotes = fixedList 3
-
-instance Arbitrary Chord where
-  arbitrary = Chord . NE.fromList <$> chordNotes  arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-  -- shrink = genericShrink
-
-instance Arbitrary Tuplet where
-  arbitrary = tup
-    where
-      tup = do
-        let note = Note C COct QDur NoAccent NoDynamic NoSwell False
-            dur = QDur
-        arbNum :: Int <- elements [3..7]
-        let notes = NE.fromList $ take arbNum (repeat note)
-        pure $ Tuplet arbNum (arbNum - 1) dur notes
 
 instance Arbitrary Octave where
   arbitrary = genericArbitrary
@@ -133,17 +107,58 @@ instance Arbitrary Swell where
   arbitrary = genericArbitrary
   shrink = genericShrink
 
-instance Arbitrary Pitch where
-  arbitrary = genericArbitrary
-  shrink = genericShrink
-
 instance Arbitrary Mode where
   arbitrary = genericArbitrary
   shrink = genericShrink
 
+instance Arbitrary Pitch where
+  arbitrary = genericArbitrary
+  shrink = genericShrink
+
+--
+-- Select one from a collection of arbitrary enums
+--
 instance Arbitrary KeySignature where
   arbitrary = genericArbitrary
   shrink = genericShrink
+
+instance Arbitrary Note where
+  arbitrary = genericArbitrary
+  shrink = genericShrink
+
+instance Arbitrary Rest where
+  arbitrary = genericArbitrary
+  shrink = genericShrink
+
+--
+-- Special-purpose arbitrary
+--
+fixedList :: Int -> Gen a -> Gen [a]
+fixedList n = resize n . listOf1
+
+-- make lists of maximum length 3
+listOfThree :: Gen a -> Gen [a]
+listOfThree = fixedList 3
+
+-- required for genericShrink in Arbitrary Chord
+instance Arbitrary (NE.NonEmpty (Pitch,Octave)) where
+  arbitrary = genericArbitrary
+
+instance Arbitrary Chord where
+  arbitrary = Chord . NE.fromList <$> listOfThree arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  shrink = genericShrink
+
+instance Arbitrary Tuplet where
+  arbitrary = do
+    arbGtr :: Bool <- arbitrary --  > tuple num / denum, e.g. 1 vs. < 1, e.g. True => N + 1 / N, False => N / N + 1
+    arbNum :: Int <- elements [3..7] -- tuples from [4 in the time of 3 | 3 in the time of 4 ..  7 in the time of 6 | 6 in the time of 7]
+    note <- Note <$> arbitrary <*> arbitrary <*> pure dur <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+    let notes = NE.fromList $ replicate arbNum note
+    if arbGtr
+    then pure $ Tuplet arbNum (arbNum - 1) dur notes
+    else pure $ Tuplet (arbNum -1) arbNum dur notes
+    where
+      dur = QDur
 
 instance Arbitrary Tempo where
   arbitrary = oneof [TempoText <$> elements ["Presto","Vivace","Meno Mosso"]
@@ -152,9 +167,13 @@ instance Arbitrary Tempo where
                     ,TempoRange <$> arbitrary <*> arbitrarySizedNatural <*> arbitrarySizedNatural
                     ]
 
+-- required for genericShrink in Arbitrary TimeSignature
+instance Arbitrary (NE.NonEmpty Int) where
+  arbitrary = genericArbitrary
+
 instance Arbitrary TimeSignature where
   arbitrary = TimeSignature <$> elements [1..10] <*> elements [WDur, HDur, QDur, EDur, SDur, SFDur, HTEDur]
-  -- shrink = genericShrink
+  shrink = genericShrink
 
 -- Duration can't be shorter than quarter note.  Two Durations in ChordTremolo should be the same.
 instance Arbitrary Tremolo where
@@ -163,8 +182,8 @@ instance Arbitrary Tremolo where
       arbNote = Note <$> arbitrary <*> arbitrary <*> elements [DWDur, WDur, DHDur, HDur, DQDur, QDur] <*>  arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
       arbChordTremolo = do
         dur <- elements [DWDur, WDur, DHDur, HDur, DQDur, QDur]
-        arbChord1 <- (flip Chord dur) . NE.fromList <$> chordNotes arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-        arbChord2 <- (flip Chord dur) . NE.fromList <$> chordNotes arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+        arbChord1 <- (`Chord` dur) . NE.fromList <$> listOfThree arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+        arbChord2 <- (`Chord` dur) . NE.fromList <$> listOfThree arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
         pure $ ChordTremolo arbChord1 arbChord2
   shrink = genericShrink
 
