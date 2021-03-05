@@ -187,15 +187,6 @@ instance Arbitrary Tremolo where
         pure $ ChordTremolo arbChord1 arbChord2
   shrink = genericShrink
 
-propParseLilytoLilyVal :: (Eq a, ToLily a, FromLily a) => a -> Bool
-propParseLilytoLilyVal v = v == (parseLily . toLily) v
-
-propDurSum2Durs :: [Duration] -> Bool
-propDurSum2Durs durs = sumDurs durs == (sumDurs . durSum2Durs . sumDurs) durs
-
-runTestDriver :: MonadIO m => Driver a -> m a
-runTestDriver action = liftIO $ getStdGen >>= runReaderT (runDriver action) . initEnv Null . show
-
 minVEvents :: NE.NonEmpty VoiceEvent
 minVEvents = VeClef Treble NE.:|
              [VeTempo (TempoDur QDur 120)
@@ -204,9 +195,6 @@ minVEvents = VeClef Treble NE.:|
              ,VeNote (Note G COct QDur NoAccent NoDynamic NoSwell False)
              ,VeNote (Note C COct QDur NoAccent NoDynamic NoSwell False)
              ,VeTremolo (NoteTremolo (Note C COct QDur NoAccent NoDynamic NoSwell False))]
-
-assertParseLilytoLilyVal :: (Show a, Eq a, ToLily a, FromLily a) => a -> Assertion
-assertParseLilytoLilyVal a = assertEqual (show a) a (parseLily (toLily a))
 
 pitchedVoice :: Voice
 pitchedVoice = PitchedVoice AcousticGrand minVEvents
@@ -229,6 +217,21 @@ polyScore = Score "comment" (polyVoice NE.:| [])
 groupScore :: Score
 groupScore = Score "comment" (voiceGroup NE.:| [voiceGroup])
 
+--
+-- test routines
+--
+propParseLilytoLilyVal :: (Eq a, ToLily a, FromLily a) => a -> Bool
+propParseLilytoLilyVal v = v == (parseLily . toLily) v
+
+propDurSum2Durs :: [Duration] -> Bool
+propDurSum2Durs durs = sumDurs durs == (sumDurs . durSum2Durs . sumDurs) durs
+
+assertParseLilytoLilyVal :: (Show a, Eq a, ToLily a, FromLily a) => a -> Assertion
+assertParseLilytoLilyVal a = assertEqual (show a) a (parseLily (toLily a))
+
+runTestDriver :: MonadIO m => Driver a -> m a
+runTestDriver action = liftIO $ getStdGen >>= runReaderT (runDriver action) . initEnv Null . show
+
 testLilypond :: FilePath -> Score -> Assertion
 testLilypond path score = do
   home <- liftIO $ getEnv "HOME"
@@ -236,3 +239,5 @@ testLilypond path score = do
   (code, _, stderr) <- readProcessWithExitCode (home <> "/bin/lilypond") ["-s","-o","test", "test/"<>path] ""
   unless (ExitSuccess == code) (putStr $ "\n" <> stderr)
   assertEqual "lilypond exit code" ExitSuccess code
+
+
