@@ -308,14 +308,49 @@ So to follow that pattern, I want a new config that specifies at a
 minimum: instrument, scale, matching lists of intervals and durations,
 and a low and a high octave.
 *** DONE Configuration: instr, key, scale, low octave, high octave,
-*** TODO Arpeggio generator: scale -> interval -> duration -> start octave -> finish octave
+*** DONE Arpeggio generator: scale -> interval -> duration -> start octave -> finish octave
+*** TODO Rendering for piano
+Single voice across multiple staves?  Dynamic clef that changes with range?
+Note you don't want back-to-back clef changes at boundary intervals, should let
+range escape to a couple leger lines before switching?  
+I'm so thoroughly rooted in the solo part like you get for a trumpet, I haven't
+really considered what it would take to capture e.g. a multiphonic instrument
+like piano where typically you both bass and treble for left and right hands.
+Start with a pass to insert cleffs in a voice event list with some sort of 
+heuristic to capture e.g. five notes in row that exceed teh leger line limit
+for the cleff you're currently in.  Use the four clefs Bass8VB, Bass, Treble, 
+Treble8VA that correspond to FifteenVBOct, EightVBOct, COct, and EightVAOct.
+Note that the voice event list may contain non-note items e.g. rests or a 
+tempo, or key or time signature, so I can't just have a fixed-length silo to
+keep my place--although I should be able to have a reasonable-length silo if
+I just pad it.  Conceptually, I'm copying over a list, periodically inserting
+a clef now and then.  Note silo is really like a deque.  What's the equivalent
+Haskell data type?
+So there'll be phases and a state:
+Phases:
+  Initial:  copy over from the source list to fill up the silo
+  Running:  a) analyze the silo to determine what the clef should be
+            b) if the new clef is different from the current clef, then output 
+               the new clef,
+            c) output the first event and all subsequent events up to the
+               next note event
+            d) input new events to the end of the silo up to the first note 
+               or the silo is full
+            e) repeat until the input is empty (advance to Terminal)
+  Terminal: drain the silo
+State is just Clef
+  Initial:  Treble (might as well start somewhere)
+  Running:  computed Clef
+Point is to have a running average with an embargoed list of notes so I can
+slip a clef in back where it's needed when I detect as I go along that the
+average pitch belongs in a new clef.
 ** TODO Re-Architect Driver
 First: ToLily doesn't need to be monadic at all, and can just be a 
 library routine.
 Second:, FromLily and FromConfig both use monadic parsers, but have 
 nothing to do with IO and there's no reason for them to be encapsulated, 
 either.  The only thing that happens in Driver is pasing in the path to 
-the config file as an Envioronment.
+the config file as an DriverEnv.
 Third: the random behavior all takes place with respect to MonadRandom,
 and can probably be run under the IO monad without the need of the 
 runDriver wrapper and free monad entirely.
