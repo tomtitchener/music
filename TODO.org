@@ -351,7 +351,7 @@ So now the plan is:
      1) List of clefs to choose from based on any VoiceEvent Clef in
         existing stream and default list of four, sorted by register.
      2) Starting clef by sampling first N VoiceEvent Note, taking the
-        average of normalized (Pitch,Octave) pairs and mapping that 
+        average of normalized (Pitch,Octatve) pairs and mapping that 
         back to list of ranges for list of clefs.  Note there may be
         multiple clefs that cover the range so I need some measure
         of which clef the average pitch fits best.  Which can be
