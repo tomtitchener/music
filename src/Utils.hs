@@ -2,9 +2,11 @@ module Utils where
 
 import Data.List hiding (transpose)
 import qualified Data.List.NonEmpty as NE
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import Data.Maybe
+import qualified Data.Set as S (fromList)
 import Data.Tuple
+import Data.Tuple.Extra
 
 import Types
 
@@ -207,3 +209,92 @@ neZipWith7 :: (a1 -> a2 -> a3 -> a4 -> a5 -> a6 -> a7 -> a8)
            -> NE.NonEmpty a8
 neZipWith7 f ~(x1 NE.:| x1s) ~(x2 NE.:| x2s) ~(x3 NE.:| x3s) ~(x4 NE.:| x4s) ~(x5 NE.:| x5s)  ~(x6 NE.:| x6s) ~(x7 NE.:| x7s) =
   f x1 x2 x3 x4 x5 x6 x7 NE.:| zipWith7 f x1s x2s x3s x4s x5s x6s x7s
+
+enharmonicPitches :: [[Pitch]]
+enharmonicPitches = [[Bs,C,Dff],[Bss,Cs,Df],[Css,D,Eff],[Ds,Ef,Fff],[Dss,E,Ff],[Es,F,Gff],[Ess,Fs,Gf],[Fss,G,Aff],[Gs,Af],[Gss,A,Bff],[As,Bf,Cff],[Ass,B,Cf]]
+
+normPitch :: Pitch -> Int
+normPitch = fromJust . flip findIndex enharmonicPitches . elem
+
+normOctave :: Octave -> Int
+normOctave = (12 *) . fromEnum
+
+normalizePitchOctave :: Pitch -> Octave -> Int
+normalizePitchOctave p o = normPitch p + normOctave o
+
+normalizePitchOctavePair :: (Pitch, Octave) -> Int
+normalizePitchOctavePair = uncurry normalizePitchOctave
+
+allClefRanges :: M.Map Clef ((Pitch,Octave),(Pitch,Octave))
+allClefRanges = M.fromList
+  [(Treble8VA, ((A,COct),(C,TwentyTwoVAOct)))
+  ,(Treble,    ((A,EightVBOct),(C,FifteenVAOct)))
+  ,(Tenor,     ((D,EightVBOct),(F,EightVAOct)))
+  ,(Alto,      ((B,FifteenVBOct),(D,EightVAOct)))
+  ,(Bass,      ((C,FifteenVBOct),(E,COct)))
+  ,(Bass8VB,   ((C,TwentyTwoVBOct),(E,EightVBOct)))]
+
+allClefNormalizedRanges :: M.Map Clef (Int,Int)
+allClefNormalizedRanges = M.map normPair allClefRanges
+  where
+    normPair = normalizePitchOctavePair *** normalizePitchOctavePair
+
+stdClefRanges :: M.Map Clef ((Pitch,Octave),(Pitch,Octave))
+stdClefRanges = M.fromList
+  [(Treble8VA, ((A,COct),(C,TwentyTwoVAOct)))
+  ,(Treble,    ((A,EightVBOct),(C,FifteenVAOct)))
+  ,(Bass,      ((C,FifteenVBOct),(E,COct)))
+  ,(Bass8VB,   ((C,TwentyTwoVBOct),(E,EightVBOct)))]
+
+stdClefNormalizedRanges :: M.Map Clef (Int,Int)
+stdClefNormalizedRanges = M.map normPair stdClefRanges
+  where
+    normPair = normalizePitchOctavePair *** normalizePitchOctavePair
+
+sortClefsByRange :: [Clef] -> [Clef]
+sortClefsByRange = sortBy compareClefsByRange
+  where
+    compareClefsByRange :: Clef -> Clef -> Ordering
+    compareClefsByRange ca cb = compare ra rb
+      where
+        ra = allClefNormalizedRanges M.! ca
+        rb = allClefNormalizedRanges M.! cb
+
+partitionClefs :: NE.NonEmpty VoiceEvent -> ([Clef], [VoiceEvent])
+partitionClefs ves = (clefs,nonClefVes)
+  where
+    (clefVes,nonClefVes) = NE.partition isClef ves
+    clefs = map toClef clefVes
+    isClef (VeClef _) = True
+    isClef _ = False
+    toClef (VeClef clef) = clef
+    toClef ve = error $ "partitionClefs unexpected VoiceEvent: " <> show ve <> " is not Clef"
+
+startingClef :: Int -> ([Clef],[VoiceEvent]) -> Clef
+startingClef cnt (clefs,ves) = normPit2Clef clefs averageNormPitch
+  where
+    notes = take cnt $ takeWhile isNote ves
+    isNote :: VoiceEvent -> Bool
+    isNote (VeNote _) = True
+    isNote _ = False
+    normPitches = map normVeNote notes
+    normVeNote :: VoiceEvent -> Int
+    normVeNote (VeNote (Note pit oct _ _ _ _ _)) = normalizePitchOctave pit oct
+    normVeNote ve = error $ "startingClef expected only VeNote but got: " <> show ve
+    averageNormPitch = sum normPitches `div` length normPitches
+
+normPit2Clef :: [Clef] -> Int -> Clef
+normPit2Clef clefs i =
+  case matchingRanges of
+    [] -> if i > normMiddleC then Bass8VB else Treble8VA
+    [(clef,(_,_))] -> clef
+    ranges -> fst (minimumBy compareClefRanges ranges)
+  where
+    normMiddleC = normalizePitchOctave C COct
+    matchingRanges = filter (uncurry (&&) . ((i >=) *** (i <=)) . snd) allRanges
+    observedRanges = M.restrictKeys allClefNormalizedRanges (S.fromList clefs)
+    allRanges = M.toList (stdClefNormalizedRanges <> observedRanges)
+    compareClefRanges (_,rangea) (_,rangeb) = compare (measure rangea) (measure rangeb)
+      where
+        measure :: (Int,Int) -> Double
+        measure (lo,hi) = abs ((fromIntegral i - fromIntegral lo) / (fromIntegral hi - fromIntegral i)) - 1

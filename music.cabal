@@ -11,7 +11,7 @@ copyright:           2020 Author name here
 category:            Web
 build-type:          Simple
 cabal-version:       >=1.10
-extra-source-files:  README.md
+extra-source-files:  README.md 
 
 library
   ghc-options:         -Wall
@@ -22,6 +22,7 @@ library
   build-depends:       base
                      , aeson
                      , containers
+                     , extra
                      , free
                      , Interpolation
                      , lens
@@ -65,6 +66,7 @@ test-suite tests
   build-depends:      base
                     , aeson
                     , containers
+                    , extra
                     , free
                     , music
                     , generic-arbitrary

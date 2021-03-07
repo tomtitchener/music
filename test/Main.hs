@@ -85,7 +85,7 @@ deriving instance Generic Rest
 deriving instance Generic TimeSignature
 
 --
--- Select one from enum
+-- Select from enum
 --
 instance Arbitrary Duration where
   arbitrary = genericArbitrary
@@ -144,6 +144,7 @@ listOfThree = fixedList 3
 instance Arbitrary (NE.NonEmpty (Pitch,Octave)) where
   arbitrary = genericArbitrary
 
+-- chord has non-empty list of (pitch,octave) pairs plus duration, accent, dynamic, swell, and slur
 instance Arbitrary Chord where
   arbitrary = Chord . NE.fromList <$> listOfThree arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
   shrink = genericShrink
