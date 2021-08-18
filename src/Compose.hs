@@ -164,7 +164,7 @@ cfg2CanonScore :: String -> Driver ()
 cfg2CanonScore title = do
   (reps, voctups, vocmots) <- cfg2MottoConfigTup title
   let genVocMot n = GenVoiceMottos $ lift2VocMots (rotNFor n)
-      genVocMots = map genVocMot [0..(length voctups) - 1]
+      genVocMots = map genVocMot [0..length voctups - 1]
   voices <- genVoices (GenVoice genVoc) reps vocmots voctups genVocMots
   writeScore title $ Score title voices
 
@@ -224,7 +224,7 @@ cfg2ArpeggioVocTup pre =
     <$> getConfigParam (pre <> ".instr")
     <*> getConfigParam (pre <> ".key")
     <*> getConfigParam (pre <> ".scale")
-    <*> (getConfigParam (pre <> ".ranges"))
+    <*> getConfigParam (pre <> ".ranges")
 
 cfg2ArpeggiosVocTups :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty ArpeggiosVoiceTup)
 cfg2ArpeggiosVocTups root = traverse (\v -> cfg2ArpeggioVocTup (root <> "." <> v))

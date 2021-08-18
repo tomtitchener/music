@@ -300,7 +300,7 @@ instance ToLily Tremolo where
     where
       (reps,barring) = splitTremolo [durL,durR] [SFDur, HTEDur]
       pr2Lily (p,o) = toLily p <> toLily o
-      prs2Lily = intercalate " " . map pr2Lily . NE.toList
+      prs2Lily = unwords . map pr2Lily . NE.toList
 
 splitTremolo :: [Duration] -> [Duration] -> (Int,Duration)
 splitTremolo durTot [] = error $ "splitTremolo unable to split " <> show durTot

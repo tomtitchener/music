@@ -53,6 +53,7 @@ executable music
                      , optparse-applicative
                      , protolude
                      , random
+                     , splitmix
                      , text
                      , transformers
                      , yaml
