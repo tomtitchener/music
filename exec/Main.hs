@@ -11,10 +11,12 @@ import Control.Monad.Trans.Reader
 import Data.Aeson hiding (Options)
 import qualified Data.Yaml as Y
 import Options.Applicative
-import Prelude (String, error, read, show)
+import Prelude (String, error, show)
 import Protolude hiding (option, print, show, to)
 import System.Directory (doesFileExist)
 import System.Random
+import System.Random.Internal
+import System.Random.SplitMix
 
 import Compose
 import Driver
@@ -46,8 +48,12 @@ main =  do
     if e
     then either (error . show) identity <$> Y.decodeFileEither _optConfigYaml
     else pure Null
-  unless (null _optRandomSeed) $
-    setStdGen (read _optRandomSeed::StdGen)
+  unless (null _optRandomSeed) $ do
+    case readMaybe _optRandomSeed::Maybe SMGen of
+      Nothing -> error $ "failed to parse random seed " <> _optRandomSeed
+      Just smGen -> do
+        let stdGen = StdGen { unStdGen = smGen }
+        setStdGen stdGen
   gen <- getStdGen
   void . liftIO $ runReaderT (runDriver (cfg2ArpeggiosScore "example_arpeggios")) (initEnv config (show gen))
   -- void . liftIO $ runReaderT (runDriver (cfg2RandMotScore "example_texture")) (initEnv config (show gen))
