@@ -9,26 +9,34 @@ module Main (
     main
   ) where
 
-import Control.Monad
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Reader
-import Data.Aeson
+import Control.Monad ( void, unless )
+import Control.Monad.IO.Class ( MonadIO(..) )
+import Control.Monad.Trans.Reader ( ReaderT(runReaderT) )
+import Data.Aeson ( Value(Null) )
 import qualified Data.List.NonEmpty as NE
-import GHC.Generics
-import System.Environment
-import System.Exit
-import System.Process
-import System.Random
+import GHC.Generics ( Generic )
+import System.Environment ( getEnv )
+import System.Exit ( ExitCode(ExitSuccess) )
+import System.Process ( readProcessWithExitCode )
+import System.Random ( getStdGen )
 import Test.QuickCheck
-import Test.QuickCheck.Arbitrary.Generic
-import Test.Tasty
-import Test.Tasty.HUnit
-import Test.Tasty.QuickCheck
+    ( arbitrarySizedNatural,
+      genericShrink,
+      elements,
+      listOf1,
+      oneof,
+      resize,
+      Arbitrary(..),
+      Gen )
+import Test.QuickCheck.Arbitrary.Generic ( genericArbitrary )
+import Test.Tasty ( defaultMain, testGroup, TestTree )
+import Test.Tasty.HUnit ( testCase, assertEqual, Assertion )
+import Test.Tasty.QuickCheck ( testProperty )
 
-import Driver
-import Lily
+import Driver ( initEnv, runDriver, writeScore, Driver )
+import Lily ( FromLily(..), ToLily(..) )
 import Types
-import Utils
+import Utils ( sumDurs, durSum2Durs )
 
 main :: IO ()
 main = defaultMain tests

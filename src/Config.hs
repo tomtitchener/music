@@ -66,7 +66,7 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe Int))) where
   parseConfig = mkParseConfig (mkPss pMInt)
 
 instance FromConfig (NE.NonEmpty (NE.NonEmpty Bool)) where
-  parseConfig = mkParseConfig (mkPss pSlurStr)
+  parseConfig = mkParseConfig (mkPss pTieStr)
 
 mkParseConfig :: Parser a -> String -> a
 mkParseConfig parser  = either (error . show) id . parse parser ""
@@ -86,8 +86,8 @@ mkParser s d = try (string s >> pure d)
 slurStrs :: [String]
 slurStrs = ["s", "~"]
 
-pSlurStr :: Parser Bool
-pSlurStr = choice (zipWith mkParser slurStrs [True,False])
+pTieStr :: Parser Bool
+pTieStr = choice (zipWith mkParser slurStrs [True,False])
 
 accentStrs :: [String]
 accentStrs = ["^", "-", "!", ".",  ">", "_", "~"]

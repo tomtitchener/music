@@ -70,4 +70,3 @@ exRandElem = randomElement [C,D,E,F,G,A,B] >>= print
 
 exRandElems :: Int -> Driver ()
 exRandElems n = randomElements [C,D,E,F,G,A,B] >>= print . take n
-

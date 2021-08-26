@@ -1,10 +1,22 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
+{- | Music types for translating to and from Lilypond strings.
+     Atomic types (Pitch, Scale, Octave, Accent, Duration, Dynamic, etc.)
+     don't require context to be rendered to or parsed from their Lilypond
+     equivalents.
+     Aggregates (Note, Rhythm, Rest, Chord, etc.) directly mirror Lilypond
+     equivalents as well.
+     Rendering of a meaningful score requires awareness of context that's
+     not necessarily part of the aggregate types.  For example, Duration
+     values are atoms only, with aggregate durations accumulated as ties
+     between notes and decomposition of e.g. a Duration that extends over
+     a bar into the component notes as would have to decomposed into tied
+     notes with in the context of the meter and the curent offset within the bar.
+-}
 
 module Types (Pitch (..)
              ,Scale (..)
              ,Octave (..)
              ,Duration (..)
-             ,DurationSum (..)
              ,Accent (..)
              ,Dynamic (..)
              ,Swell (..)
@@ -46,9 +58,6 @@ data Octave = TwentyNineVBOct | TwentyTwoVBOct | FifteenVBOct | EightVBOct | COc
 data Duration =  HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur | DEDur | QDur | DQDur | HDur | DHDur | WDur | DWDur
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-newtype DurationSum = DurationSum { getDurSum :: Int }
-  deriving (Eq, Ord, Show, Num)
-
 data Accent = Marcato | Tenuto | Staccatissimo | Staccato | Accent | Portato | NoAccent
   deriving (Eq, Ord, Show, Enum, Bounded)
 
@@ -58,7 +67,7 @@ data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FF
 data Swell = Crescendo | Decrescendo | Espressivo | SwellStop | NoSwell
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAcc :: Accent, _noteDyn :: Dynamic, _noteSwell :: Swell, _noteSlur :: Bool }
+data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAcc :: Accent, _noteDyn :: Dynamic, _noteSwell :: Swell, _noteTie :: Bool }
   deriving (Eq, Ord, Show)
 
 data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAcc :: Accent, _rhythmDyn :: Dynamic, _rhythmSwell :: Swell }
@@ -70,7 +79,7 @@ data Rest = Rest { _rdur :: Duration, _rdyn :: Dynamic }
 data Tuplet = Tuplet { _tupNum :: Int, _tupDenom :: Int, _tupDur :: Duration, _tupNotes :: NonEmpty Note }
   deriving (Eq, Ord, Show)
 
-data Chord = Chord { _chordPitOctPairs :: NonEmpty(Pitch, Octave) , _chordDur :: Duration, _chordAcc :: Accent, _chordDyn :: Dynamic, _chordSwell :: Swell, _chordSlur :: Bool }
+data Chord = Chord { _chordPitOctPairs :: NonEmpty(Pitch, Octave) , _chordDur :: Duration, _chordAcc :: Accent, _chordDyn :: Dynamic, _chordSwell :: Swell, _chordTie :: Bool }
   deriving (Eq, Ord, Show)
 
 data Clef = Bass8VB | Bass | Tenor | Alto | Treble | Treble8VA

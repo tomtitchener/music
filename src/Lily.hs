@@ -11,21 +11,19 @@ module Lily (ToLily(..)
             ,parseDynamic
             ,parseSwell
             ,mkParseLily
-            ,splitTremolo -- temporary
             ) where
 
-import Control.Monad
-import Data.List
+import Control.Monad ( void )
+import Data.List ( intercalate )
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as M
-import Data.Maybe
-import Data.Natural
-import Data.String.Interpolation
+import Data.Maybe ( fromMaybe )
+import Data.Natural ( Natural )
+import Data.String.Interpolation ( endline, str )
 import Text.Parsec
-import Text.Parsec.String
-
+import Text.Parsec.String ( Parser )
 import Types
-import Utils
+import Utils ( getDurSum, composedDur, sumDurs )
 
 class ToLily a where
   -- | Convert a Haskell value to a Lilypond string
@@ -315,7 +313,7 @@ parseNoteTremolo :: Parser Tremolo
 parseNoteTremolo = do
     reps <- string "\\repeat tremolo" *> spaces *> parseInt
     Note{..} <- spaces *> string "{" *> parseNote <* string "}"
-    pure $ NoteTremolo (Note _notePit _noteOct (composedDur reps _noteDur) _noteAcc _noteDyn _noteSwell _noteSlur)
+    pure $ NoteTremolo (Note _notePit _noteOct (composedDur reps _noteDur) _noteAcc _noteDyn _noteSwell _noteTie)
 
 parseChordTremolo :: Parser Tremolo
 parseChordTremolo = do

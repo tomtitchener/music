@@ -8,20 +8,21 @@
 
 module Driver where
 
-import Control.Lens
-import Control.Monad.Free
+import Control.Lens ( preview )
+import Control.Monad.Free ( Free(..), liftF )
 import Control.Monad.Random.Class
-import Control.Monad.Reader
-import Data.Aeson
-import Data.Aeson.Lens
-import Data.List.Split hiding (sepBy)
+    ( MonadRandom(getRandomRs, getRandomR) )
+import Control.Monad.Reader ( MonadIO(..), MonadReader, asks )
+import Data.Aeson ( Value )
+import Data.Aeson.Lens ( key, AsPrimitive(_String) )
+import Data.List.Split ( splitOn )
 import qualified Data.Text as T
-import System.Random.Shuffle
+import System.Random.Shuffle ( shuffleM )
 
-import Config
-import Lily
-import Types
-import Utils
+import Config ( FromConfig(..) )
+import Lily ( ToLily(..) )
+import Types ( Score(Score) )
+import Utils ( genByWeight )
 
 data DriverEnv = DriverEnv {
      _config :: Value

@@ -17,8 +17,20 @@ import Data.Semigroup (stimesMonoid)
 import GHC.Base (sconcat)
 
 import Driver
+    ( getConfigParam,
+      randomElements,
+      randomizeList,
+      writeScore,
+      Driver )
 import Types
 import Utils
+    ( genNotes,
+      genNotesWithTies,
+      mtranspose,
+      neZipWith3,
+      neZipWith7,
+      rotNFor,
+      seqMTranspose )
 
 data MottoVoiceTup = MottoVoiceTup {_vtInstr :: Instrument
                                    ,_vtKey   :: KeySignature
@@ -246,7 +258,7 @@ cfg2ArpeggiosConfigTup title =
 
 -- mIntss and ranges give [Maybe (Pitch,Octave)] via seqMTranspose scale.
 -- Expand durs, accts, dyns, slurs to be at least as long as [Maybe (Pitch,Octave)]
--- for input to genNotesWithSlurs to answer [VoiceEvent] for a particular voice.
+-- for input to genNotesWithTiesto answer [VoiceEvent] for a particular voice.
 genArpVEs ::
   Scale
   -> NE.NonEmpty ((Pitch,Octave),(Pitch,Octave))
@@ -257,7 +269,7 @@ genArpVEs ::
   -> NE.NonEmpty Bool
   -> NE.NonEmpty VoiceEvent
 genArpVEs scale ranges mIntss durs accts dyns slurs =
-  genNotesWithSlurs mPOs (NE.cycle durs) (NE.cycle accts) (NE.cycle dyns) (NE.cycle slurs)
+  genNotesWithTies mPOs (NE.cycle durs) (NE.cycle accts) (NE.cycle dyns) (NE.cycle slurs)
   where
     mPOs = sconcat $ NE.zipWith (seqMTranspose scale) mIntss ranges
 
@@ -274,5 +286,4 @@ cfg2ArpeggiosScore title = do
       vess   = neZipWith7 genArpVEs scales ranges (NE.repeat _amMIntss) _amDurss _amAcctss  _amDynss _amSlurss
       voices = neZipWith3 genArpVocs instrs keys vess
   writeScore title $ Score "no comment" voices
-
 

@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Utils where
 
 import Data.List hiding (transpose)
@@ -9,6 +11,9 @@ import Data.Tuple
 import Data.Tuple.Extra
 
 import Types
+
+newtype DurationSum = DurationSum { getDurSum :: Int }
+  deriving (Eq, Ord, Show, Num)
 
 incrOct :: Octave -> Octave
 incrOct o = toEnum $ min (1 + fromEnum o) (fromEnum (maxBound::Octave))
@@ -34,12 +39,6 @@ zDurSum = 0
 
 sumDurs :: [Duration] -> DurationSum
 sumDurs = Data.List.foldr addDur zDurSum
-
-halfDur :: Duration -> Duration
-halfDur dur = durVal2Duration M.! (dur2DurVal dur `div` 2)
-
-doubleDur :: Duration -> Duration
-doubleDur dur = durVal2Duration M.! (dur2DurVal dur * 2)
 
 composedDur :: Int -> Duration -> Duration
 composedDur reps dur =
@@ -151,8 +150,8 @@ genNotes = zipWith4 f
 genNotess :: [[Maybe (Pitch,Octave)]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> [[VoiceEvent]]
 genNotess = zipWith4 genNotes
 
-genNotesWithSlurs :: NE.NonEmpty (Maybe (Pitch,Octave)) -> NE.NonEmpty Duration -> NE.NonEmpty Accent -> NE.NonEmpty Dynamic -> NE.NonEmpty Bool -> NE.NonEmpty VoiceEvent
-genNotesWithSlurs = neZipWith5 f
+genNotesWithTies :: NE.NonEmpty (Maybe (Pitch,Octave)) -> NE.NonEmpty Duration -> NE.NonEmpty Accent -> NE.NonEmpty Dynamic -> NE.NonEmpty Bool -> NE.NonEmpty VoiceEvent
+genNotesWithTies = neZipWith5 f
   where
     f Nothing du _ dy _ = VeRest $ Rest du dy
     f (Just (p,o)) du a dy sl = VeNote $ Note p o du a dy NoSwell sl
