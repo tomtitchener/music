@@ -1,3 +1,4 @@
+# Can parser parse all param types?
 example_param:
   pits:    (c,des,eisis,f,g)
   accs:    (_,~,.)

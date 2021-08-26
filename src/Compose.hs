@@ -3,11 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 
-module Compose (cfg2MaxRandScore
-               ,cfg2HomoPhonScore
-               ,cfg2CanonScore
-               ,cfg2RandMotScore
-               ,cfg2ArpeggiosScore) where
+module Compose (cfg2Driver) where
 
 import Control.Monad (zipWithM)
 import Data.Foldable (fold)
@@ -239,7 +235,7 @@ cfg2ArpeggioVocTup pre =
     <*> getConfigParam (pre <> ".ranges")
 
 cfg2ArpeggiosVocTups :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty ArpeggiosVoiceTup)
-cfg2ArpeggiosVocTups root = traverse (\v -> cfg2ArpeggioVocTup (root <> "." <> v))
+cfg2ArpeggiosVocTups title = traverse (\v -> cfg2ArpeggioVocTup (title <> "." <> v))
 
 cfg2ArpeggiosMottos :: String -> Driver ArpeggiosMottos
 cfg2ArpeggiosMottos title =
@@ -285,5 +281,15 @@ cfg2ArpeggiosScore title = do
       ranges = _atRanges  <$> arpVocTups
       vess   = neZipWith7 genArpVEs scales ranges (NE.repeat _amMIntss) _amDurss _amAcctss  _amDynss _amSlurss
       voices = neZipWith3 genArpVocs instrs keys vess
-  writeScore title $ Score "no comment" voices
+  writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
 
+driverFuns :: [(String,String -> Driver ())]
+driverFuns =
+  [("example_texture",   cfg2MaxRandScore)
+  ,("example_texture",   cfg2HomoPhonScore)
+  ,("example_texture",   cfg2CanonScore)
+  ,("exmaple_texture",   cfg2RandMotScore)
+  ,("example_arpeggios", cfg2ArpeggiosScore)]
+
+cfg2Driver :: String -> Driver ()
+cfg2Driver title = maybe (error $ "cfg2Driver: no fun for title " <> title) ($ title) $ lookup title driverFuns

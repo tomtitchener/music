@@ -8,7 +8,6 @@ module Main where
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
-import Data.Aeson hiding (Options)
 import qualified Data.Yaml as Y
 import Options.Applicative
 import Prelude (String, error, show)
@@ -21,6 +20,15 @@ import System.Random.SplitMix
 import Compose
 import Driver
 import Types
+
+-- _optRandomSeed via command-line argument  -s "<string>"
+-- to recreate pseudo-random number generator by copying
+-- from LilyPond comment, e.g.:
+--
+-- % "no comment StdGen {unStdGen = SMGen 11888972784562141867 7849352481482538343}"
+--
+-- e.g.:
+-- $ stack exec music -- -s "SMGen 11888972784562141867 7849352481482538343"
 
 data Options = Options
   { _optConfigYaml :: FilePath
@@ -47,7 +55,7 @@ main =  do
     e <- doesFileExist _optConfigYaml
     if e
     then either (error . show) identity <$> Y.decodeFileEither _optConfigYaml
-    else pure Null
+    else error $ "config file " <> _optConfigYaml <> " does not exist"
   unless (null _optRandomSeed) $ do
     case readMaybe _optRandomSeed::Maybe SMGen of
       Nothing -> error $ "failed to parse random seed " <> _optRandomSeed
@@ -55,8 +63,7 @@ main =  do
         let stdGen = StdGen { unStdGen = smGen }
         setStdGen stdGen
   gen <- getStdGen
-  void . liftIO $ runReaderT (runDriver (cfg2ArpeggiosScore "example_arpeggios")) (initEnv config (show gen))
-  -- void . liftIO $ runReaderT (runDriver (cfg2RandMotScore "example_texture")) (initEnv config (show gen))
+  void . liftIO $ runReaderT (runDriver (cfg2Driver "example_arpeggios")) (initEnv config (show gen))
 
 ---------
 -- Test -

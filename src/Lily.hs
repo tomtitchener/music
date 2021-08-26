@@ -3,6 +3,13 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+{- | Lilypond encoding and decoding.
+     TBD:  String is inefficient datatype, though UTF-8, which is LilyPond char set:
+       https://lilypond.org/doc/v2.18/Documentation/notation/special-characters#text-encoding
+     - Replace String with ByteString, Text.Parsec.String with Text.Parsec.ByteString.
+     - Replace interpolator with one that works for ByteString (string-interpolate?).
+-}
+
 module Lily (ToLily(..)
             ,FromLily(..)
             ,parsePitch
