@@ -33,6 +33,7 @@ import Types
 data Options = Options
   { _optConfigYaml :: FilePath
   , _optRandomSeed :: String
+  , _optTarget     :: String
   } deriving Show
 
 options :: Parser Options
@@ -43,6 +44,9 @@ options = Options
   <*> strOption (short 's' <> metavar "RANDOM_SEED"
                  <>  value ""
                  <> help "Seed string for random generator")
+  <*> strOption (short 't' <> metavar "TARGET"
+                 <>  value ""
+                 <> help "Config file target")
 
 opts :: ParserInfo Options
 opts = info (helper <*> options)
@@ -63,7 +67,7 @@ main =  do
         let stdGen = StdGen { unStdGen = smGen }
         setStdGen stdGen
   gen <- getStdGen
-  void . liftIO $ runReaderT (runDriver (cfg2Driver "example_arpeggios")) (initEnv config (show gen))
+  void . liftIO $ runReaderT (runDriver (cfg2Driver _optTarget)) (initEnv config (show gen))
 
 ---------
 -- Test -

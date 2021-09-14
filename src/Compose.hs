@@ -3,13 +3,15 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 
-module Compose (cfg2Driver) where
+module Compose {--(cfg2Driver, genSwirl)--} where
 
 import Control.Monad (zipWithM)
 import Data.Foldable (fold)
-import Data.List (zipWith4)
+import Data.Functor ((<&>))
+import Data.List (zipWith4, unfoldr)
 import qualified Data.List.NonEmpty as NE
 import Data.Semigroup (stimesMonoid)
+import Data.Tuple (swap)
 import GHC.Base (sconcat)
 
 import Driver
@@ -17,16 +19,19 @@ import Driver
       randomElements,
       randomizeList,
       writeScore,
+      print,
       Driver )
 import Types
 import Utils
     ( genNotes,
       genNotesWithTies,
       mtranspose,
+      normPitch,
       neZipWith3,
       neZipWith7,
       rotNFor,
-      seqMTranspose )
+      seqMTranspose,
+      xp)
 
 data MottoVoiceTup = MottoVoiceTup {_vtInstr :: Instrument
                                    ,_vtKey   :: KeySignature
@@ -234,8 +239,12 @@ cfg2ArpeggioVocTup pre =
     <*> getConfigParam (pre <> ".scale")
     <*> getConfigParam (pre <> ".ranges")
 
+
+cfg2Tups :: (String -> Driver a) -> String -> NE.NonEmpty String -> Driver (NE.NonEmpty a)
+cfg2Tups f title = traverse (\v -> f (title <> "." <> v))
+
 cfg2ArpeggiosVocTups :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty ArpeggiosVoiceTup)
-cfg2ArpeggiosVocTups title = traverse (\v -> cfg2ArpeggioVocTup (title <> "." <> v))
+cfg2ArpeggiosVocTups = cfg2Tups cfg2ArpeggioVocTup
 
 cfg2ArpeggiosMottos :: String -> Driver ArpeggiosMottos
 cfg2ArpeggiosMottos title =
@@ -289,7 +298,99 @@ driverFuns =
   ,("example_texture",   cfg2HomoPhonScore)
   ,("example_texture",   cfg2CanonScore)
   ,("exmaple_texture",   cfg2RandMotScore)
-  ,("example_arpeggios", cfg2ArpeggiosScore)]
+  ,("example_arpeggios", cfg2ArpeggiosScore)
+  ,("example_swirls",    cfg2SwirlsScore)]
 
 cfg2Driver :: String -> Driver ()
 cfg2Driver title = maybe (error $ "cfg2Driver: no fun for title " <> title) ($ title) $ lookup title driverFuns
+
+{--
+  Consider a generator against a chromatic scale.
+  Specify a list of intervals as a motif, and string together a small list of motifs where the overall direction is either ascending or descending.
+  Randomly sequence the list of motifs so the overall direction persists.
+  Specify start and stop pitch/octave pairs.
+  Repeat kernel generation chaining from one to the next from the start to the stop.
+--}
+
+newtype Range = Range ((Pitch, Octave),(Pitch, Octave)) deriving (Eq, Show)
+
+-- This is complicated:  here I only use adjacent sharps as though
+-- the line always ascends.  To make a score easier to read, I should
+-- choose the pitch according to the local shape of the line.  For
+-- now that can be a refinement.
+chromaticScale :: Scale
+chromaticScale = Scale (NE.fromList[C,Cs,D,Ds,E,F,Fs,G,Gs,A,As,B])
+
+genIntervalList :: [Pitch] -> [Int]
+genIntervalList = reverse . snd . foldl f (0,[]) . (normPitch <$>)
+  where
+    f (p,l) x = (x, x - p:l)
+
+-- ascending, six note patterns with an internal swirl
+ascSwirlPit6a, ascSwirlPit6b, ascSwirlPit6c :: [Pitch]
+ascSwirlPit6a = [C,Ds,E,D,Cs,E]
+ascSwirlPit6b = [C,G,D,A,Ds,D]
+ascSwirlPit6c = [Cs,D,Fs,A,E,F]
+ascSwirl6Pits :: [[Pitch]]
+ascSwirl6Pits = [ascSwirlPit6a,ascSwirlPit6b,ascSwirlPit6c]
+
+genSwirl :: [Duration] -> [[Pitch]] -> Scale -> Range -> Driver [Note]
+genSwirl durs motifs scale (Range (start,stop)) = do
+  steps <- randomizeList motifs <&> concatMap genIntervalList
+  let stepOrd = sum steps `compare` 0
+      rangeOrd = swap stop `compare` swap start
+      compareOp = if stepOrd == rangeOrd && stepOrd /= EQ
+                  then if stepOrd == LT then (<=) else (>=)
+                  else error $ "invalid step order " <> show stepOrd <> " compared with range order " <> show rangeOrd
+      manySteps = concat $ repeat steps
+      manyDurs = concat $ repeat durs
+      pOs :: [(Pitch,Octave)] = unfoldr (f compareOp) (start,manySteps)
+  pure $ zipWith mkNote pOs manyDurs
+  where
+    f cmp (prev,step:steps)
+      | swap next `cmp` swap stop = Nothing
+      | otherwise = Just (next, (next, steps))
+      where
+        next = xp scale prev step
+    f _ steps = error $ "invalid list of steps " <> show steps
+    mkNote (p,o) d = Note p o d NoAccent NoDynamic NoSwell False
+
+-- > gen <- getStdGen
+-- > liftIO (runReaderT (runDriver (notes >>= print)) (initEnv Y.Null (show gen)))
+notes :: Driver [Note]
+notes = genSwirl [QDur,EDur,EDur,QDur,EDur,EDur,EDur] ascSwirl6Pits chromaticScale (Range ((C,FifteenVBOct),(B,FifteenVAOct)))
+
+data SwirlsTup = SwirlsTup {_stInstr :: Instrument
+                           ,_stKey   :: KeySignature
+                           ,_stScale :: Scale
+                           ,_stPitss :: NE.NonEmpty (NE.NonEmpty Pitch)
+                           ,_stRange :: ((Pitch,Octave),(Pitch,Octave))
+                           } deriving Show
+
+cfg2SwirlsTup :: String -> Driver SwirlsTup
+cfg2SwirlsTup pre =
+  SwirlsTup
+    <$> getConfigParam (pre <> ".instr")
+    <*> getConfigParam (pre <> ".key")
+    <*> getConfigParam (pre <> ".scale")
+    <*> getConfigParam (pre <> ".pitss")
+    <*> getConfigParam (pre <> ".range")
+
+
+cfg2SwirlsTups :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty SwirlsTup)
+cfg2SwirlsTups = cfg2Tups cfg2SwirlsTup
+
+cfg2SwirlsScore :: String -> Driver ()
+cfg2SwirlsScore title = do
+  swirlsVocTups <- cfg2SwirlsTups title (NE.fromList ["voice1"])
+  Driver.print swirlsVocTups
+{--  
+  let instrs = _stInstr   <$> swirlsVocTups
+      scales = _stScale   <$> swirlsVocTups
+      keys   = _stKey     <$> swirlsVocTups
+      pitss =  _stPitss   <$> swirlsVocTups
+      ranges = _stRanges  <$> swirlsVocTups
+      vess   = neZipWith7 genArpVEs scales ranges (NE.repeat _amMIntss) _amDurss _amAcctss  _amDynss _amSlurss
+      voices = neZipWith3 genArpVocs instrs keys vess
+  writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
+--}

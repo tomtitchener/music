@@ -60,7 +60,7 @@ runDriver (Free (DoActionThen act k)) =
     GetConfigParam path -> asks (lookupConfig path . _config) >>= runDriver . k
 runDriver (Free (DoAction act k)) =
   case act of
-    WriteScore fn (Score c vs) -> asks _seed >>= (\s -> liftIO (writeFile fn (toLily (Score (c <> " " <> s) vs))) *> runDriver k)
+    WriteScore fileName (Score c vs) -> asks _seed >>= (\s -> liftIO (writeFile fileName (toLily (Score (c <> " " <> s) vs))) *> runDriver k)
     PrintLily l -> liftIO (putStrLn (toLily l)) *> runDriver k
     Print t -> liftIO (putStrLn t) *> runDriver k
 runDriver (Pure k) = pure k

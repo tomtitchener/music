@@ -40,6 +40,10 @@ module Types (Pitch (..)
 import Data.List.NonEmpty
 import Data.Natural
 
+-- Derive Eq and Ord from symbols for simplicity.
+-- In practice some symbols are enharmonically
+-- equivalent, e.g. Bs, C, Dff and there could
+-- be a type class to reflect that.
 data Pitch = Bs | C   | Bss | Dff | Cs
            | Df | Css | D   | Eff | Ds
            | Ef | Fff | Dss | E   | Ff
@@ -79,7 +83,7 @@ data Rest = Rest { _rdur :: Duration, _rdyn :: Dynamic }
 data Tuplet = Tuplet { _tupNum :: Int, _tupDenom :: Int, _tupDur :: Duration, _tupNotes :: NonEmpty Note }
   deriving (Eq, Ord, Show)
 
-data Chord = Chord { _chordPitOctPairs :: NonEmpty(Pitch, Octave) , _chordDur :: Duration, _chordAcc :: Accent, _chordDyn :: Dynamic, _chordSwell :: Swell, _chordTie :: Bool }
+data Chord = Chord { _chordPitOctPairs :: NonEmpty (Pitch, Octave) , _chordDur :: Duration, _chordAcc :: Accent, _chordDyn :: Dynamic, _chordSwell :: Swell, _chordTie :: Bool }
   deriving (Eq, Ord, Show)
 
 data Clef = Bass8VB | Bass | Tenor | Alto | Treble | Treble8VA

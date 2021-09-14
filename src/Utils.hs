@@ -71,16 +71,8 @@ durSum2Durs = unfoldr f
         d = durVal2Duration M.! v
         ds = DurationSum (i - v)
 
--- in interval arithmetic 0 doesn't make any sense, 1/-1 is unison, 2/-2 is a second, etc.
--- to convert to offset from current pitch, 0 => exception, 1/-1 => 0, 2/-2 = 1/-1, etc.
-int2Off :: Int -> Int
-int2Off i
-  | i < 0 = i + 1
-  | i == 0 = error "int2Off invalid interval 0"
-  | otherwise = i - 1
-
 transpose :: Scale -> (Pitch,Octave) -> [Int] -> [(Pitch,Octave)]
-transpose scale pr = map (xp scale pr) . scanl1 (+) . map int2Off
+transpose scale pr = map (xp scale pr) . scanl1 (+)
 
 mtranspose :: Scale -> (Pitch,Octave) -> [Maybe Int] -> [Maybe (Pitch,Octave)]
 mtranspose scale start = map (xp scale start <$>) . reverse . snd . foldl' f (0,[])
@@ -88,9 +80,9 @@ mtranspose scale start = map (xp scale start <$>) . reverse . snd . foldl' f (0,
     f (s,l) Nothing  = (s, Nothing:l)
     f (s,l) (Just i) = (s', Just s':l)
       where
-        s' = s + int2Off i
+        s' = s + i
 
--- sequentially transpose for Scale from start given mintlist until current (Pitch,Octave) equals or exceeds stop
+-- sequentially transpose for Scale from start given mIntList until current (Pitch,Octave) equals or exceeds stop
 seqMTranspose :: Scale -> NE.NonEmpty (Maybe Int) -> ((Pitch,Octave),(Pitch,Octave)) -> NE.NonEmpty (Maybe (Pitch,Octave))
 seqMTranspose scale mIntList (start,stop)
   | intDir == GT && pitDir == GT = NE.unfoldr (f (<)) (0,0)
@@ -100,7 +92,7 @@ seqMTranspose scale mIntList (start,stop)
   where
     f _ (0,0) = case NE.head mIntList of
                   Nothing -> (Nothing, Just (1,0))
-                  Just i  -> (Just (xp scale start (int2Off i)),Just (1,int2Off i))
+                  Just i  -> (Just (xp scale start i),Just (1,i))
     f cmp (ix,prv) = case mPitOct of
                        Nothing -> (Nothing,Just (ix',prv'))
                        Just next -> if swap next `cmp` swap stop
@@ -108,19 +100,13 @@ seqMTranspose scale mIntList (start,stop)
                                     else (mPitOct,Nothing)
       where
         ix' = if ix == NE.length mIntList - 1 then 0 else ix + 1
-        mPitOct = xp scale start . (+) prv . int2Off <$> mInt
-        prv' = maybe prv ((prv +) . int2Off) mInt
+        mPitOct = xp scale start . (+) prv <$> mInt
+        prv' = maybe prv (prv +) mInt
         mInt = mIntList NE.!! ix
-    intDir
-       | tot > 0   = GT
-       | tot < 0   = LT
-       | otherwise = EQ
+    intDir = tot `compare` 0
        where
-         tot = sum (maybe 0 int2Off <$> mIntList) -- (> 0), (< 0), or 0
-    pitDir
-      | start' < stop' = GT
-      | start' > stop' = LT
-      | otherwise      = EQ
+         tot = sum (fromMaybe 0 <$> mIntList) -- (> 0), (< 0), or 0
+    pitDir = start' `compare` stop'
       where
         start' = swap start
         stop'  = swap stop
@@ -218,6 +204,10 @@ normPitch = fromJust . flip findIndex enharmonicPitches . elem
 normOctave :: Octave -> Int
 normOctave = (12 *) . fromEnum
 
+-- Give the Int (could be a Nat) as an index counting
+-- from the lowest to the highest pitch on the chromatic
+-- scale in the range from four octaves below middle C to
+-- to three octaves above middle C.
 normalizePitchOctave :: Pitch -> Octave -> Int
 normalizePitchOctave p o = normPitch p + normOctave o
 

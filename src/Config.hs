@@ -35,6 +35,9 @@ instance FromConfig ((Pitch,Octave),(Pitch,Octave)) where
 instance FromConfig Scale where
   parseConfig = mkParseConfig (Scale <$> mkPs parsePitch)
 
+instance FromConfig (NE.NonEmpty (NE.NonEmpty Pitch)) where
+  parseConfig = mkParseConfig (mkPss parsePitch)
+
 instance FromConfig (NE.NonEmpty Accent) where
   parseConfig = mkParseConfig (mkPs pAccentStr)
 
@@ -104,8 +107,19 @@ dynamicVals = [PPPPP, PPPP, PPP, PP, Piano, MP, MF, FFFFF, FFFF, FFF, FF, FP, Fo
 pDynamicStr :: Parser Dynamic
 pDynamicStr = choice (zipWith mkParser dynamicStrs dynamicVals)
 
+-- in practice, "Int" stands for Interval, which in musical terms,
+-- maps to 1/-1 for unison, 2/-2 for a second or one scale step,
+-- 3/-3 for a third or two scale steps and etc.  Zero is illegal.
+-- in interval arithmetic 0 doesn't make any sense, 1/-1 is unison, etc.
+-- convert to zero-based offset, 0 => exception, 1/-1 => 0, 2/-2 = 1/-1, etc.
+int2Off :: Int -> Int
+int2Off i
+  | i < 0 = i + 1
+  | i == 0 = error "int2Off invalid interval 0"
+  | otherwise = i - 1
+
 pMInt :: Parser (Maybe Int)
-pMInt = (Just <$> int) <|> (char 'r' >> pure Nothing)
+pMInt = (Just . int2Off <$> int) <|> (char 'r' >> pure Nothing)
 
 modeStrs :: [String]
 modeStrs = ["major", "minor"]
