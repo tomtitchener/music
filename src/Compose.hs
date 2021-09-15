@@ -19,7 +19,6 @@ import Driver
       randomElements,
       randomizeList,
       writeScore,
-      print,
       Driver )
 import Types
 import Utils
@@ -278,8 +277,8 @@ genArpVEs scale ranges mIntss durs accts dyns slurs =
   where
     mPOs = sconcat $ NE.zipWith (seqMTranspose scale) mIntss ranges
 
-genArpVocs :: Instrument -> KeySignature -> NE.NonEmpty VoiceEvent -> Voice
-genArpVocs instr keySig ves = PitchedVoice instr (VeKeySignature keySig NE.<| ves)
+genVocs :: Instrument -> KeySignature -> NE.NonEmpty VoiceEvent -> Voice
+genVocs instr keySig ves = PitchedVoice instr (VeKeySignature keySig NE.<| ves)
 
 cfg2ArpeggiosScore :: String -> Driver ()
 cfg2ArpeggiosScore title = do
@@ -289,7 +288,7 @@ cfg2ArpeggiosScore title = do
       keys   = _atKey     <$> arpVocTups
       ranges = _atRanges  <$> arpVocTups
       vess   = neZipWith7 genArpVEs scales ranges (NE.repeat _amMIntss) _amDurss _amAcctss  _amDynss _amSlurss
-      voices = neZipWith3 genArpVocs instrs keys vess
+      voices = neZipWith3 genVocs instrs keys vess
   writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
 
 driverFuns :: [(String,String -> Driver ())]
@@ -355,15 +354,36 @@ genSwirl durs motifs scale (Range (start,stop)) = do
     f _ steps = error $ "invalid list of steps " <> show steps
     mkNote (p,o) d = Note p o d NoAccent NoDynamic NoSwell False
 
+genSwirl' :: [Duration] -> [Int] -> Scale -> Range -> [Note]
+genSwirl' durs steps scale (Range (start,stop)) = do
+  let stepOrd = sum steps `compare` 0
+      rangeOrd = swap stop `compare` swap start
+      compareOp = if stepOrd == rangeOrd && stepOrd /= EQ
+                  then if stepOrd == LT then (<=) else (>=)
+                  else error $ "invalid step order " <> show stepOrd <> " compared with range order " <> show rangeOrd
+      manySteps = concat $ repeat steps
+      manyDurs = concat $ repeat durs
+      pOs :: [(Pitch,Octave)] = unfoldr (f compareOp) (start,manySteps)
+  zipWith mkNote pOs manyDurs
+  where
+    f cmp (prev,step:steps')
+      | swap next `cmp` swap stop = Nothing
+      | otherwise = Just (next, (next, steps'))
+      where
+        next = xp scale prev step
+    f _ steps' = error $ "invalid list of steps " <> show steps'
+    mkNote (p,o) d = Note p o d NoAccent NoDynamic NoSwell False
+
 -- > gen <- getStdGen
 -- > liftIO (runReaderT (runDriver (notes >>= print)) (initEnv Y.Null (show gen)))
-notes :: Driver [Note]
-notes = genSwirl [QDur,EDur,EDur,QDur,EDur,EDur,EDur] ascSwirl6Pits chromaticScale (Range ((C,FifteenVBOct),(B,FifteenVAOct)))
+--notes :: Driver [Note]
+--notes = genSwirl [QDur,EDur,EDur,QDur,EDur,EDur,EDur] ascSwirl6Pits chromaticScale (Range ((C,FifteenVBOct),(B,FifteenVAOct)))
 
 data SwirlsTup = SwirlsTup {_stInstr :: Instrument
                            ,_stKey   :: KeySignature
                            ,_stScale :: Scale
                            ,_stPitss :: NE.NonEmpty (NE.NonEmpty Pitch)
+                           ,_stDurs  :: NE.NonEmpty Duration
                            ,_stRange :: ((Pitch,Octave),(Pitch,Octave))
                            } deriving Show
 
@@ -374,23 +394,23 @@ cfg2SwirlsTup pre =
     <*> getConfigParam (pre <> ".key")
     <*> getConfigParam (pre <> ".scale")
     <*> getConfigParam (pre <> ".pitss")
+    <*> getConfigParam (pre <> ".durs")
     <*> getConfigParam (pre <> ".range")
-
 
 cfg2SwirlsTups :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty SwirlsTup)
 cfg2SwirlsTups = cfg2Tups cfg2SwirlsTup
 
+swirlsTup2VEs :: SwirlsTup -> Driver (NE.NonEmpty VoiceEvent)
+swirlsTup2VEs SwirlsTup{..} = do
+  genSwirl dursl pitssll _stScale (Range _stRange) <&> NE.fromList . map VeNote
+  where
+    dursl = NE.toList _stDurs 
+    pitssll = NE.toList . NE.map  NE.toList $ _stPitss
+
 cfg2SwirlsScore :: String -> Driver ()
 cfg2SwirlsScore title = do
-  swirlsVocTups <- cfg2SwirlsTups title (NE.fromList ["voice1"])
-  Driver.print swirlsVocTups
-{--  
-  let instrs = _stInstr   <$> swirlsVocTups
-      scales = _stScale   <$> swirlsVocTups
-      keys   = _stKey     <$> swirlsVocTups
-      pitss =  _stPitss   <$> swirlsVocTups
-      ranges = _stRanges  <$> swirlsVocTups
-      vess   = neZipWith7 genArpVEs scales ranges (NE.repeat _amMIntss) _amDurss _amAcctss  _amDynss _amSlurss
-      voices = neZipWith3 genArpVocs instrs keys vess
+  tups <- cfg2SwirlsTups title (NE.fromList ["voice1"]) <&> NE.toList
+  vess <- traverse swirlsTup2VEs tups
+  let voices = neZipWith3 genVocs (NE.fromList (_stInstr <$> tups)) (NE.fromList (_stKey <$> tups)) (NE.fromList vess)
   writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
---}
+

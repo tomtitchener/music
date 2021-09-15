@@ -23,6 +23,7 @@ module Types (Pitch (..)
              ,Note (..)
              ,Rhythm (..)
              ,Rest (..)
+             ,Spacer (..)
              ,Tuplet (..)
              ,Chord (..)
              ,Clef (..)
@@ -77,7 +78,10 @@ data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, 
 data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAcc :: Accent, _rhythmDyn :: Dynamic, _rhythmSwell :: Swell }
   deriving (Eq, Ord, Show)
 
-data Rest = Rest { _rdur :: Duration, _rdyn :: Dynamic }
+data Rest = Rest { _restDur :: Duration, _restDyn :: Dynamic }
+  deriving (Eq, Ord, Show)
+
+data Spacer = Spacer { _spacerDur :: Duration, _spacerDyn :: Dynamic }
   deriving (Eq, Ord, Show)
 
 data Tuplet = Tuplet { _tupNum :: Int, _tupDenom :: Int, _tupDur :: Duration, _tupNotes :: NonEmpty Note }
@@ -116,6 +120,7 @@ data TimeSignature = TimeSignature { _tsNum :: Int, _tsDenom :: Duration }
 data VoiceEvent =
     VeNote { _veNote :: Note }
   | VeRest { _veRest :: Rest }
+  | VeSpacer { _veSpacer :: Spacer }
   | VeRhythm { _veRhythm :: Rhythm }
   | VeTuplet { _veTuplet :: Tuplet }
   | VeChord { _veChord :: Chord }

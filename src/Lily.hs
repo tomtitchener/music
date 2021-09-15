@@ -186,9 +186,9 @@ parseNote = Note <$> parsePitch <*> parseOctave <*> parseDuration <*> parseAccen
 instance FromLily Note  where
   parseLily = mkParseLily parseNote
 
-----------
+------------
 -- Rhythm --
-----------
+------------
 
 instance ToLily Rhythm where
   toLily (Rhythm instr dur acc dyn swell) = instr  <> toLily dur <> toLily acc <> toLily dyn <> toLily swell
@@ -211,6 +211,19 @@ parseRest = Rest <$> (char 'r' *> parseDuration) <*> parseDynamic
 
 instance FromLily Rest  where
   parseLily = mkParseLily parseRest
+
+------------
+-- Spacer --
+------------
+
+instance ToLily Spacer where
+  toLily (Spacer dur dyn) = "s" <> toLily dur <> toLily dyn
+
+parseSpacer :: Parser Spacer
+parseSpacer = Spacer <$> (char 's' *> parseDuration) <*> parseDynamic
+
+instance FromLily Spacer  where
+  parseLily = mkParseLily parseSpacer
 
 ------------
 -- Tuplet --
@@ -393,6 +406,7 @@ instance FromLily TimeSignature where
 instance ToLily VoiceEvent where
   toLily (VeNote note) = toLily note
   toLily (VeRhythm rhythm) = toLily rhythm
+  toLily (VeSpacer spacer) = toLily spacer
   toLily (VeRest rest) = toLily rest
   toLily (VeTuplet tup) = toLily tup
   toLily (VeChord chord) = toLily chord
