@@ -35,6 +35,7 @@ library
                      , protolude
                      , random
                      , random-shuffle
+                     , safe
                      , split
                      , text
   ghc-options:         -Wall -Werror -haddock -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns -fno-warn-orphans
