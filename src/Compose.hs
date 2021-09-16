@@ -8,7 +8,7 @@ module Compose {--(cfg2Driver, genSwirl)--} where
 import Control.Monad (zipWithM)
 import Data.Foldable (fold)
 import Data.Functor ((<&>))
-import Data.List (zipWith4, unfoldr, foldl')
+import Data.List (zipWith4)
 import qualified Data.List.NonEmpty as NE
 import Data.Semigroup (stimesMonoid)
 import Data.Tuple (swap)
@@ -299,7 +299,7 @@ driverFuns =
   ,("example_texture",   cfg2CanonScore)
   ,("exmaple_texture",   cfg2RandMotScore)
   ,("example_arpeggios", cfg2ArpeggiosScore)
-  ,("example_swirls",    cfg2SwirlsScore')]
+  ,("example_swirls",    cfg2SwirlsScore)]
 
 cfg2Driver :: String -> Driver ()
 cfg2Driver title = maybe (error $ "cfg2Driver: no fun for title " <> title) ($ title) $ lookup title driverFuns
@@ -314,49 +314,13 @@ cfg2Driver title = maybe (error $ "cfg2Driver: no fun for title " <> title) ($ t
 
 newtype Range = Range ((Pitch, Octave),(Pitch, Octave)) deriving (Eq, Show)
 
--- This is complicated:  here I only use adjacent sharps as though
--- the line always ascends.  To make a score easier to read, I should
--- choose the pitch according to the local shape of the line.  For
--- now that can be a refinement.
-chromaticScale :: Scale
-chromaticScale = Scale (NE.fromList[C,Cs,D,Ds,E,F,Fs,G,Gs,A,As,B])
-
 genIntervalList :: [Pitch] -> [Int]
 genIntervalList = reverse . snd . foldl f (0,[]) . (normPitch <$>)
   where
     f (p,l) x = (x, x - p:l)
 
--- ascending, six note patterns with an internal swirl
-ascSwirlPit6a, ascSwirlPit6b, ascSwirlPit6c :: [Pitch]
-ascSwirlPit6a = [C,Ds,E,D,Cs,E]
-ascSwirlPit6b = [C,G,D,A,Ds,D]
-ascSwirlPit6c = [Cs,D,Fs,A,E,F]
-ascSwirl6Pits :: [[Pitch]]
-ascSwirl6Pits = [ascSwirlPit6a,ascSwirlPit6b,ascSwirlPit6c]
-
-genSwirl :: [Duration] -> [[Pitch]] -> Scale -> Range -> Driver [Note]
+genSwirl :: NE.NonEmpty Duration -> NE.NonEmpty (NE.NonEmpty Pitch) -> Scale -> Range -> Driver (NE.NonEmpty Note)
 genSwirl durs motifs scale (Range (start,stop)) = do
-  steps <- randomizeList motifs <&> concatMap genIntervalList
-  let stepOrd = sum steps `compare` 0
-      rangeOrd = swap stop `compare` swap start
-      compareOp = if stepOrd == rangeOrd && stepOrd /= EQ
-                  then if stepOrd == LT then (<=) else (>=)
-                  else error $ "invalid step order " <> show stepOrd <> " compared with range order " <> show rangeOrd
-      manySteps = concat $ repeat steps
-      manyDurs = concat $ repeat durs
-      pOs :: [(Pitch,Octave)] = unfoldr (f compareOp) (start,manySteps)
-  pure $ zipWith mkNote pOs manyDurs
-  where
-    f cmp (prev,step:steps)
-      | swap next `cmp` swap stop = Nothing
-      | otherwise = Just (next, (next, steps))
-      where
-        next = xp scale prev step
-    f _ steps = error $ "invalid list of steps " <> show steps
-    mkNote (p,o) d = Note p o d Staccatissimo NoDynamic  NoSwell False
-
-genSwirl' :: NE.NonEmpty Duration -> NE.NonEmpty (NE.NonEmpty Pitch) -> Scale -> Range -> Driver (NE.NonEmpty Note)
-genSwirl' durs motifs scale (Range (start,stop)) = do
   steps <- randomizeList motifs' <&> concatMap genIntervalList
   let stepOrd = sum steps `compare` 0
       rangeOrd = swap stop `compare` swap start
@@ -378,11 +342,6 @@ genSwirl' durs motifs scale (Range (start,stop)) = do
     f _ steps = error $ "invalid list of steps " <> show steps
     mkNote (p,o) d = Note p o d Staccatissimo NoDynamic  NoSwell False
 
--- > gen <- getStdGen
--- > liftIO (runReaderT (runDriver (notes >>= print)) (initEnv Y.Null (show gen)))
---notes :: Driver [Note]
---notes = genSwirl [QDur,EDur,EDur,QDur,EDur,EDur,EDur] ascSwirl6Pits chromaticScale (Range ((C,FifteenVBOct),(B,FifteenVAOct)))
-
 data SwirlsTup = SwirlsTup {_stInstr :: Instrument
                            ,_stKey   :: KeySignature
                            ,_stScale :: Scale
@@ -403,17 +362,10 @@ cfg2SwirlsTup pre =
 
 cfg2SwirlsTups :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty SwirlsTup)
 cfg2SwirlsTups = cfg2Tups cfg2SwirlsTup
-
-swirlsTup2VEs :: SwirlsTup -> Driver (NE.NonEmpty VoiceEvent)
-swirlsTup2VEs SwirlsTup{..} = do
-  genSwirl dursl pitssll _stScale (Range _stRange) <&> NE.fromList . map VeNote
-  where
-    dursl = NE.toList _stDurs
-    pitssll = NE.toList . NE.map  NE.toList $ _stPitss
     
-swirlsTup2VEs' :: SwirlsTup -> Driver (NE.NonEmpty VoiceEvent)
-swirlsTup2VEs' SwirlsTup{..} = 
-  genSwirl' _stDurs _stPitss _stScale (Range _stRange) <&> NE.map VeNote
+swirlsTup2VEs :: SwirlsTup -> Driver (NE.NonEmpty VoiceEvent)
+swirlsTup2VEs SwirlsTup{..} = 
+  genSwirl _stDurs _stPitss _stScale (Range _stRange) <&> NE.map VeNote
 
 pickNoteClef :: Note -> Clef
 pickNoteClef Note{..}
@@ -428,40 +380,12 @@ veIsVeNote :: VoiceEvent -> Bool
 veIsVeNote (VeNote _) = True
 veIsVeNote _ = False
 
-pickInitialClef :: [VoiceEvent] -> Clef
-pickInitialClef ves =  maybe err pickVoiceEventClef . headMay . filter veIsVeNote $ ves
-  where err = error $ "pickInitialClef no VeNote in [VoiceEvent]: " <> show ves
-  
-pickInitialClef' :: NE.NonEmpty VoiceEvent -> Clef
-pickInitialClef' ves =  maybe err pickVoiceEventClef . headMay . NE.filter veIsVeNote $ ves
+pickInitialClef :: NE.NonEmpty VoiceEvent -> Clef
+pickInitialClef ves =  maybe err pickVoiceEventClef . headMay . NE.filter veIsVeNote $ ves
   where err = error $ "pickInitialClef no VeNote in [VoiceEvent]: " <> show (NE.toList ves)
 
-splitStaves :: Clef -> [VoiceEvent] -> ([VoiceEvent],[VoiceEvent])
-splitStaves clef = snd . foldl' f (clef,([],[]))
-  where
-    f :: (Clef,([VoiceEvent],[VoiceEvent])) -> VoiceEvent -> (Clef,([VoiceEvent],[VoiceEvent]))
-    f (cl,(trebleVes,bassVes)) ve@(VeNote note@Note{..})
-      | cl == Treble && cl' == Treble = (Treble, (trebleVes <> [ve], bassVes <> [sp]))
-      | cl == Bass   && cl' == Treble = (Treble, (trebleVes <> [ve], bassVes <> [sp]))
-      | cl == Bass   && cl' == Bass   = (Bass,   (trebleVes <> [sp], bassVes <> [ve]))
-      | cl == Treble && cl' == Bass   = (Bass,   (trebleVes <> [sp], bassVes <> [ve]))
-      | otherwise = error $ "splitStaves unexpected clefs: " <> show cl <> " and " <> show cl'
-      where
-        cl' = pickNoteClef note
-        sp = VeSpacer (Spacer _noteDur NoDynamic)
-    f (cl,(trebleVes,bassVes)) ve@(VeRest Rest{..})
-      | cl == Treble = (Treble, (trebleVes <> [ve], bassVes <> [sp]))
-      | cl == Bass   = (Bass,   (trebleVes <> [sp], bassVes <> [ve]))
-      | otherwise = error $ "splitSaves unexpected clef: " <> show cl
-      where
-        sp = VeSpacer (Spacer _restDur NoDynamic)
-    f (cl,(trebleVes,bassVes)) ve@VeTempo {}                 = (cl,(trebleVes <> [ve],bassVes <> [ve]))
-    f (cl,(trebleVes,bassVes)) ve@VeKeySignature {}          = (cl,(trebleVes <> [ve],bassVes <> [ve]))
-    f (cl,(trebleVes,bassVes)) ve@VeTimeSignature {}         = (cl,(trebleVes <> [ve],bassVes <> [ve]))
-    f (_,_) ve = error $ "splitStaves unexpected VoiceEvent: " <> show ve
-
-splitStaves' :: Clef -> NE.NonEmpty VoiceEvent -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent)
-splitStaves' clef = snd . foldl f (clef,(VeClef Treble NE.:| [],VeClef Bass NE.:| []))
+splitStaves :: Clef -> NE.NonEmpty VoiceEvent -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent)
+splitStaves clef = snd . foldl f (clef,(VeClef Treble NE.:| [],VeClef Bass NE.:| []))
   where
     f :: (Clef,(NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent)) -> VoiceEvent -> (Clef,(NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent))
     f (cl,(trebleVes,bassVes)) ve@(VeNote note@Note{..})
@@ -484,35 +408,18 @@ splitStaves' clef = snd . foldl f (clef,(VeClef Treble NE.:| [],VeClef Bass NE.:
     f (cl,(trebleVes,bassVes)) ve@VeTimeSignature {}         = (cl,(trebleVes <> (ve NE.:| []),bassVes <> (ve NE.:| [])))
     f (_,_) ve = error $ "splitStaves unexpected VoiceEvent: " <> show ve
 
-genPolyVocs :: Instrument -> KeySignature -> ([VoiceEvent],[VoiceEvent]) -> Voice
+genPolyVocs :: Instrument -> KeySignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
 genPolyVocs instr keySig (treble,bass) = PolyVoice instr vess
-  where
-    vess = NE.fromList [NE.fromList (trebleClef:veKeySig:treble), NE.fromList (bassClef:veKeySig:bass)]
-    bassClef = VeClef Bass
-    trebleClef = VeClef Treble
-    veKeySig = VeKeySignature keySig
-    
-genPolyVocs' :: Instrument -> KeySignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
-genPolyVocs' instr keySig (treble,bass) = PolyVoice instr vess
   where
     vess = NE.fromList [veKeySig NE.<| treble, veKeySig NE.<| bass]
     veKeySig = VeKeySignature keySig
 
 cfg2SwirlsScore :: String -> Driver ()
 cfg2SwirlsScore title = do
-  tups <- cfg2SwirlsTups title (NE.fromList ["voice1"]) <&> NE.toList
-  vess <- traverse swirlsTup2VEs tups <&> fmap NE.toList
-  let clefs = pickInitialClef <$> vess
-      vePrss = zipWith splitStaves clefs vess
-      voices = zipWith3 genPolyVocs (_stInstr <$> tups) (_stKey <$> tups) vePrss
-  writeScore ("./" <> title <> ".ly") $ Score "no comment" (NE.fromList voices)
-
-cfg2SwirlsScore' :: String -> Driver ()
-cfg2SwirlsScore' title = do
   tups <- cfg2SwirlsTups title (NE.fromList ["voice1"])
-  vess <- traverse swirlsTup2VEs' tups 
-  let clefs = pickInitialClef' <$> vess
-      vePrss = NE.zipWith splitStaves' clefs vess
-      voices = neZipWith3 genPolyVocs' (_stInstr <$> tups) (_stKey <$> tups) vePrss
+  vess <- traverse swirlsTup2VEs tups 
+  let clefs = pickInitialClef <$> vess
+      vePrss = NE.zipWith splitStaves clefs vess
+      voices = neZipWith3 genPolyVocs (_stInstr <$> tups) (_stKey <$> tups) vePrss
   writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
 
