@@ -355,25 +355,28 @@ genSwirl durs motifs scale (Range (start,stop)) = do
     f _ steps = error $ "invalid list of steps " <> show steps
     mkNote (p,o) d = Note p o d Staccatissimo NoDynamic  NoSwell False
 
-genSwirl' :: [Duration] -> [Int] -> Scale -> Range -> [Note]
-genSwirl' durs steps scale (Range (start,stop)) = do
+genSwirl' :: NE.NonEmpty Duration -> NE.NonEmpty (NE.NonEmpty Pitch) -> Scale -> Range -> Driver (NE.NonEmpty Note)
+genSwirl' durs motifs scale (Range (start,stop)) = do
+  steps <- randomizeList motifs' <&> concatMap genIntervalList
   let stepOrd = sum steps `compare` 0
       rangeOrd = swap stop `compare` swap start
       compareOp = if stepOrd == rangeOrd && stepOrd /= EQ
                   then if stepOrd == LT then (<=) else (>=)
                   else error $ "invalid step order " <> show stepOrd <> " compared with range order " <> show rangeOrd
       manySteps = concat $ repeat steps
-      manyDurs = concat $ repeat durs
-      pOs :: [(Pitch,Octave)] = unfoldr (f compareOp) (start,manySteps)
-  zipWith mkNote pOs manyDurs
+      manyDurs = NE.cycle durs
+      pOs :: NE.NonEmpty (Pitch,Octave) = NE.unfoldr (f compareOp) (start,manySteps)
+  pure $ NE.zipWith mkNote pOs manyDurs
   where
-    f cmp (prev,step:steps')
-      | swap next `cmp` swap stop = Nothing
-      | otherwise = Just (next, (next, steps'))
+    motifs' = map NE.toList $ NE.toList motifs
+    f cmp (prev,step1:step2:steps)
+      | swap nextnext `cmp` swap stop = (next, Nothing)
+      | otherwise = (next, Just (next, step2:steps))
       where
-        next = xp scale prev step
-    f _ steps' = error $ "invalid list of steps " <> show steps'
-    mkNote (p,o) d = Note p o d NoAccent NoDynamic NoSwell False
+        next = xp scale prev step1
+        nextnext = xp scale next step2
+    f _ steps = error $ "invalid list of steps " <> show steps
+    mkNote (p,o) d = Note p o d Staccatissimo NoDynamic  NoSwell False
 
 -- > gen <- getStdGen
 -- > liftIO (runReaderT (runDriver (notes >>= print)) (initEnv Y.Null (show gen)))
@@ -407,6 +410,10 @@ swirlsTup2VEs SwirlsTup{..} = do
   where
     dursl = NE.toList _stDurs
     pitssll = NE.toList . NE.map  NE.toList $ _stPitss
+    
+swirlsTup2VEs' :: SwirlsTup -> Driver (NE.NonEmpty VoiceEvent)
+swirlsTup2VEs' SwirlsTup{..} = 
+  genSwirl' _stDurs _stPitss _stScale (Range _stRange) <&> NE.map VeNote
 
 pickNoteClef :: Note -> Clef
 pickNoteClef Note{..}
@@ -503,7 +510,7 @@ cfg2SwirlsScore title = do
 cfg2SwirlsScore' :: String -> Driver ()
 cfg2SwirlsScore' title = do
   tups <- cfg2SwirlsTups title (NE.fromList ["voice1"])
-  vess <- traverse swirlsTup2VEs tups 
+  vess <- traverse swirlsTup2VEs' tups 
   let clefs = pickInitialClef' <$> vess
       vePrss = NE.zipWith splitStaves' clefs vess
       voices = neZipWith3 genPolyVocs' (_stInstr <$> tups) (_stKey <$> tups) vePrss
