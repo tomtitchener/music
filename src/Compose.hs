@@ -8,12 +8,15 @@ module Compose {--(cfg2Driver, genSwirl)--} where
 -- import Debug.Trace (trace)
 
 import Control.Monad (zipWithM)
-import Data.Foldable (fold)
+import Data.Foldable 
 import Data.Bifunctor (bimap)
+import Data.Function ((&))
 import Data.Functor ((<&>))
-import Data.List (zipWith4, groupBy)
+import Data.List (zipWith4, groupBy, findIndex)
 import qualified Data.List.NonEmpty as NE
+import Data.Maybe (fromMaybe)
 import Data.Semigroup (stimesMonoid)
+import Data.Sequence (adjust, fromList)
 import Data.Tuple (swap)
 import Data.Tuple.Extra (dupe, first)
 import GHC.Base (sconcat)
@@ -26,15 +29,6 @@ import Driver
       Driver )
 import Types
 import Utils
-    ( genNotes,
-      genNotesWithTies,
-      mtranspose,
-      normPitch,
-      neZipWith3,
-      neZipWith7,
-      rotNFor,
-      seqMTranspose,
-      xp)
 import Lily
 
 data MottoVoiceTup = MottoVoiceTup {_vtInstr :: Instrument
@@ -323,6 +317,13 @@ genIntervalList = reverse . snd . foldl f (0,[]) . (normPitch <$>)
   where
     f (p,l) x = (x, x - p:l)
 
+-- tbd: this picks a single permutation of the motifs then repeats it over and over
+-- so the voice moves pretty consistently and fairly rapidly in one direction until
+-- it reaches the target boundary
+-- if I change the rhythm to uniform eighth notes then I hear the repetitions clearly
+-- if I keep the odd count--as in 4 8 8 8 4 8 8 8--then it gets more regular, but
+-- the mismatch with the count of notes in the motifs keeps things off balance
+-- spread things out, maybe stringing together a series of shuffles of the motifs?
 genSwirl :: NE.NonEmpty Duration -> NE.NonEmpty (NE.NonEmpty Pitch) -> Scale -> Range -> Driver (NE.NonEmpty Note)
 genSwirl durs motifs scale (Range (start,stop)) = do
   steps <- randomizeList motifs' <&> concatMap genIntervalList
@@ -463,15 +464,45 @@ zipBAndBNotePrs n b = purgeWin . foldl foldf ((b,[]),([VeClef Treble],[VeClef Ba
        where
          win' = win <> [(cl', not')]
 
+-- to avoid cluttering score with repeats of the same dynamic, accent, 
+tagFirstNotes :: Note -> ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
+tagFirstNotes (Note _ _ _ acc dyn swell tie) = bimap tagFirstNote tagFirstNote
+  where
+    tagFirstNote ves = toList $ adjust tagNote idx $ fromList ves
+      where
+        idx = fromMaybe (error $ "tagFirstNote, no note in [VoiceEvent]: " <> show ves) $ findIndex isNote ves
+    tagNote (VeNote (Note p o d _ _ _ _)) = VeNote (Note p o d acc dyn swell tie)
+    tagNote ve = error $ "tagNote, VoiceEvent is not VeNote: " <> show ve
+    isNote VeNote {} = True
+    isNote _ = False
+
+-- targLen and vesLen are in 128th notes
+-- targLen is target length, vesLen is actual length
+mkTotDur :: Int -> Int -> ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
+mkTotDur targLen vesLen
+  | targLen == vesLen = id
+  | targLen > vesLen = bimap addLen addLen
+  | otherwise = error $ "mkTotDur programming error, targLen: " <> show targLen <> " < vesLen: " <> show vesLen
+  where
+    addend = DurationSum (targLen - vesLen)
+    addLen ves = ves ++ map (VeRest . flip Rest NoDynamic) (durSum2Durs addend)
+
+-- tbd: extend last bar by remaining beats, need to specify time signature, count bars 
 cfg2SwirlsScore :: String -> Driver ()
 cfg2SwirlsScore title = do
-  tups <- cfg2SwirlsTups title (NE.fromList ["voice1"])
+  let voicesNames = NE.fromList ["voice1","voice2"]
+      cntVoices = NE.length voicesNames
+  tups <- cfg2SwirlsTups title voicesNames
   notess <- traverse swirlsTup2Notes tups <&> NE.toList
   let bNotePrss :: [[(Bool,Note)]] = map notes2BNotePrs notess
       startClefs :: [Bool] = map (fst . head) bNotePrss
-      winLens :: [Int] = replicate (length startClefs) 5
-      vePrss = zipWith3 zipBAndBNotePrs winLens startClefs bNotePrss
-      vePrss' = NE.fromList (map (bimap NE.fromList NE.fromList) vePrss)
-      voices = neZipWith3 genPolyVocs (_stInstr <$> tups) (_stKey <$> tups) vePrss'
+      winLens :: [Int] = replicate cntVoices 5
+      veLens :: [Int] = map (sum . map (dur2DurVal . _noteDur . snd)) bNotePrss
+      noteTags = replicate cntVoices (Note C COct EDur NoAccent PPP NoSwell False)
+      voices = zipWith3 zipBAndBNotePrs winLens startClefs bNotePrss
+               & zipWith tagFirstNotes noteTags
+               & zipWith (mkTotDur (maximum veLens)) veLens
+               & NE.fromList . map (bimap NE.fromList NE.fromList)
+               & neZipWith3 genPolyVocs (_stInstr <$> tups) (_stKey <$> tups)
   writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
 

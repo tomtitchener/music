@@ -293,3 +293,24 @@ normPit2Clef clefs i =
       where
         measure :: (Int,Int) -> Double
         measure (lo,hi) = abs ((fromIntegral i - fromIntegral lo) / (fromIntegral hi - fromIntegral i)) - 1
+
+{--
+Compiles, maybe useful later on?
+
+sumVEDurs :: [VoiceEvent] -> Int
+sumVEDurs =  getDurSum . sumDurs . concatMap ve2DurSum
+
+ve2DurSum :: VoiceEvent -> [Duration]
+ve2DurSum (VeNote note)       = [_noteDur   note]
+ve2DurSum (VeRest rest)       = [_restDur   rest]
+ve2DurSum (VeSpacer spacer)   = [_spacerDur spacer]
+ve2DurSum (VeRhythm rhythm)   = [_rhythmDur rhythm]
+ve2DurSum (VeTuplet tuplet)   = [_tupDur    tuplet]
+ve2DurSum (VeChord chord)     = [_chordDur  chord]
+ve2DurSum (VeClef _)          = []
+ve2DurSum (VeTempo _)         = []
+ve2DurSum (VeKeySignature _)  = []
+ve2DurSum (VeTimeSignature _) = []
+ve2DurSum (VeTremolo (NoteTremolo note)) = [_noteDur note]
+ve2DurSum (VeTremolo (ChordTremolo leftChord _)) = [_chordDur leftChord]
+--}

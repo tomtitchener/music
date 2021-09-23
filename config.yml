@@ -69,3 +69,10 @@ example_swirls:
     pitss:   ((c,dis,e,d,cis,e),(c,g,d,a,dis,d),(cis,d,fis,a,e,f))
     durs:    (4,8,8,4,8,8,8)
     range:   ((c,-2),(c,2))
+  voice2:
+    instr:   acoustic grand
+    key:     c major
+    scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
+    pitss:   ((c,dis,e,d,cis,e),(c,g,d,a,dis,d),(cis,d,fis,a,e,f))
+    durs:    (4,8,8,8,4,8,8)
+    range:   ((c,-2),(c,2))
