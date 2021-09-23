@@ -12,6 +12,7 @@
 
 module Lily (ToLily(..)
             ,FromLily(..)
+            ,parseInt
             ,parsePitch
             ,parseInstrument
             ,parseDuration

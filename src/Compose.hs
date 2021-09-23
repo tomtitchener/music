@@ -350,6 +350,7 @@ genSwirl durs motifs scale (Range (start,stop)) = do
 data SwirlsTup = SwirlsTup {_stInstr :: Instrument
                            ,_stKey   :: KeySignature
                            ,_stScale :: Scale
+                           ,_stTime  :: TimeSignature
                            ,_stPitss :: NE.NonEmpty (NE.NonEmpty Pitch)
                            ,_stDurs  :: NE.NonEmpty Duration
                            ,_stRange :: ((Pitch,Octave),(Pitch,Octave))
@@ -361,6 +362,7 @@ cfg2SwirlsTup pre =
     <$> getConfigParam (pre <> ".instr")
     <*> getConfigParam (pre <> ".key")
     <*> getConfigParam (pre <> ".scale")
+    <*> getConfigParam (pre <> ".time")
     <*> getConfigParam (pre <> ".pitss")
     <*> getConfigParam (pre <> ".durs")
     <*> getConfigParam (pre <> ".range")
@@ -377,11 +379,12 @@ swirlsTup2Notes :: SwirlsTup -> Driver [Note]
 swirlsTup2Notes SwirlsTup{..} =
   genSwirl _stDurs _stPitss _stScale (Range _stRange) <&> NE.toList
 
-genPolyVocs :: Instrument -> KeySignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
-genPolyVocs instr keySig (treble,bass) = PolyVoice instr vess
+genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
+genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess
   where
-    vess = NE.fromList [veKeySig NE.<| treble, veKeySig NE.<| bass]
+    vess = NE.fromList [veKeySig NE.<| veTimeSig NE.<| treble, veKeySig NE.<| veTimeSig NE.<| bass]
     veKeySig = VeKeySignature keySig
+    veTimeSig = VeTimeSignature timeSig
 
 {--
 to test via ghci:
@@ -476,18 +479,27 @@ tagFirstNotes (Note _ _ _ acc dyn swell tie) = bimap tagFirstNote tagFirstNote
     isNote VeNote {} = True
     isNote _ = False
 
--- targLen and vesLen are in 128th notes
--- targLen is target length, vesLen is actual length
-mkTotDur :: Int -> Int -> ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
-mkTotDur targLen vesLen
-  | targLen == vesLen = id
-  | targLen > vesLen = bimap addLen addLen
-  | otherwise = error $ "mkTotDur programming error, targLen: " <> show targLen <> " < vesLen: " <> show vesLen
+-- tbd:  extend final measure to full measure with rests for both voices
+-- tbd:  adjust rests by bar location, to end of bar short -> long, from
+--       start of bar long -> short
+-- maxLen and vesLen are in 128th notes
+-- maxLen is target length, vesLen is actual length
+mkTotDur :: Int -> Int -> TimeSignature -> ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
+mkTotDur maxLen vesLen (TimeSignature _ _)
+  | maxLen == vesLen = id
+  | maxLen > vesLen = bimap (adjRests . addLen) (adjRests . addLen)
+  | otherwise = error $ "mkTotDur programming error, maxLen: " <> show maxLen <> " < vesLen: " <> show vesLen
   where
-    addend = DurationSum (targLen - vesLen)
-    addLen ves = ves ++ map (VeRest . flip Rest NoDynamic) (durSum2Durs addend)
+    addend = DurationSum (maxLen - vesLen)
+    addLen ves = ves ++ map spacerOrRest (durSum2Durs addend)
+      where
+        spacerOrRest = if isSpacer (last ves) then VeSpacer . flip Spacer NoDynamic else VeRest . flip Rest NoDynamic
+        isSpacer VeSpacer {} = True
+        isSpacer _ = False
+    adjRests = id
+mkTotDur _ _ ts = error $ "mkTotDur unsupported time signature: " <> show ts
 
--- tbd: extend last bar by remaining beats, need to specify time signature, count bars 
+-- tbd: extend last bar by remaining beats, need to specify time signature, count bars.
 cfg2SwirlsScore :: String -> Driver ()
 cfg2SwirlsScore title = do
   let voicesNames = NE.fromList ["voice1","voice2"]
@@ -501,8 +513,8 @@ cfg2SwirlsScore title = do
       noteTags = replicate cntVoices (Note C COct EDur NoAccent PPP NoSwell False)
       voices = zipWith3 zipBAndBNotePrs winLens startClefs bNotePrss
                & zipWith tagFirstNotes noteTags
-               & zipWith (mkTotDur (maximum veLens)) veLens
+               & zipWith3 (mkTotDur (maximum veLens)) veLens (NE.toList (_stTime <$> tups))
                & NE.fromList . map (bimap NE.fromList NE.fromList)
-               & neZipWith3 genPolyVocs (_stInstr <$> tups) (_stKey <$> tups)
+               & neZipWith4 genPolyVocs (_stInstr <$> tups) (_stKey <$> tups) (_stTime <$> tups)
   writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
 

@@ -2,6 +2,7 @@
 
 module Config (FromConfig(..)) where
 
+import Data.Functor ((<&>))
 import Text.Parsec
 import Text.Parsec.Number
 import Text.Parsec.String
@@ -22,6 +23,9 @@ instance FromConfig Instrument where
 
 instance FromConfig KeySignature where
   parseConfig = mkParseConfig pKeySignature
+
+instance FromConfig TimeSignature where
+  parseConfig = mkParseConfig pTimeSignature
 
 instance FromConfig Clef where
   parseConfig = mkParseConfig pClefStr
@@ -129,6 +133,12 @@ pModeStr = choice (zipWith mkParser modeStrs [Major .. Minor])
 
 pKeySignature :: Parser KeySignature
 pKeySignature = KeySignature <$> parsePitch <*> (spaces *> pModeStr)
+
+pTimeSignature :: Parser TimeSignature
+pTimeSignature = pIntDurPr <&> uncurry TimeSignature
+
+pIntDurPr :: Parser (Int,Duration)
+pIntDurPr = between (char '(') (char ')') ((,) <$> parseInt <*> (char ',' *> parseDuration))
 
 octaveInts :: [String]
 octaveInts = ["-4","-3","-2","-1","0","1","2","3"]

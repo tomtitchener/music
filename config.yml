@@ -61,10 +61,13 @@ example_arpeggios:
   dynss:     ((p,~,f,~),(f,~,p,~))
   slurss:    ((~,~,~,~),(~,~,~,~))
 
+# lilypond bug: last time signature wins, all piano-staff voices
+#               have that time signature
 example_swirls:
   voice1:
     instr:   acoustic grand
     key:     c major
+    time:    (4,4)
     scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
     pitss:   ((c,dis,e,d,cis,e),(c,g,d,a,dis,d),(cis,d,fis,a,e,f))
     durs:    (4,8,8,4,8,8,8)
@@ -72,6 +75,7 @@ example_swirls:
   voice2:
     instr:   acoustic grand
     key:     c major
+    time:    (4,4)
     scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
     pitss:   ((c,dis,e,d,cis,e),(c,g,d,a,dis,d),(cis,d,fis,a,e,f))
     durs:    (4,8,8,8,4,8,8)
