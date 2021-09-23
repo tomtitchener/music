@@ -479,23 +479,28 @@ tagFirstNotes (Note _ _ _ acc dyn swell tie) = bimap tagFirstNote tagFirstNote
     isNote VeNote {} = True
     isNote _ = False
 
+-- note: max len voice may need to extend to end of bar with rests, spacers in second voice
+--       other voice needs to catch up to that total
+--       compute remainder of bar to finish max len voice first, and create new val to replace maxLen
+--       for adjusting both voices'
+-- note: max len voice will just need to finish bar, other voice may need to finish two bars.
 -- tbd:  extend final measure to full measure with rests for both voices
 -- tbd:  adjust rests by bar location, to end of bar short -> long, from
 --       start of bar long -> short
 -- maxLen and vesLen are in 128th notes
 -- maxLen is target length, vesLen is actual length
 mkTotDur :: Int -> Int -> TimeSignature -> ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
-mkTotDur maxLen vesLen (TimeSignature _ _)
-  | maxLen == vesLen = id
-  | maxLen > vesLen = bimap (adjRests . addLen) (adjRests . addLen)
-  | otherwise = error $ "mkTotDur programming error, maxLen: " <> show maxLen <> " < vesLen: " <> show vesLen
+mkTotDur maxLen vesLen (TimeSignature num denom) =
+  bimap (adjRests . addLen) (adjRests . addLen)
   where
-    addend = DurationSum (maxLen - vesLen)
+    addend = DurationSum remRest -- (maxLen - vesLen)
     addLen ves = ves ++ map spacerOrRest (durSum2Durs addend)
       where
         spacerOrRest = if isSpacer (last ves) then VeSpacer . flip Spacer NoDynamic else VeRest . flip Rest NoDynamic
         isSpacer VeSpacer {} = True
         isSpacer _ = False
+    barDur = num * dur2DurVal denom
+    remRest = if maxLen > vesLen then (maxLen - vesLen) + (barDur - (maxLen `rem` barDur)) else barDur - (maxLen `rem` barDur)
     adjRests = id
 mkTotDur _ _ ts = error $ "mkTotDur unsupported time signature: " <> show ts
 
