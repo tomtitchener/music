@@ -479,32 +479,46 @@ tagFirstNotes (Note _ _ _ acc dyn swell tie) = bimap tagFirstNote tagFirstNote
     isNote VeNote {} = True
     isNote _ = False
 
--- note: max len voice may need to extend to end of bar with rests, spacers in second voice
---       other voice needs to catch up to that total
---       compute remainder of bar to finish max len voice first, and create new val to replace maxLen
---       for adjusting both voices'
--- note: max len voice will just need to finish bar, other voice may need to finish two bars.
--- tbd:  extend final measure to full measure with rests for both voices
--- tbd:  adjust rests by bar location, to end of bar short -> long, from
---       start of bar long -> short
 -- maxLen and vesLen are in 128th notes
--- maxLen is target length, vesLen is actual length
+-- maxLen is target length so all voices are equal length
+-- vesLen is actual length maybe same as maxLen
 mkTotDur :: Int -> Int -> TimeSignature -> ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
 mkTotDur maxLen vesLen (TimeSignature num denom) =
-  bimap (adjRests . addLen) (adjRests . addLen)
+  bimap addLenToVes addLenToVes
   where
-    addend = DurationSum remRest -- (maxLen - vesLen)
-    addLen ves = ves ++ map spacerOrRest (durSum2Durs addend)
+    numLen = dur2DurVal denom 
+    barLen = num * numLen
+    remBar = barLen - (maxLen `rem` barLen)
+    addLen = if maxLen > vesLen then (maxLen - vesLen) + remBar else remBar
+    addLenToVes ves = ves ++ map spacerOrRest (addEndDurs numLen barLen vesLen addLen)
       where
         spacerOrRest = if isSpacer (last ves) then VeSpacer . flip Spacer NoDynamic else VeRest . flip Rest NoDynamic
         isSpacer VeSpacer {} = True
         isSpacer _ = False
-    barDur = num * dur2DurVal denom
-    remRest = if maxLen > vesLen then (maxLen - vesLen) + (barDur - (maxLen `rem` barDur)) else barDur - (maxLen `rem` barDur)
-    adjRests = id
 mkTotDur _ _ ts = error $ "mkTotDur unsupported time signature: " <> show ts
 
--- tbd: extend last bar by remaining beats, need to specify time signature, count bars.
+-- Len vars are all in 128th notes
+-- numLen is length for beat (numerator from time signature)
+-- barLen is length of bar
+-- curLen is length of previous list of VoiceEvent to which we'll be adding rests or spacers
+-- addLen is length of rests or spacers to add
+-- answers list of durations for spacers or rests, taking position in beat and bar.
+addEndDurs :: Int -> Int -> Int -> Int -> [Duration]
+addEndDurs beatLen barLen curLen addLen =
+  accum curLen addLen []
+  where
+    accum :: Int -> Int -> [Duration] -> [Duration]
+    accum cur add acc
+      | cur < 0 || add < 0 = error $ "accum cur: " <> show cur <> " add: " <> show add
+      | add == 0 = acc
+      | beatLen /= remBeat  = accum (cur + remBeat) (add - remBeat) (acc ++ (reverse . durSum2Durs . DurationSum $ remBeat))
+      | barLen /= remBar   = accum (cur + remBar)  (add - remBar)  (acc ++ (durSum2Durs . DurationSum $ remBar))
+      | add >= barLen = accum (cur + barLen)  (add - barLen)  (acc ++ (reverse . durSum2Durs . DurationSum $ barLen))
+      | otherwise = error $ "accum programming error, cur: " <> show cur <> " addLen: " <> show addLen <> " add: " <> show add <> " acc: " <> show acc
+      where
+        remBeat = beatLen - (cur `rem` beatLen)
+        remBar =  barLen - (cur `rem` barLen)
+
 cfg2SwirlsScore :: String -> Driver ()
 cfg2SwirlsScore title = do
   let voicesNames = NE.fromList ["voice1","voice2"]
