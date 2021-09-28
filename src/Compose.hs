@@ -7,6 +7,7 @@ module Compose {--(cfg2Driver, genSwirl)--} where
 
 -- import Debug.Trace (trace)
 
+-- import Debug.Trace (trace)
 import Control.Monad (zipWithM)
 import Data.Foldable 
 import Data.Bifunctor (bimap)
@@ -529,7 +530,7 @@ cfg2SwirlsScore title = do
       startClefs :: [Bool] = map (fst . head) bNotePrss
       winLens :: [Int] = replicate cntVoices 5
       veLens :: [Int] = map (sum . map (dur2DurVal . _noteDur . snd)) bNotePrss
-      noteTags = replicate cntVoices (Note C COct EDur NoAccent PPP NoSwell False)
+      noteTags = replicate cntVoices (Note C COct EDur Staccatissimo PPP NoSwell False)
       voices = zipWith3 zipBAndBNotePrs winLens startClefs bNotePrss
                & zipWith tagFirstNotes noteTags
                & zipWith3 (mkTotDur (maximum veLens)) veLens (NE.toList (_stTime <$> tups))
@@ -537,3 +538,39 @@ cfg2SwirlsScore title = do
                & neZipWith4 genPolyVocs (_stInstr <$> tups) (_stKey <$> tups) (_stTime <$> tups)
   writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
 
+-- plan:
+-- how to generate shadow voices with sustained pitches selected from a model voice?
+-- take staccatissimo voice and two durations as input
+-- two durations specify length of sustained pitch and length of rest after sustained pitch
+-- starting with rest duration, wait at least that long for next new pitch that follows and
+-- generate a sustained pitch with that same note
+-- repeat until you run out of new notes.
+--
+-- recipe:
+-- after "traverse swirlsTup2Notes tups" replace "<&> NE.toList" with "<&> concatMap addGhostVoice . NE.toList
+-- where addGhostVoice has [Note] -> [[Note]] the input [Note] is paired with a new [Note] with a ghost voice
+--
+-- but ghost voices don't just contain a list of Note but but rather a list of Note or Rest, which complicates
+-- things
+-- need to replace all (Note,Bool) above with (NoteOrRest,Bool) and figure out about window buffering when
+-- computing clefs
+-- or considering if it's worth lifting Note to VoiceEvent which captures both Note and Rest which makes
+-- the routine more useful generally when it comes to scoring across a piano staff
+-- that changes type from
+--  (Duration,Duration) -> [Note] -> [[Note]] to
+--  (Duration,Duration) -> [Note] -> [[VoiceEvent]]
+{--
+addGhostVoice :: (Duration,Duration) -> [Note] -> [[Note]]
+addGhostVoice (waitDur, ghostDur) notes = [notes,snd $ foldl foldf ((True,False,waitCnt),[]) notes]
+  where
+    waitCnt = dur2DurVal waitDur
+    ghostCnt = dur2DurVal ghostDur
+    foldf :: ((Bool,Bool,Int),[Note]) -> Note -> ((Bool,Bool,cnt),[Note])
+    foldf ((True,False,cnt),notes) note@Note{..} = ((False,True,cnt),notes <> [])
+    foldf ((False,True,cnt),notes) note@Note{..} = ((True,False,cnt),ret)
+    foldf state _ = error $ "addGhostVoice programming error, state: " <> show state
+--}
+-- tbd: change Accent in Note, Rhythm, and Chord to NE.NonEmpty Accent, e.g.:  -! ->
+--      will require updates to Compose.hs and Utils.hs for Note ctor
+--      note lilypond accepts space separation will be easier to parse
+-- tbd: call 
