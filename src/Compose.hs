@@ -325,8 +325,8 @@ genIntervalList = reverse . snd . foldl f (0,[]) . (normPitch <$>)
 -- if I keep the odd count--as in 4 8 8 8 4 8 8 8--then it gets more regular, but
 -- the mismatch with the count of notes in the motifs keeps things off balance
 -- spread things out, maybe stringing together a series of shuffles of the motifs?
-genSwirl :: NE.NonEmpty Duration -> NE.NonEmpty (NE.NonEmpty Pitch) -> Scale -> Range -> Driver (NE.NonEmpty Note)
-genSwirl durs motifs scale (Range (start,stop)) = do
+genSwirl :: NE.NonEmpty Duration -> NE.NonEmpty Accent -> NE.NonEmpty (NE.NonEmpty Pitch) -> Scale -> Range -> Driver (NE.NonEmpty Note)
+genSwirl durs accts motifs scale (Range (start,stop)) = do
   steps <- randomizeList motifs' <&> concatMap genIntervalList
   let stepOrd = sum steps `compare` 0
       rangeOrd = swap stop `compare` swap start
@@ -334,9 +334,10 @@ genSwirl durs motifs scale (Range (start,stop)) = do
                   then if stepOrd == LT then (<=) else (>=)
                   else error $ "invalid step order " <> show stepOrd <> " compared with range order " <> show rangeOrd
       manySteps = concat $ repeat steps
+      manyAccts = NE.cycle accts
       manyDurs = NE.cycle durs
       pOs :: NE.NonEmpty (Pitch,Octave) = NE.unfoldr (f compareOp) (start,manySteps)
-  pure $ NE.zipWith mkNote pOs manyDurs
+  pure $ neZipWith3 mkNote pOs manyDurs manyAccts
   where
     motifs' = map NE.toList $ NE.toList motifs
     f cmp (prev,step1:step2:steps)
@@ -346,7 +347,7 @@ genSwirl durs motifs scale (Range (start,stop)) = do
         next = xp scale prev step1
         nextnext = xp scale next step2
     f _ steps = error $ "invalid list of steps " <> show steps
-    mkNote (p,o) d = Note p o d Staccatissimo NoDynamic  NoSwell False
+    mkNote (p,o) d a = Note p o d (NE.fromList [Staccatissimo,a]) NoDynamic  NoSwell False
 
 data SwirlsTup = SwirlsTup {_stInstr :: Instrument
                            ,_stKey   :: KeySignature
@@ -354,6 +355,7 @@ data SwirlsTup = SwirlsTup {_stInstr :: Instrument
                            ,_stTime  :: TimeSignature
                            ,_stPitss :: NE.NonEmpty (NE.NonEmpty Pitch)
                            ,_stDurs  :: NE.NonEmpty Duration
+                           ,_stAccts :: NE.NonEmpty Accent
                            ,_stRange :: ((Pitch,Octave),(Pitch,Octave))
                            } deriving Show
 
@@ -366,6 +368,7 @@ cfg2SwirlsTup pre =
     <*> getConfigParam (pre <> ".time")
     <*> getConfigParam (pre <> ".pitss")
     <*> getConfigParam (pre <> ".durs")
+    <*> getConfigParam (pre <> ".accents")
     <*> getConfigParam (pre <> ".range")
 
 cfg2SwirlsTups :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty SwirlsTup)
@@ -378,7 +381,7 @@ pickNoteClef Note{..}
 
 swirlsTup2Notes :: SwirlsTup -> Driver [Note]
 swirlsTup2Notes SwirlsTup{..} =
-  genSwirl _stDurs _stPitss _stScale (Range _stRange) <&> NE.toList
+  genSwirl _stDurs _stAccts _stPitss _stScale (Range _stRange) <&> NE.toList
 
 genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
 genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess
@@ -431,7 +434,7 @@ renderStaves n b = bimap f f . zipBAndBNotePrs n  b  . notes2BNotePrs . map mkNo
 
 -- testing only:
 mkNote' :: (Pitch,Octave) -> Note
-mkNote' (p,o) = Note p o EDur Staccatissimo NoDynamic  NoSwell False
+mkNote' (p,o) = Note p o EDur (singleton Staccatissimo) NoDynamic  NoSwell False
 
 notes2BNotePrs :: [Note] -> [(Bool,Note)]
 notes2BNotePrs = map (first ((Treble ==) . pickNoteClef) . dupe)
@@ -520,9 +523,18 @@ addEndDurs beatLen barLen curLen addLen =
         remBeat = beatLen - (cur `rem` beatLen)
         remBar =  barLen - (cur `rem` barLen)
 
+tagTempo :: Tempo -> NE.NonEmpty Voice -> NE.NonEmpty Voice
+tagTempo tempo (v1 NE.:| rest) = tagVoice v1 NE.:| rest
+  where
+    tagVoice ::  Voice -> Voice
+    tagVoice PitchedVoice{..} = PitchedVoice _ptvInstrument (VeTempo tempo NE.<| _ptvVoiceEvents)
+    tagVoice PercussionVoice{..} = PercussionVoice _pcvInstrument (VeTempo tempo NE.<| _pcvVoiceEvents)
+    tagVoice (PolyVoice instr (ves NE.:| vess)) = PolyVoice instr ((VeTempo tempo NE.<| ves) NE.:| vess)
+    tagVoice (VoiceGroup (v1' NE.:| r)) = VoiceGroup (tagVoice v1' NE.:| r)
+
 cfg2SwirlsScore :: String -> Driver ()
 cfg2SwirlsScore title = do
-  let voicesNames = NE.fromList ["voice1","voice2"]
+  let voicesNames = NE.fromList ["voice1","voice2","voice3"]
       cntVoices = NE.length voicesNames
   tups <- cfg2SwirlsTups title voicesNames
   notess <- traverse swirlsTup2Notes tups <&> NE.toList
@@ -530,12 +542,13 @@ cfg2SwirlsScore title = do
       startClefs :: [Bool] = map (fst . head) bNotePrss
       winLens :: [Int] = replicate cntVoices 5
       veLens :: [Int] = map (sum . map (dur2DurVal . _noteDur . snd)) bNotePrss
-      noteTags = replicate cntVoices (Note C COct EDur Staccatissimo PPP NoSwell False)
+      noteTags = replicate cntVoices (Note C COct EDur (singleton Staccatissimo) PPP NoSwell False)
       voices = zipWith3 zipBAndBNotePrs winLens startClefs bNotePrss
                & zipWith tagFirstNotes noteTags
                & zipWith3 (mkTotDur (maximum veLens)) veLens (NE.toList (_stTime <$> tups))
                & NE.fromList . map (bimap NE.fromList NE.fromList)
                & neZipWith4 genPolyVocs (_stInstr <$> tups) (_stKey <$> tups) (_stTime <$> tups)
+               & tagTempo (TempoDur QDur 220)
   writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
 
 -- plan:

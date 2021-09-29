@@ -72,10 +72,10 @@ data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FF
 data Swell = Crescendo | Decrescendo | Espressivo | SwellStop | NoSwell
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAcc :: Accent, _noteDyn :: Dynamic, _noteSwell :: Swell, _noteTie :: Bool }
+data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAccs :: NonEmpty Accent, _noteDyn :: Dynamic, _noteSwell :: Swell, _noteTie :: Bool }
   deriving (Eq, Ord, Show)
 
-data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAcc :: Accent, _rhythmDyn :: Dynamic, _rhythmSwell :: Swell }
+data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAccs :: NonEmpty Accent, _rhythmDyn :: Dynamic, _rhythmSwell :: Swell }
   deriving (Eq, Ord, Show)
 
 data Rest = Rest { _restDur :: Duration, _restDyn :: Dynamic }
@@ -87,7 +87,7 @@ data Spacer = Spacer { _spacerDur :: Duration, _spacerDyn :: Dynamic }
 data Tuplet = Tuplet { _tupNum :: Int, _tupDenom :: Int, _tupDur :: Duration, _tupNotes :: NonEmpty Note }
   deriving (Eq, Ord, Show)
 
-data Chord = Chord { _chordPitOctPairs :: NonEmpty (Pitch, Octave) , _chordDur :: Duration, _chordAcc :: Accent, _chordDyn :: Dynamic, _chordSwell :: Swell, _chordTie :: Bool }
+data Chord = Chord { _chordPitOctPairs :: NonEmpty (Pitch, Octave) , _chordDur :: Duration, _chordAccs :: NonEmpty Accent, _chordDyn :: Dynamic, _chordSwell :: Swell, _chordTie :: Bool }
   deriving (Eq, Ord, Show)
 
 data Clef = Bass8VB | Bass | Tenor | Alto | Treble | Treble8VA
@@ -178,10 +178,10 @@ data Instrument =
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 data Voice =
-  PitchedVoice { _svInstrument :: Instrument, _svVoiceEvents :: NonEmpty VoiceEvent }
-  | PercussionVoice { _pInstrument :: Instrument, _svVoiceEvents :: NonEmpty VoiceEvent }
-  | VoiceGroup { _vgVoices :: NonEmpty Voice }
-  | PolyVoice { _pvInstrument :: Instrument, _pvVoiceEvents :: NonEmpty (NonEmpty VoiceEvent) }
+  PitchedVoice      { _ptvInstrument :: Instrument, _ptvVoiceEvents :: NonEmpty VoiceEvent }
+  | PercussionVoice { _pcvInstrument :: Instrument, _pcvVoiceEvents :: NonEmpty VoiceEvent }
+  | PolyVoice       { _povInstrument :: Instrument, _povVoiceEvents :: NonEmpty (NonEmpty VoiceEvent) }
+  | VoiceGroup      { _vgVoices :: NonEmpty Voice }
   deriving (Eq, Ord, Show)
 
 data Score = Score { _scoreComment :: String, _scoreVoices :: NonEmpty Voice }

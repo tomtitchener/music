@@ -131,10 +131,13 @@ instance ToLily Accent where
   toLily = mkToLily "accent" accentVals accentSyms
 
 parseAccent :: Parser Accent
-parseAccent = choice (zipWith mkParser (init accentSyms) (init accentVals)) <|> pure NoAccent
+parseAccent = choice (zipWith mkParser (init accentSyms) (init accentVals))
 
 instance FromLily Accent  where
   parseLily = mkParseLily parseAccent
+
+parseAccents :: Parser (NE.NonEmpty Accent)
+parseAccents = NE.fromList <$> many1 parseAccent <|> pure (NE.fromList [NoAccent])
 
 -------------
 -- Dynamic --
@@ -179,10 +182,10 @@ instance FromLily Swell  where
 ----------
 
 instance ToLily Note where
-  toLily (Note pit oct dur acc dyn swell slr) = toLily pit <> toLily oct <> toLily dur <> toLily acc <> toLily dyn <> toLily swell <> if slr then "~" else ""
+  toLily (Note pit oct dur accs dyn swell slr) = toLily pit <> toLily oct <> toLily dur <> toLilyFromNEList accs <> toLily dyn <> toLily swell <> if slr then "~" else ""
 
 parseNote :: Parser Note
-parseNote = Note <$> parsePitch <*> parseOctave <*> parseDuration <*> parseAccent <*> parseDynamic <*> parseSwell <*> parseBool
+parseNote = Note <$> parsePitch <*> parseOctave <*> parseDuration <*> parseAccents <*> parseDynamic <*> parseSwell <*> parseBool
 
 instance FromLily Note  where
   parseLily = mkParseLily parseNote
@@ -192,10 +195,10 @@ instance FromLily Note  where
 ------------
 
 instance ToLily Rhythm where
-  toLily (Rhythm instr dur acc dyn swell) = instr  <> toLily dur <> toLily acc <> toLily dyn <> toLily swell
+  toLily (Rhythm instr dur accs dyn swell) = instr  <> toLily dur <> toLilyFromNEList accs <> toLily dyn <> toLily swell
 
 parseRhythm :: Parser Rhythm
-parseRhythm = Rhythm <$> manyTill anyChar eof <*> parseDuration <*> parseAccent <*> parseDynamic <*> parseSwell
+parseRhythm = Rhythm <$> manyTill anyChar eof <*> parseDuration <*> parseAccents <*> parseDynamic <*> parseSwell
 
 instance FromLily Rhythm  where
   parseLily = mkParseLily parseRhythm
@@ -253,7 +256,7 @@ pitchOctavePairsToLily :: NE.NonEmpty (Pitch,Octave) -> String
 pitchOctavePairsToLily = unwords . NE.toList . NE.map pitchOctavePairToLily
 
 instance ToLily Chord where
-  toLily (Chord prs dur acc dyn swell slr) = "<" <> pitchOctavePairsToLily prs <> ">" <> toLily dur <> toLily acc <> toLily dyn <> toLily swell <> if slr then "~" else ""
+  toLily (Chord prs dur accs dyn swell slr) = "<" <> pitchOctavePairsToLily prs <> ">" <> toLily dur <> toLilyFromNEList accs <> toLily dyn <> toLily swell <> if slr then "~" else ""
 
 parsePair :: Parser (Pitch,Octave)
 parsePair = (,) <$> parsePitch <*> parseOctave
@@ -262,7 +265,7 @@ parsePairs :: Parser (NE.NonEmpty (Pitch,Octave))
 parsePairs = NE.fromList <$> (parsePair `sepBy` spaces)
 
 parseChord :: Parser Chord
-parseChord = Chord <$> (string "<" *> parsePairs <* string ">") <*> parseDuration <*> parseAccent <*> parseDynamic <*> parseSwell <*> parseBool
+parseChord = Chord <$> (string "<" *> parsePairs <* string ">") <*> parseDuration <*> parseAccents <*> parseDynamic <*> parseSwell <*> parseBool
 
 instance FromLily Chord  where
   parseLily = mkParseLily parseChord
@@ -310,12 +313,12 @@ instance FromLily Tempo where
 -------------
 
 instance ToLily Tremolo where
-  toLily (NoteTremolo (Note pit oct dur acc dyn swell slr)) =
-    [str|\repeat tremolo $:reps$ {$toLily pit <> toLily oct <> toLily barring <> toLily acc <> toLily dyn <> toLily swell <> if slr then "~" else ""$}|]
+  toLily (NoteTremolo (Note pit oct dur accs dyn swell slr)) =
+    [str|\repeat tremolo $:reps$ {$toLily pit <> toLily oct <> toLily barring <> toLilyFromNEList accs  <> toLily dyn <> toLily swell <> if slr then "~" else ""$}|]
     where
       (reps,barring) = splitTremolo [dur] [SFDur, HTEDur]
   toLily (ChordTremolo (Chord prsL durL accL dynL swellL slrL) (Chord prsR durR accR dynR swellR slrR)) =
-    [str|\repeat tremolo $:reps$ {<$prs2Lily prsL$>$toLily barring <> toLily accL <> toLily dynL <> toLily swellL <> if slrL then "~" else ""$ <$prs2Lily prsR$>$toLily barring <> toLily accR <> toLily dynR <> toLily swellR <> if slrR then "~" else ""$}|]
+    [str|\repeat tremolo $:reps$ {<$prs2Lily prsL$>$toLily barring <> toLilyFromNEList accL <> toLily dynL <> toLily swellL <> if slrL then "~" else ""$ <$prs2Lily prsR$>$toLily barring <> toLilyFromNEList accR <> toLily dynR <> toLily swellR <> if slrR then "~" else ""$}|]
     where
       (reps,barring) = splitTremolo [durL,durR] [SFDur, HTEDur]
       pr2Lily (p,o) = toLily p <> toLily o
@@ -334,7 +337,7 @@ parseNoteTremolo :: Parser Tremolo
 parseNoteTremolo = do
     reps <- string "\\repeat tremolo" *> spaces *> parseInt
     Note{..} <- spaces *> string "{" *> parseNote <* string "}"
-    pure $ NoteTremolo (Note _notePit _noteOct (composedDur reps _noteDur) _noteAcc _noteDyn _noteSwell _noteTie)
+    pure $ NoteTremolo (Note _notePit _noteOct (composedDur reps _noteDur) _noteAccs _noteDyn _noteSwell _noteTie)
 
 parseChordTremolo :: Parser Tremolo
 parseChordTremolo = do
@@ -724,3 +727,7 @@ parseQuotedString = lexeme (char '\"' *> manyTill anyChar (char '\"'))
 
 parseQuotedIdentifier :: Parser String
 parseQuotedIdentifier = between (symbol '"') (symbol '"') identifier
+
+toLilyFromNEList :: ToLily a => NE.NonEmpty a -> String
+toLilyFromNEList = concat . NE.toList . NE.map toLily
+

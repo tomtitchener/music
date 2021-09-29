@@ -71,6 +71,10 @@ durSum2Durs = unfoldr f
         d = durVal2Duration M.! v
         ds = DurationSum (i - v)
 
+-- Why doesn't NonEmpty expose this?
+singleton :: a -> NE.NonEmpty a
+singleton a = a NE.:| []
+
 transpose :: Scale -> (Pitch,Octave) -> [Int] -> [(Pitch,Octave)]
 transpose scale pr = map (xp scale pr) . scanl1 (+)
 
@@ -131,7 +135,7 @@ genNotes :: [Maybe (Pitch,Octave)] -> [Duration] -> [Accent] -> [Dynamic] -> [Vo
 genNotes = zipWith4 f
   where
     f Nothing du _ dy = VeRest $ Rest du dy
-    f (Just (p,o)) du a dy = VeNote (Note p o du a dy NoSwell False)
+    f (Just (p,o)) du a dy = VeNote (Note p o du (singleton a) dy NoSwell False)
 
 genNotess :: [[Maybe (Pitch,Octave)]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> [[VoiceEvent]]
 genNotess = zipWith4 genNotes
@@ -140,7 +144,7 @@ genNotesWithTies :: NE.NonEmpty (Maybe (Pitch,Octave)) -> NE.NonEmpty Duration -
 genNotesWithTies = neZipWith5 f
   where
     f Nothing du _ dy _ = VeRest $ Rest du dy
-    f (Just (p,o)) du a dy sl = VeNote $ Note p o du a dy NoSwell sl
+    f (Just (p,o)) du a dy sl = VeNote $ Note p o du (singleton a) dy NoSwell sl
 
 -- partial, panic on empty list
 -- rotate a list forward by 1 step

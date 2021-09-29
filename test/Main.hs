@@ -104,7 +104,8 @@ instance Arbitrary Octave where
   shrink = genericShrink
 
 instance Arbitrary Accent where
-  arbitrary = genericArbitrary
+  -- NoAccent makes extra space, fails parse
+  arbitrary = elements [Marcato .. Portato]
   shrink = genericShrink
 
 instance Arbitrary Dynamic where
@@ -148,6 +149,10 @@ fixedList n = resize n . listOf1
 listOfThree :: Gen a -> Gen [a]
 listOfThree = fixedList 3
 
+-- required for genericShrink in Arbitrary Note, Rest, and Chord
+instance Arbitrary (NE.NonEmpty Accent) where
+  arbitrary = genericArbitrary
+
 -- required for genericShrink in Arbitrary Chord
 instance Arbitrary (NE.NonEmpty (Pitch,Octave)) where
   arbitrary = genericArbitrary
@@ -161,8 +166,8 @@ instance Arbitrary Tuplet where
   arbitrary = do
     arbGtr :: Bool <- arbitrary --  > tuple num / denum, e.g. 1 vs. < 1, e.g. True => N + 1 / N, False => N / N + 1
     arbNum :: Int <- elements [3..7] -- tuples from [4 in the time of 3 | 3 in the time of 4 ..  7 in the time of 6 | 6 in the time of 7]
-    note <- Note <$> arbitrary <*> arbitrary <*> pure dur <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-    let notes = NE.fromList $ replicate arbNum note
+    note <- Note <$> arbitrary <*> arbitrary <*> pure dur <*> arbitrary <*> elements [Forte,Piano,FF,MF] <*> arbitrary <*> arbitrary
+    let notes = NE.fromList $ replicate arbNum note                      -- hack ^^ to force not NoDynamic ^^
     if arbGtr
     then pure $ Tuplet arbNum (arbNum - 1) dur notes
     else pure $ Tuplet (arbNum -1) arbNum dur notes
@@ -200,10 +205,10 @@ minVEvents :: NE.NonEmpty VoiceEvent
 minVEvents = VeClef Treble NE.:|
              [VeTempo (TempoDur QDur 120)
              ,VeTimeSignature (TimeSignature 4 QDur)
-             ,VeNote (Note C COct QDur Staccato Forte NoSwell False)
-             ,VeNote (Note G COct QDur NoAccent NoDynamic NoSwell False)
-             ,VeNote (Note C COct QDur NoAccent NoDynamic NoSwell False)
-             ,VeTremolo (NoteTremolo (Note C COct QDur NoAccent NoDynamic NoSwell False))]
+             ,VeNote (Note C COct QDur (NE.fromList [Marcato,Staccato]) NoDynamic NoSwell False)
+             ,VeNote (Note G COct QDur (NE.fromList [NoAccent]) Forte NoSwell False)
+             ,VeNote (Note C COct QDur (NE.fromList [NoAccent]) NoDynamic NoSwell False)
+             ,VeTremolo (NoteTremolo (Note C COct QDur (NE.fromList [NoAccent]) NoDynamic NoSwell False))]
 
 pitchedVoice :: Voice
 pitchedVoice = PitchedVoice AcousticGrand minVEvents
@@ -248,5 +253,3 @@ testLilypond path score = do
   (code, _, stderr) <- readProcessWithExitCode (home <> "/bin/lilypond") ["-s","-o","test", "test/"<>path] ""
   unless (ExitSuccess == code) (putStr $ "\n" <> stderr)
   assertEqual "lilypond exit code" ExitSuccess code
-
-
