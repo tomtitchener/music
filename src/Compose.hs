@@ -3,13 +3,10 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Compose {--(cfg2Driver, genSwirl)--} where
+module Compose (cfg2Driver, genSwirl) where
 
--- import Debug.Trace (trace)
-
--- import Debug.Trace (trace)
 import Control.Monad (zipWithM)
-import Data.Foldable 
+import Data.Foldable
 import Data.Bifunctor (bimap)
 import Data.Function ((&))
 import Data.Functor ((<&>))
@@ -30,7 +27,6 @@ import Driver
       Driver )
 import Types
 import Utils
-import Lily
 
 data MottoVoiceTup = MottoVoiceTup {_vtInstr :: Instrument
                                    ,_vtKey   :: KeySignature
@@ -349,14 +345,15 @@ genSwirl durs accts motifs scale (Range (start,stop)) = do
     f _ steps = error $ "invalid list of steps " <> show steps
     mkNote (p,o) d a = Note p o d (NE.fromList [Staccatissimo,a]) NoDynamic  NoSwell False
 
-data SwirlsTup = SwirlsTup {_stInstr :: Instrument
-                           ,_stKey   :: KeySignature
-                           ,_stScale :: Scale
-                           ,_stTime  :: TimeSignature
-                           ,_stPitss :: NE.NonEmpty (NE.NonEmpty Pitch)
-                           ,_stDurs  :: NE.NonEmpty Duration
-                           ,_stAccts :: NE.NonEmpty Accent
-                           ,_stRange :: ((Pitch,Octave),(Pitch,Octave))
+data SwirlsTup = SwirlsTup {_stInstr  :: Instrument
+                           ,_stKey    :: KeySignature
+                           ,_stScale  :: Scale
+                           ,_stTime   :: TimeSignature
+                           ,_stPitss  :: NE.NonEmpty (NE.NonEmpty Pitch)
+                           ,_stDurs   :: NE.NonEmpty Duration
+                           ,_stAccts  :: NE.NonEmpty Accent
+                           ,_stRange  :: ((Pitch,Octave),(Pitch,Octave))
+                           ,_stGhosts :: NE.NonEmpty (Int,Int)
                            } deriving Show
 
 cfg2SwirlsTup :: String -> Driver SwirlsTup
@@ -370,6 +367,7 @@ cfg2SwirlsTup pre =
     <*> getConfigParam (pre <> ".durs")
     <*> getConfigParam (pre <> ".accents")
     <*> getConfigParam (pre <> ".range")
+    <*> getConfigParam (pre <> ".ghosts")
 
 cfg2SwirlsTups :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty SwirlsTup)
 cfg2SwirlsTups = cfg2Tups cfg2SwirlsTup
@@ -419,7 +417,7 @@ test cases:
     renderStaves 4 False [(B,EightVBOct),(D,COct),(E,COct),(F,COct),(G,COct),(A,COct)]
     (" sp 8 sp 8 sp 8 sp 8 sp 8 sp 8"," b 8 d' 8 e' 8 f' 8 g' 8 a' 8")
 -}
-
+{-
 -- testing only:
 prNoteOrSpacer :: VoiceEvent -> String
 prNoteOrSpacer (VeSpacer (Spacer d _)) = "sp " <> toLily d
@@ -435,6 +433,7 @@ renderStaves n b = bimap f f . zipBAndBNotePrs n  b  . notes2BNotePrs . map mkNo
 -- testing only:
 mkNote' :: (Pitch,Octave) -> Note
 mkNote' (p,o) = Note p o EDur (singleton Staccatissimo) NoDynamic  NoSwell False
+-}
 
 notes2BNotePrs :: [Note] -> [(Bool,Note)]
 notes2BNotePrs = map (first ((Treble ==) . pickNoteClef) . dupe)
@@ -473,15 +472,56 @@ zipBAndBNotePrs n b = purgeWin . foldl foldf ((b,[]),([VeClef Treble],[VeClef Ba
 
 -- to avoid cluttering score with repeats of the same dynamic, accent, 
 tagFirstNotes :: Note -> ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
-tagFirstNotes (Note _ _ _ acc dyn swell tie) = bimap tagFirstNote tagFirstNote
+tagFirstNotes (Note _ _ _ acc dyn _ _) = bimap tagFirstNote tagFirstNote
   where
     tagFirstNote ves = toList $ adjust tagNote idx $ fromList ves
       where
         idx = fromMaybe (error $ "tagFirstNote, no note in [VoiceEvent]: " <> show ves) $ findIndex isNote ves
-    tagNote (VeNote (Note p o d _ _ _ _)) = VeNote (Note p o d acc dyn swell tie)
+    tagNote (VeNote (Note p o d _ _ swell tie)) = VeNote (Note p o d acc dyn swell tie)
     tagNote ve = error $ "tagNote, VoiceEvent is not VeNote: " <> show ve
     isNote VeNote {} = True
     isNote _ = False
+
+addGhostVoice :: [(Int,Int)] -> ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
+addGhostVoice (ipr:iprs) (treble,bass) = unzip ghostVePrs
+  where
+    ghostVePrs :: [(VoiceEvent,VoiceEvent)]
+    ghostVePrs = snd $ foldl foldf ((ipr,iprs,Nothing),[]) (zip treble bass)
+    foldf :: (((Int,Int),[(Int,Int)],Maybe (Pitch,Octave)),[(VoiceEvent,VoiceEvent)]) -> (VoiceEvent,VoiceEvent) -> (((Int,Int),[(Int,Int)],Maybe (Pitch,Octave)),[(VoiceEvent,VoiceEvent)])
+    -- done with initial ipr (== (0,0)), restart with new new ipr
+    foldf (((0,0),ipr':iprs',mPO),retVePrs) vePr =
+      foldf ((ipr',iprs',mPO),retVePrs) vePr
+    -- done with substituting rests (initial ipr == (0,n)) AND next vePr contains note in treble,
+    -- init new Maybe (Pitch,Octave) from treble and repeat
+    foldf (((0,n),iprs',Nothing),retVePrs) (ve1@(VeNote Note{..}),ve2@VeSpacer{}) =
+      foldf (((0,n),iprs',Just (_notePit, _noteOct)),retVePrs) (ve1,ve2)
+    -- done with substituting rests (initial ipr == (0,n)) AND next vePr contains note in bass,
+    -- init new Maybe (Pitch,Octave) from bass and repeat
+    foldf (((0,n),iprs',Nothing),retVePrs) (ve1@VeSpacer{},ve2@(VeNote Note{..})) =
+      foldf (((0,n),iprs',Just (_notePit, _noteOct)),retVePrs) (ve1,ve2)
+    --  actively subsituting note with (Just (p,o)) AND Note is in treble
+    foldf (((0,n),iprs',Just (p,o)),retVePrs) (VeNote note,ve2@(VeSpacer Spacer{})) =
+      (((0,n-1),iprs',Just (p,o)),retVePrs <> [(VeNote note {_notePit = p, _noteOct = o, _noteTie = True},ve2)])
+    --  actively subsituting note with (Just (p,o)) AND Note is in bass
+    foldf (((0,n),iprs',Just (p,o)),retVePrs) (ve1@(VeSpacer Spacer{}),VeNote note) =
+      (((0,n-1),iprs',Just (p,o)),retVePrs <> [(ve1,VeNote note {_notePit = p, _noteOct = o, _noteTie = True})])
+    --  actively subsituting note with (Just (p,o)) AND neither (Note,Spacer) nor (Spacer,Note)
+    --  echo with no change (including Rhythm, Rest, Tuplet, and Chord, which have Duration)
+    foldf (((0,n),iprs',Just (p,o)),retVePrs) (ve1,ve2) =
+      (((0,n),iprs',Just (p,o)),retVePrs <> [(ve1,ve2)])
+    -- non-zero count of rests AND next Note is in treble
+    -- swap rest for note, repeat spacer
+    foldf (((n,x),iprs',_),retVePrs) (VeNote Note{..},ve2@VeSpacer{}) =
+      (((n-1,x),iprs',Nothing),retVePrs <> [(VeRest (Rest _noteDur _noteDyn),ve2)])
+    -- non-zero count of rests AND next Note is in bass
+    -- swap rest for note, repeat spacer
+    foldf (((n,x),iprs',_),retVePrs) (ve1@VeSpacer{},VeNote Note{..}) =
+      (((n-1,x),iprs',Nothing),retVePrs <> [(ve1,VeRest (Rest _noteDur _noteDyn))])
+    -- non-zero count of rests AND neither (Note,Spacer) nor (Spacer,Note)
+    -- echo with no change
+    foldf (((n,x),iprs',_),retVePrs) (ve1,ve2) =
+      (((n,x),iprs',Nothing),retVePrs <> [(ve1,ve2)])
+addGhostVoice iPrs _ = error $ "addGhostVoice programming error, iprs: " <> show iPrs
 
 -- maxLen and vesLen are in 128th notes
 -- maxLen is target length so all voices are equal length
@@ -490,7 +530,7 @@ mkTotDur :: Int -> Int -> TimeSignature -> ([VoiceEvent],[VoiceEvent]) -> ([Voic
 mkTotDur maxLen vesLen (TimeSignature num denom) =
   bimap addLenToVes addLenToVes
   where
-    numLen = dur2DurVal denom 
+    numLen = dur2DurVal denom
     barLen = num * numLen
     remBar = barLen - (maxLen `rem` barLen)
     addLen = if maxLen > vesLen then (maxLen - vesLen) + remBar else remBar
@@ -538,52 +578,33 @@ cfg2SwirlsScore title = do
       cntVoices = NE.length voicesNames
   tups <- cfg2SwirlsTups title voicesNames
   notess <- traverse swirlsTup2Notes tups <&> NE.toList
-  let bNotePrss :: [[(Bool,Note)]] = map notes2BNotePrs notess
-      startClefs :: [Bool] = map (fst . head) bNotePrss
-      winLens :: [Int] = replicate cntVoices 5
-      veLens :: [Int] = map (sum . map (dur2DurVal . _noteDur . snd)) bNotePrss
-      noteTags = replicate cntVoices (Note C COct EDur (singleton Staccatissimo) PPP NoSwell False)
-      voices = zipWith3 zipBAndBNotePrs winLens startClefs bNotePrss
-               & zipWith tagFirstNotes noteTags
-               & zipWith3 (mkTotDur (maximum veLens)) veLens (NE.toList (_stTime <$> tups))
-               & NE.fromList . map (bimap NE.fromList NE.fromList)
-               & neZipWith4 genPolyVocs (_stInstr <$> tups) (_stKey <$> tups) (_stTime <$> tups)
-               & tagTempo (TempoDur QDur 220)
-  writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
-
--- plan:
--- how to generate shadow voices with sustained pitches selected from a model voice?
--- take staccatissimo voice and two durations as input
--- two durations specify length of sustained pitch and length of rest after sustained pitch
--- starting with rest duration, wait at least that long for next new pitch that follows and
--- generate a sustained pitch with that same note
--- repeat until you run out of new notes.
---
--- recipe:
--- after "traverse swirlsTup2Notes tups" replace "<&> NE.toList" with "<&> concatMap addGhostVoice . NE.toList
--- where addGhostVoice has [Note] -> [[Note]] the input [Note] is paired with a new [Note] with a ghost voice
---
--- but ghost voices don't just contain a list of Note but but rather a list of Note or Rest, which complicates
--- things
--- need to replace all (Note,Bool) above with (NoteOrRest,Bool) and figure out about window buffering when
--- computing clefs
--- or considering if it's worth lifting Note to VoiceEvent which captures both Note and Rest which makes
--- the routine more useful generally when it comes to scoring across a piano staff
--- that changes type from
---  (Duration,Duration) -> [Note] -> [[Note]] to
---  (Duration,Duration) -> [Note] -> [[VoiceEvent]]
-{--
-addGhostVoice :: (Duration,Duration) -> [Note] -> [[Note]]
-addGhostVoice (waitDur, ghostDur) notes = [notes,snd $ foldl foldf ((True,False,waitCnt),[]) notes]
+  let bNotePrss   = map notes2BNotePrs notess
+      startClefs  = map (fst . head) bNotePrss
+      winLens     = replicate cntVoices 5
+      veLens      = map (sum . map (dur2DurVal . _noteDur . snd)) bNotePrss
+      noteTags    = replicate cntVoices (Note C COct EDur (singleton Staccatissimo) PPP NoSwell False)
+      vePrss      = zipWith3 zipBAndBNotePrs winLens startClefs bNotePrss
+      voices      = pipeline noteTags veLens tups vePrss
+      ghostss     = map cycle $ nes2arrs (_stGhosts <$> tups)
+      ghostVePrss = zipWith3 zipBAndBNotePrs winLens startClefs bNotePrss & zipWith addGhostVoice ghostss
+      ghostVoices = pipeline noteTags veLens tups ghostVePrss
+  writeScore ("./" <> title <> ".ly") $ Score "no comment" (voices <> ghostVoices)
   where
-    waitCnt = dur2DurVal waitDur
-    ghostCnt = dur2DurVal ghostDur
-    foldf :: ((Bool,Bool,Int),[Note]) -> Note -> ((Bool,Bool,cnt),[Note])
-    foldf ((True,False,cnt),notes) note@Note{..} = ((False,True,cnt),notes <> [])
-    foldf ((False,True,cnt),notes) note@Note{..} = ((True,False,cnt),ret)
-    foldf state _ = error $ "addGhostVoice programming error, state: " <> show state
---}
--- tbd: change Accent in Note, Rhythm, and Chord to NE.NonEmpty Accent, e.g.:  -! ->
---      will require updates to Compose.hs and Utils.hs for Note ctor
---      note lilypond accepts space separation will be easier to parse
--- tbd: call 
+    pipeline :: [Note] -> [Int] -> NE.NonEmpty SwirlsTup -> [([VoiceEvent],[VoiceEvent])] -> NE.NonEmpty Voice
+    pipeline noteTags veLens tups vePrss =
+      zipWith tagFirstNotes noteTags vePrss
+      & zipWith3 (mkTotDur (maximum veLens)) veLens (NE.toList (_stTime <$> tups))
+      & NE.fromList . map (bimap NE.fromList NE.fromList)
+      & neZipWith4 genPolyVocs (_stInstr <$> tups) (_stKey <$> tups) (_stTime <$> tups)
+      & tagTempo (TempoDur QDur 220)
+
+-- issues:
+-- a) capturing clef separation for original voice in ghost voice can leave sustained pitches
+--    split between two clefs or just entirely in the wrong clef
+--    solve by consolidation pass that examines clef at start of Note and flips to other clef
+--    swapping Note/Spacer until note runs out or Spacer voice gets Note
+-- b) per-Note rest leads to silly sequence of rests
+--    solve as first pass by aggregating all rests into SumDuration and then blindly disaggregating
+--    in large-to-small order to see what that looks like in Lilypond
+--    if that's not good enough, decompose SumDuartion into a list of durations
+--    based on current location in bar (see where I already did this)

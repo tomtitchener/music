@@ -75,6 +75,12 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe Int))) where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty Bool)) where
   parseConfig = mkParseConfig (mkPss pTieStr)
 
+instance FromConfig (NE.NonEmpty (Int,Int)) where
+  parseConfig = mkParseConfig (mkPs pIntPr)
+  
+instance FromConfig (NE.NonEmpty (NE.NonEmpty (Int,Int))) where
+  parseConfig = mkParseConfig (mkPss pIntPr)
+  
 mkParseConfig :: Parser a -> String -> a
 mkParseConfig parser  = either (error . show) id . parse parser ""
 
@@ -139,6 +145,9 @@ pTimeSignature = pIntDurPr <&> uncurry TimeSignature
 
 pIntDurPr :: Parser (Int,Duration)
 pIntDurPr = between (char '(') (char ')') ((,) <$> parseInt <*> (char ',' *> parseDuration))
+
+pIntPr :: Parser (Int,Int)
+pIntPr = between (char '(') (char ')') ((,) <$> parseInt <*> (char ',' *> parseInt))
 
 octaveInts :: [String]
 octaveInts = ["-4","-3","-2","-1","0","1","2","3"]

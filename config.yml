@@ -73,6 +73,7 @@ example_swirls:
     durs:    (4,8,8,4,8,8,8)
     accents: (~,~,>,>,~,~,~,~)
     range:   ((c,-3),(c,3))
+    ghosts:  ((8,12),(3,10))
   voice2:
     instr:   acoustic grand
     key:     c major
@@ -82,6 +83,7 @@ example_swirls:
     durs:    (4,8,8,8,4,8,8)
     accents: (~,>,~,>,>,~)
     range:   ((c,-3),(c,3))
+    ghosts:  ((10,24),(9,10))
   voice3:
     instr:   acoustic grand
     key:     c major
@@ -91,3 +93,4 @@ example_swirls:
     durs:    (4,8,4,16,16,8,4)
     accents: (~,>,>,>,>,~,~,~)
     range:   ((c,-3),(c,3))
+    ghosts:  ((18,15),(9,10))
