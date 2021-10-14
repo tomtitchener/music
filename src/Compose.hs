@@ -445,50 +445,6 @@ genRRests addLen curLen (TimeSignature num denom) =
     dur2RightRest = Right . flip Rest NoDynamic
 genRRests _ _ ts = error $ "genRRests unsupported time signature: " <> show ts
 
--- is there a way to use alignNoteOrRestsDurations to make this easier
--- where aggregating Note and there's a matching Note at that point in the list,
--- would still still need to aggregate Duration for following n NoteOrRest and
--- even then, would result in [NoteOrRest] with series of Left Note because of
--- translation of durVal to [Duration]
--- and for list of Right Rest I'd need to map [NoteOrRest] into Rest with same Duration,
--- then alignNoteOrRestsDurations would do the trick
---
--- what if I could chunk [NoteOrRest] into [[NoteOrRest]] by [(Int,Int)] counts first?
--- or could be chunksOf :: [Int] -> [a] -> [[a]] where [(Int,Int)] gets mapped to [Int]
--- seems like it owuld be pretty easy to implement
---
--- then you alternate mapping first [a] to [Right Rest] and second [a] to [Left Note] or
--- [Right Rest] depending on first element
---
--- mapping of first [a] to [Right Rest] is easy because it's just swapping Left Note for Right Rest
---
--- mapping of second [a] to [Left Note] is a little harder because you have to first collect
--- aggregate duration, then ... uh oh ... the logic in alignNoteOrRestsDurations expects each
--- Note to be integral i.e. not tied to another Note ... but there's no way to accumulate all
--- the durations of [NoteOrRest] into a single Note because it might be longer than the longest
--- Duration
---
--- nonetheless, this is fundamentally a much simpler algorithm than the squashNoteOrRests
--- as it currently exists below
-
--- Order of (Int,Int) is (count to squash for rests,count to squash for notes)'
--- Only tricky bit is aggregation of rest duration:
---   * when first NoteOrRest of second half of [(NoteOrRest,NoteOrRest)] is a Note,
---     then we can immediately write out rests using restsVal for duration, followed
---     by writing out Notes for first half of [(NoteOrRest,NoteOrRest)]
---   * when first NoteOrRest of second half of [(NoteOrRest,NoteOrRest)] is a Rest,
---     then
-
--- (rests,notes) -> when first element of notes is a Left Note then
---  a) append [Right Rest] for sum of duration of rests in first half of ([NoteOrRest],[NoteOrRest)]
---  b) append [Left Note] with single Note with sum of duration for notes in second half of ([NoteOrRest],[NoteOrRest])
---  c) return ((curVal + restsVal + notesVal,0),ret <> as above)
---
--- (rests,notes) -> when first element of notes is a Right Rest then all of (rests,notes) becomes one
---                  long series of (Right Rest) which you don't want to emit until the next (rests,notes)
---                  so you can combine with the starting rests or possibly pend again if the first element
---                  in notes is a rest again.
--- a) return ((curVal,restsVal + notesVal),ret)
 squashNoteOrRests :: [(Int,Int)] -> TimeSignature -> [NoteOrRest] -> [NoteOrRest]
 squashNoteOrRests prs timeSig =
   flush . foldl foldlf ((0,0),[]) . chunkByPairCounts prs . map stripNotes
@@ -503,7 +459,8 @@ squashNoteOrRests prs timeSig =
                           + notesDurVal)
                         ,ret)
         notesRet note = ((curDurVal
-                          + prevRestsDurVal + restsDurVal
+                          + prevRestsDurVal
+                          + restsDurVal
                           + notesDurVal
                          ,0),
                          ret
@@ -514,59 +471,6 @@ squashNoteOrRests prs timeSig =
     firstNote (Left note:_) = Just note
     firstNote _             = Nothing
     nOrRs2DurVal nOrRs = sum $ map nOrR2DurVal nOrRs
-
-{--
--- Convert list of NoteOrRest into a list of NoteOrRest by consolidating rests and notes by pairs of counts
--- [(Int,Int)] : pair of counts,
---   first tells how many notes to group together as a single Right Rest with aggregated
---    duration of all input Notes
---   second tells how many notes to group together as a single Left Note with pitch/octave 
---     of first note and aggregated durations of all input Notes
--- TimeSignature : to tell how to group ties between notes and rests
--- Requires:  sum of Int in [(Int,Int)] is at least as big as length of [NoteOrRest].
-squashNoteOrRests :: [(Int,Int)] -> TimeSignature -> [NoteOrRest] -> [NoteOrRest]
-squashNoteOrRests prs timeSig =
-  flush . foldl foldlf ((0,0,Nothing,prs),[]) . map stripNotes
-  where
-    -- (curVal,durVal, : first two Ints are durations in counts of 128th notes: total duration, duration for this note or rest
-    -- Maybe NoteOrRest, is Just NoteOrRest when counting durations for note, Nothing when counting durations for Rest
-    -- ,[(Int,Int)]) list of count pairs, head of list is active counting down to (0,0) to advance
-    -- [Either Note Rest] is return value
-    flush :: ((Int,Int,Maybe NoteOrRest,[(Int,Int)]),[NoteOrRest]) -> [NoteOrRest]
-    flush ((curVal,durVal,Just (Left note),_),ret) = ret <> genLNotes durVal curVal timeSig note
-    flush ((curVal,durVal,_,_),ret) = ret <> genRRests durVal curVal timeSig
-    -- fold over NoteOrRest for each (Int,Int) combining Rests or Notes
-    foldlf :: ((Int,Int,Maybe NoteOrRest,[(Int,Int)]),[NoteOrRest]) -> NoteOrRest -> ((Int,Int,Maybe NoteOrRest,[(Int,Int)]),[NoteOrRest])
-    -- init - starting to count through rests, no pending note
-    foldlf ((0,0,Nothing,(rCnt,nCnt):intPrs),ret) nOrR =
-      ((0,nOrR2DurVal nOrR,Nothing,(rCnt - 1,nCnt):intPrs),ret)
-    -- done counting through rests, starting to count through note or rests
-    -- special case:  next NoteOrRest is Rest, means keep accumulating rests
-    foldlf ((curVal,durVal,Nothing,(0,nCnt):intPrs),ret) (Right rest) =
-      ((curVal,durVal + nOrR2DurVal (Right rest),Just (Right rest),(0,nCnt - 1):intPrs),ret)
-    foldlf ((curVal,durVal,Nothing,(0,nCnt):intPrs),ret) (Left note) =
-      ((curVal + durVal,nOrR2DurVal (Left note),Just (Left note),(0,nCnt - 1):intPrs),ret <> genRRests durVal curVal timeSig)
-    -- done counting through note or rests, starting to count through rests
-    foldlf ((curVal,durVal,Just (Left note'),(0,0):intPrs),ret) (Left note) =
-      ((curVal + durVal,nOrR2DurVal (Left note),Nothing,tail intPrs),ret <> genLNotes durVal curVal timeSig note')
-    -- special case:  previous NoteOrRest was Rest, means keep accumulating rests
-    foldlf ((curVal,durVal,Just (Right _),(0,0):intPrs),ret) (Left note) =
-      ((curVal,durVal + nOrR2DurVal (Left note),Nothing,tail intPrs),ret)
-    foldlf ((curVal,durVal,Just (Left note'),(0,0):intPrs),ret) (Right rest) =
-      ((curVal + durVal,nOrR2DurVal (Right rest),Nothing,tail intPrs),ret <> genLNotes durVal curVal timeSig note')
-    -- special case:  previous NoteOrRest was Rest, means keep accumulating rests
-    foldlf ((curVal,durVal,Just (Right _),(0,0):intPrs),ret) (Right rest) =
-      ((curVal,durVal + nOrR2DurVal (Right rest),Nothing,tail intPrs),ret)
-    -- continuing to count through notes
-    foldlf ((curVal,durVal,Just noteOrRest,(0,nCnt):intPrs),ret) nOrR =
-      ((curVal,durVal + nOrR2DurVal nOrR,Just noteOrRest,(0,nCnt - 1):intPrs),ret)
-    -- continuing to count through rests
-    foldlf ((curVal,durVal,Nothing,(rCnt,nCnt):intPrs),ret) nOrR =
-      ((curVal,durVal + nOrR2DurVal nOrR,Nothing,(rCnt - 1,nCnt):intPrs),ret)
-    -- pattern catcher
-    foldlf vals _ =
-      error $ "squashNoteOrRests unexpected pattern: " <> show vals
---}
 
 nOrR2DurVal :: NoteOrRest -> Int
 nOrR2DurVal (Left Note{..}) = dur2DurVal _noteDur
@@ -615,10 +519,11 @@ cfg2SwirlsScore title = do
       cntVoices = NE.length voicesNames
   tups <- cfg2SwirlsTups title voicesNames
   noteOrRestss <- traverse swirlsTup2NoteOrRests tups <&> NE.toList
-  let noteOrRestss' = zipWith alignNoteOrRestsDurations (NE.toList (_stTime <$> tups)) noteOrRestss
+  let -- regular voices, first apportion durations by position in beat and bar
       winLens       = replicate cntVoices 5 -- tbd: magic constant
-      veLens        = map (sum . map noteOrRest2DurVal) noteOrRestss'
-      vePrss        = zipWith splitNoteOrRests winLens noteOrRestss'
+      veLens        = map (sum . map noteOrRest2DurVal) noteOrRestss
+      rNoteOrRestss = zipWith alignNoteOrRestsDurations (NE.toList (_stTime <$> tups)) noteOrRestss
+      vePrss        = zipWith splitNoteOrRests winLens rNoteOrRestss
       noteTags      = replicate cntVoices (Note C COct EDur (singleton Staccatissimo) PPP NoSwell False)
       voices        = pipeline noteTags veLens tups vePrss
       -- ghost voices

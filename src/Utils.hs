@@ -362,26 +362,5 @@ chunkByPairCounts counts items = chunk counts items []
     chunk [] _ ret = ret
     chunk ((x,y):ns) as ret
       | x + y <= length as = chunk ns (drop (x + y) as) (ret <> [(take x as,take y (drop x as))])
-      | x     <= length as = chunk ns (drop x as)       (ret <> [splitAt x as])
-      | otherwise = chunk ns [] ret
-
-{--
-Compiles, maybe useful later on?
-
-sumVEDurs :: [VoiceEvent] -> Int
-sumVEDurs =  getDurSum . sumDurs . concatMap ve2DurSum
-
-ve2DurSum :: VoiceEvent -> [Duration]
-ve2DurSum (VeNote note)       = [_noteDur   note]
-ve2DurSum (VeRest rest)       = [_restDur   rest]
-ve2DurSum (VeSpacer spacer)   = [_spacerDur spacer]
-ve2DurSum (VeRhythm rhythm)   = [_rhythmDur rhythm]
-ve2DurSum (VeTuplet tuplet)   = [_tupDur    tuplet]
-ve2DurSum (VeChord chord)     = [_chordDur  chord]
-ve2DurSum (VeClef _)          = []
-ve2DurSum (VeTempo _)         = []
-ve2DurSum (VeKeySignature _)  = []
-ve2DurSum (VeTimeSignature _) = []
-ve2DurSum (VeTremolo (NoteTremolo note)) = [_noteDur note]
-ve2DurSum (VeTremolo (ChordTremolo leftChord _)) = [_chordDur leftChord]
---}
+      | x     <= length as = ret <> [splitAt x as]
+      | otherwise          = ret <> [(as,[])]
