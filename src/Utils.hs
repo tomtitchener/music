@@ -71,6 +71,52 @@ durSum2Durs = unfoldr f
         d = durVal2Duration M.! v
         ds = DurationSum (i - v)
 
+-- Aggregation that takes time signature and current length into account
+-- Len vars are all in 128th notes
+-- beatLen is length for beat (numerator from time signature)
+-- barLen is length of bar
+-- curLen is length of previous list of VoiceEvent to which we'll be adding rests or spacers
+-- addLen is length of rests or spacers to add
+-- answers list of durations for spacers or rests, taking position in beat and bar.
+addEndDurs :: Int -> Int -> Int -> Int -> [Duration]
+addEndDurs beatLen barLen curLen addLen =
+  accum curLen addLen []
+  where
+    accum :: Int -> Int -> [Duration] -> [Duration]
+    accum cur add acc
+      | cur < 0 || add < 0 = error $ "accum cur: " <> show cur <> " add: " <> show add
+      | add == 0 = acc
+      | beatLen /= remBeat =
+          let nextCur = if add < remBeat then cur + add else cur + remBeat
+              nextAdd = if add < remBeat then 0 else add - remBeat
+              nextAcc = acc <> (reverse . durSum2Durs . DurationSum $ if add < remBeat then add else remBeat)
+          in
+            accum nextCur nextAdd nextAcc
+      | barLen /= remBar =
+          let nextCur = if add < remBar then cur + add else cur + remBar
+              nextAdd = if add < remBar then 0 else add - remBar
+              nextAcc = (acc <> (durSum2Durs . DurationSum $ if add < remBar then add else remBar))
+          in
+            accum nextCur nextAdd nextAcc
+      | add >= barLen =
+          let nextCur = cur + barLen
+              nextAdd = add - barLen
+              nextAcc = acc <> (reverse . durSum2Durs . DurationSum $ barLen)
+          in
+            accum nextCur nextAdd nextAcc
+      | add < barLen =
+          let nextCur = cur + add
+              nextAdd = 0
+              nextAcc = acc <> (durSum2Durs . DurationSum $ add)
+          in
+            accum nextCur nextAdd nextAcc
+      | otherwise = error $ "accum programming error, beatLen: " <> show beatLen <> " barLen: " <> show barLen <>
+                            " remBeat: " <> show remBeat <> " remBar: " <> show remBar <>
+                            " cur: " <> show cur <> " add: " <> show add <> " acc: " <> show acc
+      where
+        remBeat = beatLen - (cur `rem` beatLen)
+        remBar =  barLen - (cur `rem` barLen)
+
 -- Why doesn't NonEmpty expose this?
 singleton :: a -> NE.NonEmpty a
 singleton a = a NE.:| []
@@ -297,6 +343,27 @@ normPit2Clef clefs i =
       where
         measure :: (Int,Int) -> Double
         measure (lo,hi) = abs ((fromIntegral i - fromIntegral lo) / (fromIntegral hi - fromIntegral i)) - 1
+
+chunkByCounts :: [Int] -> [a] -> [[a]]
+chunkByCounts counts items = chunk counts items []
+  where
+    chunk :: [Int] -> [a] -> [[a]] -> [[a]]
+    chunk _ [] ret = ret
+    chunk [] _ ret = ret
+    chunk (n:ns) as ret
+      | length as <= n = ret <> [take n as]
+      | otherwise      = chunk ns (drop n as) (ret <> [take n as])
+
+chunkByPairCounts :: [(Int,Int)] -> [a] -> [([a],[a])]
+chunkByPairCounts counts items = chunk counts items []
+  where
+    chunk :: [(Int,Int)] -> [a] -> [([a],[a])] -> [([a],[a])]
+    chunk _ [] ret = ret
+    chunk [] _ ret = ret
+    chunk ((x,y):ns) as ret
+      | x + y <= length as = chunk ns (drop (x + y) as) (ret <> [(take x as,take y (drop x as))])
+      | x     <= length as = chunk ns (drop x as)       (ret <> [splitAt x as])
+      | otherwise = chunk ns [] ret
 
 {--
 Compiles, maybe useful later on?

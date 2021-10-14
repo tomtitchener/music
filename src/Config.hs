@@ -42,6 +42,9 @@ instance FromConfig Scale where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty Pitch)) where
   parseConfig = mkParseConfig (mkPss parsePitch)
 
+instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe Pitch))) where
+  parseConfig = mkParseConfig (mkPss pMPitch)
+
 instance FromConfig (NE.NonEmpty Accent) where
   parseConfig = mkParseConfig (mkPs pAccentStr)
 
@@ -130,6 +133,9 @@ int2Off i
 
 pMInt :: Parser (Maybe Int)
 pMInt = (Just . int2Off <$> int) <|> (char 'r' >> pure Nothing)
+
+pMPitch :: Parser (Maybe Pitch)
+pMPitch = (Just <$> parsePitch) <|> (char 'r' >> pure Nothing)
 
 modeStrs :: [String]
 modeStrs = ["major", "minor"]
