@@ -181,13 +181,14 @@ instance Arbitrary Tempo where
                     ,TempoRange <$> arbitrary <*> arbitrarySizedNatural <*> arbitrarySizedNatural
                     ]
 
--- required for genericShrink in Arbitrary TimeSignature
 instance Arbitrary (NE.NonEmpty Int) where
-  arbitrary = genericArbitrary
+  arbitrary = NE.fromList <$> listOfThree arbitrarySizedNatural
+  shrink = genericShrink
 
 instance Arbitrary TimeSignature where
-  arbitrary = TimeSignature <$> elements [1..10] <*> elements [WDur, HDur, QDur, EDur, SDur, SFDur, HTEDur]
-  shrink = genericShrink
+  arbitrary = oneof [TimeSignatureSimple <$> elements [1..10] <*> elements [WDur, HDur, QDur, EDur, SDur, SFDur, HTEDur]
+                    ,TimeSignatureGrouping <$> arbitrary <*> elements [1..10] <*> elements [WDur, HDur, QDur, EDur, SDur, SFDur, HTEDur]
+                    ]
 
 -- Duration can't be shorter than quarter note.  Two Durations in ChordTremolo should be the same.
 instance Arbitrary Tremolo where
@@ -204,7 +205,7 @@ instance Arbitrary Tremolo where
 minVEvents :: NE.NonEmpty VoiceEvent
 minVEvents = VeClef Treble NE.:|
              [VeTempo (TempoDur QDur 120)
-             ,VeTimeSignature (TimeSignature 4 QDur)
+             ,VeTimeSignature (TimeSignatureSimple 4 QDur)
              ,VeNote (Note C COct QDur (NE.fromList [Marcato,Staccato]) NoDynamic NoSwell False)
              ,VeNote (Note G COct QDur (NE.fromList [NoAccent]) Forte NoSwell False)
              ,VeNote (Note C COct QDur (NE.fromList [NoAccent]) NoDynamic NoSwell False)

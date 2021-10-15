@@ -71,6 +71,14 @@ durSum2Durs = unfoldr f
         d = durVal2Duration M.! v
         ds = DurationSum (i - v)
 
+addEndDurs :: TimeSignature -> Int -> Int -> [Duration]
+addEndDurs (TimeSignatureSimple numCnt denomDur) = addEndDurs' beatLen (numCnt * beatLen)
+  where
+    beatLen = dur2DurVal denomDur
+addEndDurs (TimeSignatureGrouping _ numCnt denomDur) = addEndDurs' beatLen (numCnt * beatLen)
+  where
+    beatLen = dur2DurVal denomDur
+
 -- Aggregation that takes time signature and current length into account
 -- Len vars are all in 128th notes
 -- beatLen is length for beat (numerator from time signature)
@@ -78,8 +86,9 @@ durSum2Durs = unfoldr f
 -- curLen is length of previous list of VoiceEvent to which we'll be adding rests or spacers
 -- addLen is length of rests or spacers to add
 -- answers list of durations for spacers or rests, taking position in beat and bar.
-addEndDurs :: Int -> Int -> Int -> Int -> [Duration]
-addEndDurs beatLen barLen curLen addLen =
+-- XXX need instance for grouped time signature here XXX
+addEndDurs' :: Int -> Int -> Int -> Int -> [Duration]
+addEndDurs' beatLen barLen curLen addLen =
   accum curLen addLen []
   where
     accum :: Int -> Int -> [Duration] -> [Duration]

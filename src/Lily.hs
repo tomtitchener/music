@@ -22,7 +22,6 @@ module Lily (ToLily(..)
             ) where
 
 import Control.Monad ( void )
-import Data.List ( intercalate )
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as M
 import Data.Maybe ( fromMaybe )
@@ -390,15 +389,15 @@ instance FromLily KeySignature where
 -------------------
 
 instance ToLily TimeSignature where
-  toLily (TimeSignature num denom) = "\\time " <> show num <> "/" <> toLily denom
-  toLily (TimeSignatureGrouping nums num denom) = "\\time #'(" <>  intercalate "," (map show (NE.toList nums)) <> ")"  <> " " <> show num <> "/" <> toLily denom
+  toLily (TimeSignatureSimple num denom) = "\\time " <> show num <> "/" <> toLily denom
+  toLily (TimeSignatureGrouping nums num denom) = "\\time #'(" <>  unwords (map show (NE.toList nums)) <> ")"  <> " " <> show num <> "/" <> toLily denom
 
 parseTimeSignature :: Parser TimeSignature
 parseTimeSignature = choice [try (TimeSignatureGrouping <$> (string "\\time #'" *> parseIntList) <*> parseInt  <*> (string "/" *> parseDuration))
-                            ,try (TimeSignature <$> (string "\\time " *> parseInt) <*> (string "/" *> parseDuration))]
+                            ,try (TimeSignatureSimple <$> (string "\\time " *> parseInt) <*> (string "/" *> parseDuration))]
 
 parseIntList :: Parser (NE.NonEmpty Int)
-parseIntList = NE.fromList <$> between (symbol '(') (symbol ')') (parseInt `sepBy` char ',')
+parseIntList = NE.fromList <$> between (symbol '(') (symbol ')') (parseInt `sepBy` char ' ')
 
 instance FromLily TimeSignature where
   parseLily = mkParseLily parseTimeSignature
@@ -652,6 +651,28 @@ instance FromLily Voice where
 -- Score --
 -----------
 
+{-- NB: adding ...
+
+  \context { \Score \remove "Timing_translator" \remove "Default_bar_line_engraver" }
+  \context { \Staff \consists "Timing_translator" \consists "Default_bar_line_engraver" }
+
+  ... to ...
+
+  "\score { \structure \layout { ... } }"
+
+... enables multiple time signatures per bar, sort of.
+
+But if count of beats per bar changes, e.g. 4/4 + 9/8, then you have to use something like
+proportional spacing to tell Lilypond how to make bar lines match up.  Otherwise you get
+truncated score or score with right hand side that runs off the display space.  Combinations
+that divide exactly work out ok like 4/4 and 2/4 or even 4/4 and 3/4.  Others "work" but
+look awful, like 4/4 and 5/4.  Others like 4/4 and 9/8 just don't work at all.
+
+Or I could just make TimeSignature an element of Score, have all voices use the global context,
+and remove teh two "\context" annotations above from the \score blob, below.
+
+--}
+
 instance ToLily Score where
   toLily (Score comment voices) =
     [str|% "$comment$"
@@ -661,7 +682,7 @@ instance ToLily Score where
         <<
         $mconcat (map toLily (NE.toList voices))$>>
         }
-        \score {\structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }
+        \score { \structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } \context { \Score \remove "Timing_translator" \remove "Default_bar_line_engraver" }  \context { \Staff \consists "Timing_translator" \consists "Default_bar_line_engraver" } } }
         \score { \unfoldRepeats \articulate \structure \midi {  } }
         |]
 

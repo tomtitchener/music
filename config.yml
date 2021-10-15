@@ -67,9 +67,9 @@ example_swirls:
   voice1:
     instr:   acoustic grand
     key:     c major
-    time:    (4,4)
+    time:    (9,8)
     scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
-    mpitss:  ((c,dis,dis,dis,e,d,r,cis,e),(c,g,d,d,a,dis,r,d),(cis,d,r,fis,a,r,e,f))
+    mpitss:  ((a,fis,e,b,d,dis,ais,g,g,ais),(c,g,d,d,a,dis,r,d),(f,g,a,dis,e,fis,c,b,r,b,r,b))
     durs:    (4,8,8,4,8,8,8)
     accents: (~,~,>,>,~,~,~,~)
     range:   ((c,-3),(c,3))
@@ -77,9 +77,9 @@ example_swirls:
   voice2:
     instr:   acoustic grand
     key:     c major
-    time:    (4,4)
+    time:    (9,8)
     scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
-    mpitss:  ((c,dis,dis,dis,e,d,r,cis,e),(c,g,d,d,a,dis,r,d),(cis,d,r,fis,a,r,e,f))
+    mpitss:  ((a,fis,e,b,d,dis,ais,g,g,ais),(c,g,d,d,a,dis,r,d),(f,g,a,dis,e,fis,c,b,r,b,r,b))
     durs:    (4,8,8,8,4,8,8)
     accents: (~,>,~,>,>,~)
     range:   ((c,-3),(c,3))
@@ -87,10 +87,11 @@ example_swirls:
   voice3:
     instr:   acoustic grand
     key:     c major
-    time:    (4,4)
+    time:    ((3,3,3),(9,8))
     scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
-    mpitss:  ((c,dis,dis,dis,e,d,r,cis,e),(c,g,d,d,a,dis,r,d),(cis,d,r,fis,a,r,e,f))
+    mpitss:  ((a,fis,e,b,d,dis,ais,g,g,ais),(c,g,d,d,a,dis,r,d),(f,g,a,dis,e,fis,c,b,r,b,r,b))
     durs:    (4,8,4,16,16,8,4)
     accents: (~,>,>,>,>,~,~,~)
     range:   ((c,-3),(c,3))
     ghosts:  ((3,7),(1,4))
+#   mpitss:  ((c,dis,dis,dis,e,d,r,cis,e),(c,g,d,d,a,dis,r,d),(cis,d,r,fis,a,r,e,f))

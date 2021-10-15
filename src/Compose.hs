@@ -402,19 +402,26 @@ tagFirstNotes (Note _ _ _ acc dyn _ _) = bimap tagFirstNote tagFirstNote
 -- maxLen is target length so all voices are equal length
 -- vesLen is actual length maybe same as maxLen
 mkTotDur :: Int -> Int -> TimeSignature -> ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
-mkTotDur maxLen vesLen (TimeSignature num denom) =
+mkTotDur maxLen vesLen timeSig =
   bimap addLenToVes addLenToVes
   where
-    beatLen = dur2DurVal denom
-    barLen  = num * beatLen
-    remBar  = barLen - (maxLen `rem` barLen)
+    beatLen = dur2DurVal (timeSig2Denom timeSig)
+    barLen  = timeSig2Num timeSig * beatLen
+    remBar  = if maxLen `rem` barLen == 0 then 0 else barLen - (maxLen `rem` barLen)
     addLen  = if maxLen > vesLen then (maxLen - vesLen) + remBar else remBar
-    addLenToVes ves = ves ++ map spacerOrRest (addEndDurs beatLen barLen vesLen addLen)
+    addLenToVes ves = ves ++ map spacerOrRest (addEndDurs timeSig vesLen addLen)
       where
         spacerOrRest = if isSpacer (last ves) then VeSpacer . flip Spacer NoDynamic else VeRest . flip Rest NoDynamic
         isSpacer VeSpacer {} = True
         isSpacer _ = False
-mkTotDur _ _ ts = error $ "mkTotDur unsupported time signature: " <> show ts
+
+timeSig2Num :: TimeSignature -> Int
+timeSig2Num TimeSignatureSimple{..} = _tsNum
+timeSig2Num TimeSignatureGrouping{..} = _tsgNum
+
+timeSig2Denom :: TimeSignature -> Duration
+timeSig2Denom TimeSignatureSimple{..} = _tsDenom
+timeSig2Denom TimeSignatureGrouping{..} = _tsgDenom
 
 tagTempo :: Tempo -> NE.NonEmpty Voice -> NE.NonEmpty Voice
 tagTempo tempo (v1 NE.:| rest) = tagVoice v1 NE.:| rest
@@ -426,24 +433,18 @@ tagTempo tempo (v1 NE.:| rest) = tagVoice v1 NE.:| rest
     tagVoice (VoiceGroup (v1' NE.:| r)) = VoiceGroup (tagVoice v1' NE.:| r)
 
 genLNotes :: Int -> Int -> TimeSignature -> Note -> [Either Note Rest]
-genLNotes addLen curLen (TimeSignature num denom) note =
+genLNotes addLen curLen timeSig note =
   map (dur2LeftNote True) (init durs) <> [dur2LeftNote False (last durs)]
   where
-    numLen = dur2DurVal denom
-    barLen = num * numLen
-    durs = addEndDurs numLen barLen curLen addLen
+    durs = addEndDurs timeSig curLen addLen
     dur2LeftNote tie dur = Left $ note { _noteDur = dur, _noteTie = tie }
-genLNotes _ _ ts _ = error $ "genLNotes unsupported time signature: " <> show ts
 
 genRRests :: Int -> Int -> TimeSignature -> [Either Note Rest]
-genRRests addLen curLen (TimeSignature num denom) =
+genRRests addLen curLen timeSig =
   map dur2RightRest durs
   where
-    numLen = dur2DurVal denom
-    barLen = num * numLen
-    durs = addEndDurs numLen barLen curLen addLen
+    durs = addEndDurs timeSig curLen addLen
     dur2RightRest = Right . flip Rest NoDynamic
-genRRests _ _ ts = error $ "genRRests unsupported time signature: " <> show ts
 
 squashNoteOrRests :: [(Int,Int)] -> TimeSignature -> [NoteOrRest] -> [NoteOrRest]
 squashNoteOrRests prs timeSig =
@@ -482,21 +483,21 @@ stripNotes (Left Note{..}) = Left $ Note _notePit _noteOct _noteDur (singleton N
 stripNotes (Right rest) = Right rest
 
 alignNoteOrRestsDurations :: TimeSignature -> [NoteOrRest] -> [NoteOrRest]
-alignNoteOrRestsDurations (TimeSignature num denom) =
+alignNoteOrRestsDurations timeSig =
   snd . foldl' foldlf (0,[]) . groupBy ((==) `on` isRight) 
   where
     foldlf (curLen,ret) allRests@((Right _):_) =
       (curLen + addLen,ret <> newRests)
       where
         addLen = sum $ map nOrR2DurVal allRests
-        newRests = map (Right . flip Rest NoDynamic) $ addEndDurs beatLen barLen curLen addLen
+        newRests = map (Right . flip Rest NoDynamic) $ addEndDurs timeSig curLen addLen
     foldlf (curLen,ret) allNotes@((Left _):_) =
       foldl' foldlf' (curLen,ret) allNotes
       where
         foldlf' (curLen',ret') (Left note@Note{..}) =
           (curLen' + addLen,ret' <> addTies newNotes)
           where
-            newNotes :: [NoteOrRest] = map (\dur -> Left (note { _noteDur = dur })) (addEndDurs beatLen barLen curLen' addLen)
+            newNotes :: [NoteOrRest] = map (\dur -> Left (note { _noteDur = dur })) (addEndDurs timeSig curLen' addLen)
             addLen = dur2DurVal _noteDur
             addTies :: [NoteOrRest] -> [NoteOrRest]
             addTies nOrRs
@@ -508,10 +509,6 @@ alignNoteOrRestsDurations (TimeSignature num denom) =
             addTie (Right _)   = error "alignNoteOrRestsDurations addTie unexpected rest"
         foldlf' (_,_) (Right rest) = error $ "alignNoteOrRestsDurations foldlf' unexpected Rest: " <> show rest
     foldlf (_,_) l = error $ "alignNoteOrRestsDurations unexpected list: " <> show l
-    beatLen = dur2DurVal denom
-    barLen  = num * beatLen
-alignNoteOrRestsDurations timeSig =
-  error $ "alignNoteOrRestsDurations unexpected TimeSignature " <> show timeSig
 
 cfg2SwirlsScore :: String -> Driver ()
 cfg2SwirlsScore title = do
@@ -547,8 +544,7 @@ noteOrRest2DurVal :: NoteOrRest -> Int
 noteOrRest2DurVal (Left Note{..}) = dur2DurVal _noteDur
 noteOrRest2DurVal (Right Rest{..}) = dur2DurVal _restDur
 
--- Run with 5 for winLen to wait for row of 5 Note with same clef to determine Treble vs. Bass
--- Or run with 1 for winLen for squashed notes?
+-- 5 for winLen to wait for row of 5 Note with same clef to determine treble vs. bass, 1 for winLen for squashed notes.
 splitNoteOrRests :: Int -> [NoteOrRest] -> ([VoiceEvent],[VoiceEvent])
 splitNoteOrRests winLen = flush . foldl' foldlf ((Nothing,[]),([VeClef Treble],[VeClef Bass])) . groupBy equalClefs
   where
@@ -590,7 +586,7 @@ splitNoteOrRests winLen = flush . foldl' foldlf ((Nothing,[]),([VeClef Treble],[
     equalClefs _          _        = False
 
 -- Musical things to fix:
--- 1) Effect of accumulation of sustained pitches doesn't build to
+-- a) Effect of accumulation of sustained pitches doesn't build to
 --    the sort of hazy background I had in mind, it's too sparse
 --    with 1-to-1 match of ghost voices with regular voices.
 

@@ -113,8 +113,8 @@ data Mode = Major | Minor
 data KeySignature = KeySignature { _kspit :: Pitch, _ksmode :: Mode }
   deriving (Eq, Ord, Show)
 
-data TimeSignature = TimeSignature { _tsNum :: Int, _tsDenom :: Duration }
-                   | TimeSignatureGrouping { _tsgGroups :: NonEmpty Int, tsgNum :: Int, tsgDenom :: Duration }
+data TimeSignature = TimeSignatureSimple { _tsNum :: Int, _tsDenom :: Duration }
+                   | TimeSignatureGrouping { _tsgGroups :: NonEmpty Int, _tsgNum :: Int, _tsgDenom :: Duration }
   deriving (Eq, Ord, Show)
 
 data VoiceEvent =

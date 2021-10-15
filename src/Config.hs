@@ -72,6 +72,12 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty Dynamic)) where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty Duration)) where
   parseConfig = mkParseConfig (mkPss parseDuration)
 
+instance FromConfig (NE.NonEmpty Int) where
+  parseConfig = mkParseConfig (mkPs parseInt)
+
+instance FromConfig (NE.NonEmpty (NE.NonEmpty Int)) where
+  parseConfig = mkParseConfig (mkPss parseInt)
+
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe Int))) where
   parseConfig = mkParseConfig (mkPss pMInt)
 
@@ -80,10 +86,10 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty Bool)) where
 
 instance FromConfig (NE.NonEmpty (Int,Int)) where
   parseConfig = mkParseConfig (mkPs pIntPr)
-  
+
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Int,Int))) where
   parseConfig = mkParseConfig (mkPss pIntPr)
-  
+
 mkParseConfig :: Parser a -> String -> a
 mkParseConfig parser  = either (error . show) id . parse parser ""
 
@@ -132,10 +138,10 @@ int2Off i
   | otherwise = i - 1
 
 pMInt :: Parser (Maybe Int)
-pMInt = (Just . int2Off <$> int) <|> (char 'r' >> pure Nothing)
+pMInt = Just . int2Off <$> int <|> (char 'r' >> pure Nothing)
 
 pMPitch :: Parser (Maybe Pitch)
-pMPitch = (Just <$> parsePitch) <|> (char 'r' >> pure Nothing)
+pMPitch = Just <$> parsePitch <|> (char 'r' >> pure Nothing)
 
 modeStrs :: [String]
 modeStrs = ["major", "minor"]
@@ -146,8 +152,17 @@ pModeStr = choice (zipWith mkParser modeStrs [Major .. Minor])
 pKeySignature :: Parser KeySignature
 pKeySignature = KeySignature <$> parsePitch <*> (spaces *> pModeStr)
 
+pTimeSignatureGrouping :: Parser TimeSignature
+pTimeSignatureGrouping = pIntsIntDurPr <&> \(groups,(num,denom)) -> TimeSignatureGrouping groups num denom
+
+pIntsIntDurPr :: Parser (NE.NonEmpty Int,(Int,Duration))
+pIntsIntDurPr = between (char '(') (char ')') ((,) <$> mkPs parseInt <*> (char ',' *> pIntDurPr))
+
+pTimeSig :: Parser TimeSignature
+pTimeSig = pIntDurPr <&> uncurry TimeSignatureSimple
+
 pTimeSignature :: Parser TimeSignature
-pTimeSignature = pIntDurPr <&> uncurry TimeSignature
+pTimeSignature = try pTimeSignatureGrouping <|> pTimeSig
 
 pIntDurPr :: Parser (Int,Duration)
 pIntDurPr = between (char '(') (char ')') ((,) <$> parseInt <*> (char ',' *> parseDuration))
