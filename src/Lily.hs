@@ -697,7 +697,7 @@ parseScore = Score <$> (string "% " *> parseQuotedString
                        <*> (NE.fromList <$> parseVoice `endBy` newline)
                        <* string [str|>>
                                      }
-                                     \score {\structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }
+                                     \score { \structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } \context { \Score \remove "Timing_translator" \remove "Default_bar_line_engraver" }  \context { \Staff \consists "Timing_translator" \consists "Default_bar_line_engraver" } } }
                                      \score { \unfoldRepeats \articulate \structure \midi {  } }
                                      |]
 
