@@ -1,4 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# OPTIONS_GHC -Wno-unused-local-binds #-}
 
 module Utils where
 
@@ -24,6 +26,8 @@ decrOct o = toEnum $ max (fromEnum o - 1) (fromEnum (minBound::Octave))
 -- in terms of 128ths, same order as Duration
 durVals :: [Int]
 durVals = [1, 2, 2 + 1, 4, 4 + 2, 8, 8 + 4, 16, 16 + 8, 32, 32 + 16, 64, 64 + 32, 128, 128 + 64]
+--       128,          32,       16,         8,          4,        half,        whole,
+--           64,
 
 durVal2Duration :: M.Map Int Duration
 durVal2Duration = M.fromList (zip durVals [HTEDur .. DWDur])
@@ -71,14 +75,6 @@ durSum2Durs = unfoldr f
         d = durVal2Duration M.! v
         ds = DurationSum (i - v)
 
-addEndDurs :: TimeSignature -> Int -> Int -> [Duration]
-addEndDurs (TimeSignatureSimple numCnt denomDur) = addEndDurs' beatLen (numCnt * beatLen)
-  where
-    beatLen = dur2DurVal denomDur
-addEndDurs (TimeSignatureGrouping _ numCnt denomDur) = addEndDurs' beatLen (numCnt * beatLen)
-  where
-    beatLen = dur2DurVal denomDur
-
 -- Aggregation that takes time signature and current length into account
 -- Len vars are all in 128th notes
 -- beatLen is length for beat (numerator from time signature)
@@ -86,9 +82,13 @@ addEndDurs (TimeSignatureGrouping _ numCnt denomDur) = addEndDurs' beatLen (numC
 -- curLen is length of previous list of VoiceEvent to which we'll be adding rests or spacers
 -- addLen is length of rests or spacers to add
 -- answers list of durations for spacers or rests, taking position in beat and bar.
--- XXX need instance for grouped time signature here XXX
-addEndDurs' :: Int -> Int -> Int -> Int -> [Duration]
-addEndDurs' beatLen barLen curLen addLen =
+-- tbd: take groupings within bar encoded in TimeSignatureGrouping into account,
+-- e.g. for (2,2,3) 7/8, full bar rests are quarter quarter dotted-quarter, and the same
+-- for a full-bar duration note, maybe treat the bar as though it contained three little
+-- bars, 2/8, 2/8, 3/8, trick would be for series of tied notes to tie between little bars
+-- (though that's a problem the caller has to solve)
+addEndDurs :: TimeSignature -> Int -> Int -> [Duration]
+addEndDurs (TimeSignatureSimple numCnt denomDur) curLen addLen =
   accum curLen addLen []
   where
     accum :: Int -> Int -> [Duration] -> [Duration]
@@ -125,6 +125,45 @@ addEndDurs' beatLen barLen curLen addLen =
       where
         remBeat = beatLen - (cur `rem` beatLen)
         remBar =  barLen - (cur `rem` barLen)
+    beatLen = dur2DurVal denomDur
+    barLen  = numCnt * beatLen
+-- Split grouped time signature into little internal bars by groupings.    
+addEndDurs (TimeSignatureGrouping groups numCnt denomDur) curLen addLen =
+  concatMap (uncurry3 addEndDurs) (firstTuple:endTuples)
+  where
+    firstTuple = (firstTimeSig,firstCurLen,firstAddLen)
+    endTuples = genTuples startIx startAddLen []
+    genTuples indx remAddLen ret
+      | remAddLen < 0  = error $ "genTuples remAddLen: " <> show remAddLen <> " < 0"
+      | remAddLen == 0 = ret
+      | otherwise = genTuples (wrapIx indx) remAddLen' (ret <> [(thisTimeSig,0,thisAddLen)])
+      where
+        thisTimeSig = groupTimeSigs !! indx
+        thisAddLen = if remAddLen - (groupLens !! indx) < 0 then remAddLen else groupLens !! indx
+        remAddLen' = if remAddLen - (groupLens !! indx) < 0 then 0 else remAddLen - (groupLens !! indx)
+    startIx = fromMaybe errMsg $ findIndex (> spillOver) groupSums
+      where
+        errMsg = error $ "addEndDurs findIndex groupSums: " <> show groupSums
+    wrapIx i = if i == length groups - 1 then 0 else 1 + i
+    firstTimeSig = groupTimeSigs !! startIx
+    firstCurLen = if startIx == 0 then spillOver else spillOver - (groupSums !! (startIx - 1))
+    firstAddLen = min addLen ((groupLens !! startIx) - firstCurLen)
+    startAddLen = max 0 (addLen - firstAddLen)
+    groupTimeSigs = map (`TimeSignatureSimple` denomDur) groups'
+    groupSums = scanl1 (+) groupLens
+    groupLens = map (beatLen *) groups'
+    spillOver = curLen `rem` barLen
+    beatLen = dur2DurVal denomDur
+    barLen  = numCnt * beatLen
+    groups' = NE.toList groups
+
+timeSig2Num :: TimeSignature -> Int
+timeSig2Num TimeSignatureSimple{..} = _tsNum
+timeSig2Num TimeSignatureGrouping{..} = _tsgNum
+
+timeSig2Denom :: TimeSignature -> Duration
+timeSig2Denom TimeSignatureSimple{..} = _tsDenom
+timeSig2Denom TimeSignatureGrouping{..} = _tsgDenom
 
 -- Why doesn't NonEmpty expose this?
 singleton :: a -> NE.NonEmpty a
@@ -373,3 +412,38 @@ chunkByPairCounts counts items = chunk counts items []
       | x + y <= length as = chunk ns (drop (x + y) as) (ret <> [(take x as,take y (drop x as))])
       | x     <= length as = ret <> [splitAt x as]
       | otherwise          = ret <> [(as,[])]
+
+{--
+addEndDurs (TimeSignatureGrouping groups numCnt denomDur) curLen addLen =
+  concatMap (uncurry3 addEndDurs) allTuples
+  where
+    endTuples = genTuples startIx startAddLen []
+    allTuples = trace
+                ("curLen: " <> show curLen <> " addLen: " <> show addLen <> " : " <> show (firstTuple:endTuples))
+                (firstTuple:endTuples)
+    genTuples indx remAddLen ret
+      | remAddLen < 0  = error $ "genTuples remAddLen: " <> show remAddLen <> " < 0"
+      | remAddLen == 0 = ret
+      | otherwise = genTuples (wrapIx indx) remAddLen' (ret <> [(thisTimeSig,0,thisAddLen)])
+      where
+        thisTimeSig = groupTimeSigs !! indx
+        thisAddLen = if remAddLen - (groupLens !! indx) < 0 then remAddLen else groupLens !! indx
+        remAddLen' = if remAddLen - (groupLens !! indx) < 0 then 0 else remAddLen - (groupLens !! indx)
+    wrapIx i = if i == length groups - 1 then 0 else 1 + i
+    firstTuple = (firstTimeSig,firstCurLen,firstAddLen)
+    firstTimeSig = groupTimeSigs !! startIx
+    firstCurLen = if startIx == 0 then spillOver else spillOver - (groupSums !! (startIx - 1))
+    firstAddLen = min addLen ((groupLens !! startIx) - firstCurLen)
+    startAddLen = if addLen - firstAddLen < 0 then 0 else addLen - firstAddLen
+    startIx = trace ("startIx spillOver: " <> show spillOver <> " groupSums: " <> show groupSums <> " findIndex: " <> show (findIndex (> spillOver) groupSums))
+                    (fromMaybe errMsg $ findIndex (> spillOver) groupSums)
+      where
+        errMsg = error $ "addEndDurs findIndex groupSums: " <> show groupSums
+    groupTimeSigs = map (`TimeSignatureSimple` denomDur) groups'
+    groupSums = scanl1 (+) groupLens
+    groupLens = map (beatLen *) groups'
+    spillOver = curLen `rem` barLen
+    beatLen = dur2DurVal denomDur
+    barLen  = numCnt * beatLen
+    groups' = NE.toList groups
+--}
