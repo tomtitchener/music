@@ -25,9 +25,9 @@ decrOct o = toEnum $ max (fromEnum o - 1) (fromEnum (minBound::Octave))
 
 -- in terms of 128ths, same order as Duration
 durVals :: [Int]
-durVals = [1, 2, 2 + 1, 4, 4 + 2, 8, 8 + 4, 16, 16 + 8, 32, 32 + 16, 64, 64 + 32, 128, 128 + 64]
---       128,          32,       16,         8,          4,        half,        whole,
---           64,
+durVals = [1,      2,     2 + 1,  4,     4 + 2,  8,    8 + 4, 16,   16 + 8, 32,   32 + 16, 64,   64 + 32, 128,  128 + 64]
+       --  HTEDur  SFDur  DSFDur  TSDur  DTSDur  SDur  DSDur  EDur  DEDur   QDur  DQDur    HDur  DHDur    WDur  DWDur
+       --  1/128   1/64   1/64.   1/32   1/32.   1/16  1/16.  1/8   1/8.    1/4   1/4.     1/2   1/2.     1     1.
 
 durVal2Duration :: M.Map Int Duration
 durVal2Duration = M.fromList (zip durVals [HTEDur .. DWDur])
@@ -93,7 +93,7 @@ addEndDurs (TimeSignatureSimple numCnt denomDur) curLen addLen =
   where
     accum :: Int -> Int -> [Duration] -> [Duration]
     accum cur add acc
-      | cur < 0 || add < 0 = error $ "accum cur: " <> show cur <> " add: " <> show add
+      | cur < 0 || add < 0 = error $ "accum cur: " <> show cur <> " add: " <> show add <> " acc: " <> show acc
       | add == 0 = acc
       | beatLen /= remBeat =
           let nextCur = if add < remBeat then cur + add else cur + remBeat
@@ -132,23 +132,26 @@ addEndDurs (TimeSignatureGrouping groups numCnt denomDur) curLen addLen =
   concatMap (uncurry3 addEndDurs) (firstTuple:endTuples)
   where
     firstTuple = (firstTimeSig,firstCurLen,firstAddLen)
-    endTuples = genTuples startIx startAddLen []
-    genTuples indx remAddLen ret
+    endTuples = genTuples (wrapIx firstIx) (addLen - firstAddLen) []
+    genTuples thisIndx remAddLen ret
       | remAddLen < 0  = error $ "genTuples remAddLen: " <> show remAddLen <> " < 0"
       | remAddLen == 0 = ret
-      | otherwise = genTuples (wrapIx indx) remAddLen' (ret <> [(thisTimeSig,0,thisAddLen)])
+      | otherwise      = genTuples nextIndx nextRemAddLen (ret <> [(thisTimeSig,0,thisAddLen)])
       where
-        thisTimeSig = groupTimeSigs !! indx
-        thisAddLen = if remAddLen - (groupLens !! indx) < 0 then remAddLen else groupLens !! indx
-        remAddLen' = if remAddLen - (groupLens !! indx) < 0 then 0 else remAddLen - (groupLens !! indx)
-    startIx = fromMaybe errMsg $ findIndex (> spillOver) groupSums
+        thisGroupLen  = groupLens !! thisIndx
+        thisTimeSig   = groupTimeSigs !! thisIndx
+        thisAddLen    = min remAddLen thisGroupLen
+        nextRemAddLen = max 0 (remAddLen - thisGroupLen)
+        nextIndx      = wrapIx thisIndx
+    wrapIx i = if i == length groups - 1 then 0 else 1 + i
+    firstIx = fromMaybe errMsg $ findIndex (> spillOver) groupSums
       where
         errMsg = error $ "addEndDurs findIndex groupSums: " <> show groupSums
-    wrapIx i = if i == length groups - 1 then 0 else 1 + i
-    firstTimeSig = groupTimeSigs !! startIx
-    firstCurLen = if startIx == 0 then spillOver else spillOver - (groupSums !! (startIx - 1))
-    firstAddLen = min addLen ((groupLens !! startIx) - firstCurLen)
-    startAddLen = max 0 (addLen - firstAddLen)
+    firstTimeSig  = groupTimeSigs !! firstIx
+    firstGroupSum = groupSums !! firstIx
+    firstGroupLen = groupLens !! firstIx
+    firstAddLen   = if 0 == spillOver then min addLen firstGroupLen else min addLen (firstGroupSum - spillOver)
+    firstCurLen   = if 0 == spillOver then 0 else firstGroupLen - firstAddLen
     groupTimeSigs = map (`TimeSignatureSimple` denomDur) groups'
     groupSums = scanl1 (+) groupLens
     groupLens = map (beatLen *) groups'
@@ -412,38 +415,3 @@ chunkByPairCounts counts items = chunk counts items []
       | x + y <= length as = chunk ns (drop (x + y) as) (ret <> [(take x as,take y (drop x as))])
       | x     <= length as = ret <> [splitAt x as]
       | otherwise          = ret <> [(as,[])]
-
-{--
-addEndDurs (TimeSignatureGrouping groups numCnt denomDur) curLen addLen =
-  concatMap (uncurry3 addEndDurs) allTuples
-  where
-    endTuples = genTuples startIx startAddLen []
-    allTuples = trace
-                ("curLen: " <> show curLen <> " addLen: " <> show addLen <> " : " <> show (firstTuple:endTuples))
-                (firstTuple:endTuples)
-    genTuples indx remAddLen ret
-      | remAddLen < 0  = error $ "genTuples remAddLen: " <> show remAddLen <> " < 0"
-      | remAddLen == 0 = ret
-      | otherwise = genTuples (wrapIx indx) remAddLen' (ret <> [(thisTimeSig,0,thisAddLen)])
-      where
-        thisTimeSig = groupTimeSigs !! indx
-        thisAddLen = if remAddLen - (groupLens !! indx) < 0 then remAddLen else groupLens !! indx
-        remAddLen' = if remAddLen - (groupLens !! indx) < 0 then 0 else remAddLen - (groupLens !! indx)
-    wrapIx i = if i == length groups - 1 then 0 else 1 + i
-    firstTuple = (firstTimeSig,firstCurLen,firstAddLen)
-    firstTimeSig = groupTimeSigs !! startIx
-    firstCurLen = if startIx == 0 then spillOver else spillOver - (groupSums !! (startIx - 1))
-    firstAddLen = min addLen ((groupLens !! startIx) - firstCurLen)
-    startAddLen = if addLen - firstAddLen < 0 then 0 else addLen - firstAddLen
-    startIx = trace ("startIx spillOver: " <> show spillOver <> " groupSums: " <> show groupSums <> " findIndex: " <> show (findIndex (> spillOver) groupSums))
-                    (fromMaybe errMsg $ findIndex (> spillOver) groupSums)
-      where
-        errMsg = error $ "addEndDurs findIndex groupSums: " <> show groupSums
-    groupTimeSigs = map (`TimeSignatureSimple` denomDur) groups'
-    groupSums = scanl1 (+) groupLens
-    groupLens = map (beatLen *) groups'
-    spillOver = curLen `rem` barLen
-    beatLen = dur2DurVal denomDur
-    barLen  = numCnt * beatLen
-    groups' = NE.toList groups
---}

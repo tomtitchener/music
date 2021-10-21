@@ -20,8 +20,6 @@ import Data.Tuple (swap)
 import GHC.Base (sconcat)
 import Safe (headMay)
 
--- import Debug.Trace
-
 import Driver
     ( getConfigParam,
       randomElements,
@@ -447,9 +445,7 @@ squashNoteOrRests prs timeSig =
     flush ((_,0),nOrRs)                   = nOrRs
     flush ((curDurVal,prevRestVal),nOrRs) = nOrRs <> genRRests prevRestVal curDurVal timeSig
     foldlf ((curDurVal,prevRestsDurVal),ret) (rests,notes) =
-      --trace
-      --("squashNoteOrRests rests: " <> show rests <> " notes: " <> show notes)
-        maybe restsRet notesRet $ mFirstNote notes
+      maybe restsRet notesRet $ mFirstNote notes
       where
         restsRet      = ((curDurVal
                          ,prevRestsDurVal
@@ -459,6 +455,7 @@ squashNoteOrRests prs timeSig =
         notesRet note = ((curDurVal
                           + prevRestsDurVal
                           + restsDurVal
+                          + notesDurVal
                          ,0),
                          ret
                          <> genRRests (prevRestsDurVal + restsDurVal) curDurVal timeSig
@@ -488,14 +485,16 @@ alignNoteOrRestsDurations timeSig =
       (curLen + addLen,ret <> newRests)
       where
         addLen = nOrRs2DurVal allRests
-        newRests = map (Right . flip Rest NoDynamic) $ addEndDurs timeSig curLen addLen
+        durs = addEndDurs timeSig curLen addLen
+        newRests = map (Right . flip Rest NoDynamic) durs
     foldlf (curLen,ret) allNotes@((Left _):_) =
       foldl' foldlf' (curLen,ret) allNotes
       where
         foldlf' (curLen',ret') (Left note@Note{..}) =
           (curLen' + addLen,ret' <> (stripAccents . addTies $ newNotes))
           where
-            newNotes = map (Left . setNoteDur note) (addEndDurs timeSig curLen' addLen)
+            durs = addEndDurs timeSig curLen' addLen
+            newNotes = map (Left . setNoteDur note) durs
             setNoteDur note' dur = note' { _noteDur = dur }
             addLen = dur2DurVal _noteDur
             addTies nOrRs 
