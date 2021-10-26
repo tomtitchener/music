@@ -235,7 +235,6 @@ cfg2ArpeggioVocTup pre =
     <*> getConfigParam (pre <> ".scale")
     <*> getConfigParam (pre <> ".ranges")
 
-
 cfg2Tups :: (String -> Driver a) -> String -> NE.NonEmpty String -> Driver (NE.NonEmpty a)
 cfg2Tups f title = traverse (\v -> f (title <> "." <> v))
 
@@ -515,6 +514,7 @@ cfg2SwirlsScore :: String -> Driver ()
 cfg2SwirlsScore title = do
   let voicesNames = NE.fromList ["voice1","voice2","voice3"]
       cntVoices = NE.length voicesNames
+  tempo <- getConfigParam (title <> ".global.tempo") <&> (\(i :: Int) -> TempoDur QDur $ fromIntegral i)
   tups <- cfg2SwirlsTups title voicesNames
   noteOrRestss <- traverse swirlsTup2NoteOrRests tups <&> NE.toList
   let -- regular voices, first apportion durations by position in beat and bar
@@ -523,23 +523,23 @@ cfg2SwirlsScore title = do
       rNoteOrRestss = zipWith alignNoteOrRestsDurations (NE.toList (_stTime <$> tups)) noteOrRestss
       vePrss        = zipWith splitNoteOrRests winLens rNoteOrRestss
       noteTags      = replicate cntVoices (Note C COct EDur (singleton Staccatissimo) PPP NoSwell False)
-      voices        = pipeline noteTags veLens tups vePrss
+      voices        = pipeline tempo noteTags veLens tups vePrss
       -- ghost voices
       timeSigs      = NE.toList (_stTime <$> tups)
       manyIntPrss   = map cycle (nes2arrs (_stGhosts <$> tups))
       gNoteOrRestss = zipWith3 squashNoteOrRests manyIntPrss timeSigs noteOrRestss
       gWinLens      = replicate cntVoices 1 -- tbd: magic constant
       gVePrss       = zipWith splitNoteOrRests gWinLens gNoteOrRestss
-      gVoices       = pipeline noteTags veLens tups gVePrss
+      gVoices       = pipeline tempo noteTags veLens tups gVePrss
   writeScore ("./" <> title <> ".ly") $ Score "no comment" (voices <> gVoices)
   where
-    pipeline :: [Note] -> [Int] -> NE.NonEmpty SwirlsTup -> [([VoiceEvent],[VoiceEvent])] -> NE.NonEmpty Voice
-    pipeline noteTags veLens tups vePrss =
+    pipeline :: Tempo -> [Note] -> [Int] -> NE.NonEmpty SwirlsTup -> [([VoiceEvent],[VoiceEvent])] -> NE.NonEmpty Voice
+    pipeline tempo noteTags veLens tups vePrss =
       zipWith tagFirstNotes noteTags vePrss
       & zipWith3 (mkTotDur (maximum veLens)) veLens (NE.toList (_stTime <$> tups))
       & NE.fromList . map (bimap NE.fromList NE.fromList)
       & neZipWith4 genPolyVocs (_stInstr <$> tups) (_stKey <$> tups) (_stTime <$> tups)
-      & tagTempo (TempoDur QDur 220)
+      & tagTempo tempo
 
 -- 5 for winLen to wait for row of 5 Note with same clef to determine treble vs. bass, 1 for winLen for squashed notes.
 splitNoteOrRests :: Int -> [NoteOrRest] -> ([VoiceEvent],[VoiceEvent])
