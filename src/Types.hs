@@ -186,4 +186,3 @@ data Voice =
 
 data Score = Score { _scoreComment :: String, _scoreVoices :: NonEmpty Voice }
   deriving (Eq, Ord, Show)
-

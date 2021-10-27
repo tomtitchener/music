@@ -335,16 +335,18 @@ splitTremolo durTot (dur:durs)
 parseNoteTremolo :: Parser Tremolo
 parseNoteTremolo = do
     reps <- string "\\repeat tremolo" *> spaces *> parseInt
-    Note{..} <- spaces *> string "{" *> parseNote <* string "}"
-    pure $ NoteTremolo (Note _notePit _noteOct (composedDur reps _noteDur) _noteAccs _noteDyn _noteSwell _noteTie)
+    note <- spaces *> string "{" *> parseNote <* string "}"
+    pure $ NoteTremolo note { _noteDur = composedDur reps (_noteDur note) } -- lens?
 
 parseChordTremolo :: Parser Tremolo
 parseChordTremolo = do
     reps <- string "\\repeat tremolo" *> spaces *> parseInt
-    Chord c1prs c1dur c1acc c1dyn c1swell c1slur <- spaces *> string "{" *> parseChord
-    Chord c2prs c2dur c2acc c2dyn c2swell c2slur <- spaces *> parseChord <* string "}"
-    pure $ ChordTremolo (Chord c1prs (composedDur reps c1dur) c1acc c1dyn c1swell c1slur) (Chord c2prs (composedDur reps c2dur) c2acc c2dyn c2swell c2slur)
-
+    chordOne <- spaces *> string "{" *> parseChord
+    chordTwo <- spaces *> parseChord <* string "}"
+    pure $ ChordTremolo (setChordDur reps chordOne) (setChordDur reps chordTwo)
+    where
+      setChordDur :: Int -> Chord -> Chord
+      setChordDur reps chord = chord { _chordDur = composedDur reps (_chordDur chord) } -- lens?
 parseTremolo :: Parser Tremolo
 parseTremolo = choice [try parseNoteTremolo, try parseChordTremolo]
 
