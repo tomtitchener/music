@@ -1,6 +1,6 @@
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NoImplicitPrelude   #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Main where
@@ -74,10 +74,10 @@ main =  do
 ---------
 
 exRandList :: Driver ()
-exRandList = randomizeList [C,D,E,F,G,A,B] >>= mapM_ print
+exRandList = randomizeList [C,D,E,F,G,A,B] >>= mapM_ printIt
 
 exRandElem :: Driver ()
-exRandElem = randomElement [C,D,E,F,G,A,B] >>= print
+exRandElem = randomElement [C,D,E,F,G,A,B] >>= printIt
 
 exRandElems :: Int -> Driver ()
-exRandElems n = randomElements [C,D,E,F,G,A,B] >>= print . take n
+exRandElems n = randomElements [C,D,E,F,G,A,B] >>= printIt . take n

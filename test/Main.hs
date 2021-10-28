@@ -1,42 +1,43 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE StandaloneDeriving  #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Main (
     main
   ) where
 
-import Control.Monad ( void, unless )
-import Control.Monad.IO.Class ( MonadIO(..) )
-import Control.Monad.Trans.Reader ( ReaderT(runReaderT) )
-import Data.Aeson ( Value(Null) )
+import Control.Monad (unless, void)
+import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Trans.Reader (ReaderT(runReaderT))
+import Data.Aeson (Value(Null))
 import qualified Data.List.NonEmpty as NE
-import GHC.Generics ( Generic )
-import System.Environment ( getEnv )
-import System.Exit ( ExitCode(ExitSuccess) )
-import System.Process ( readProcessWithExitCode )
-import System.Random ( getStdGen )
+import GHC.Generics (Generic)
+import System.Environment (getEnv)
+import System.Exit (ExitCode(ExitSuccess))
+import System.Process (readProcessWithExitCode)
+import System.Random (getStdGen)
 import Test.QuickCheck
-    ( arbitrarySizedNatural,
-      genericShrink,
-      elements,
-      listOf1,
-      oneof,
-      resize,
-      Arbitrary(..),
-      Gen )
-import Test.QuickCheck.Arbitrary.Generic ( genericArbitrary )
-import Test.Tasty ( defaultMain, testGroup, TestTree )
-import Test.Tasty.HUnit ( testCase, assertEqual, Assertion )
-import Test.Tasty.QuickCheck ( testProperty )
+       ( Arbitrary(..)
+       , Gen
+       , arbitrarySizedNatural
+       , elements
+       , genericShrink
+       , listOf1
+       , oneof
+       , resize
+       )
+import Test.QuickCheck.Arbitrary.Generic (genericArbitrary)
+import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty.HUnit (Assertion, assertEqual, testCase)
+import Test.Tasty.QuickCheck (testProperty)
 
-import Driver ( initEnv, runDriver, writeScore, Driver )
-import Lily ( FromLily(..), ToLily(..) )
+import Driver (Driver, initEnv, runDriver, writeScore)
+import Lily (FromLily(..), ToLily(..))
 import Types
-import Utils ( sumDurs, durSum2Durs )
+import Utils (durSum2Durs, sumDurs)
 
 main :: IO ()
 main = defaultMain tests

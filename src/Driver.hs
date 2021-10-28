@@ -1,28 +1,41 @@
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DeriveFunctor      #-}
+{-# LANGUAGE FlexibleContexts   #-}
+{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE GADTs              #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE RankNTypes         #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
-module Driver where
+module Driver (initEnv
+              ,runDriver
+              ,lookupConfig
+              ,lookupMConfig
+              ,writeScore
+              ,printLily
+              ,randomElement
+              ,randomWeightedElement
+              ,randomElements
+              ,randomizeList
+              ,getConfigParam
+              ,getMConfigParam
+              ,printIt
+              ,Driver
+              )where
 
-import Control.Lens ( preview )
-import Control.Monad.Free ( Free(..), liftF )
-import Control.Monad.Random.Class
-    ( MonadRandom(getRandomRs, getRandomR) )
-import Control.Monad.Reader ( MonadIO(..), MonadReader, asks )
-import Data.Aeson ( Value )
-import Data.Aeson.Lens ( key, AsPrimitive(_String) )
-import Data.List.Split ( splitOn )
+import Control.Lens (preview)
+import Control.Monad.Free (Free(..), liftF)
+import Control.Monad.Random.Class (MonadRandom(getRandomR, getRandomRs))
+import Control.Monad.Reader (MonadIO(..), MonadReader, asks)
+import Data.Aeson (Value)
+import Data.Aeson.Lens (AsPrimitive(_String), key)
+import Data.List.Split (splitOn)
 import qualified Data.Text as T
-import System.Random.Shuffle ( shuffleM )
+import System.Random.Shuffle (shuffleM)
 
-import Config ( FromConfig(..) )
-import Lily ( ToLily(..) )
-import Types ( Score(Score) )
-import Utils ( genByWeight )
+import Config (FromConfig(..))
+import Lily (ToLily(..))
+import Types (Score(Score))
+import Utils (genByWeight)
 
 data DriverEnv = DriverEnv {
      _config :: Value
@@ -38,10 +51,11 @@ data ActionNoValue where
   Print     :: String -> ActionNoValue
 
 data ActionWithValue a where
-  RandomElement  :: [b] -> ActionWithValue b
-  RandomElements :: [b] -> ActionWithValue [b]
-  RandomizeList  :: [b] -> ActionWithValue [b]
-  GetConfigParam :: FromConfig a => String -> ActionWithValue a
+  RandomElement   :: [b] -> ActionWithValue b
+  RandomElements  :: [b] -> ActionWithValue [b]
+  RandomizeList   :: [b] -> ActionWithValue [b]
+  GetConfigParam  :: FromConfig a => String -> ActionWithValue a
+  GetMConfigParam :: FromConfig a => String -> ActionWithValue (Maybe a)
 
 data DriverF next where
   DoAction       :: ActionNoValue -> next -> DriverF next
@@ -58,6 +72,7 @@ runDriver (Free (DoActionThen act k)) =
     RandomElements l    -> getRandomRs (0, length l - 1) >>= runDriver . k . map (l !!)
     RandomizeList  l    -> shuffleM l >>= runDriver . k
     GetConfigParam path -> asks (lookupConfig path . _config) >>= runDriver . k
+    GetMConfigParam path -> asks (lookupMConfig path . _config) >>= runDriver . k
 runDriver (Free (DoAction act k)) =
   case act of
     WriteScore fileName (Score c vs) -> asks _seed >>= (\s -> liftIO (writeFile fileName (toLily (Score (c <> " " <> s) vs))) *> runDriver k)
@@ -74,6 +89,11 @@ lookupConfig path config =
                path <> "\nin values:\n" <>
                show config
     Just txt -> parseConfig (T.unpack txt)
+
+lookupMConfig :: FromConfig a => String -> Value -> Maybe a
+lookupMConfig path config =
+  let segments = splitOn "." path
+  in parseConfig . T.unpack <$> preview (foldl1 (.) (map (key . T.pack) segments) . _String) config
 
 writeScore :: FilePath -> Score -> Driver ()
 writeScore fName s = liftF $ DoAction (WriteScore fName s) ()
@@ -96,8 +116,11 @@ randomizeList ls = liftF $ DoActionThen (RandomizeList ls) id
 getConfigParam :: (FromConfig a, Show a) => String -> Driver a
 getConfigParam path = liftF $ DoActionThen (GetConfigParam path) id
 
-print :: Show a => a -> Driver ()
-print s = liftF $ DoAction (Print (show s)) ()
+getMConfigParam :: (FromConfig a, Show a) => String -> Driver (Maybe a)
+getMConfigParam path = liftF $ DoActionThen (GetMConfigParam path) id
+
+printIt :: Show a => a -> Driver ()
+printIt s = liftF $ DoAction (Print (show s)) ()
 
 -- https://www.parsonsmatt.org/2017/09/22/what_does_free_buy_us.html
 

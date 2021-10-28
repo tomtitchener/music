@@ -1,16 +1,16 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 
 module Compose (cfg2Driver) where
 
 import Control.Lens hiding (pre)
 import Control.Monad (zipWithM)
-import Data.Foldable
 import Data.Either (isRight)
+import Data.Foldable
 import Data.Function (on)
-import Data.List (zipWith4, groupBy, findIndex)
+import Data.List (findIndex, groupBy, zipWith4)
 import qualified Data.List.NonEmpty as NE
 import Data.Maybe (fromMaybe)
 import Data.Semigroup (stimesMonoid)
@@ -20,13 +20,10 @@ import GHC.Base (sconcat)
 import Safe (headMay)
 
 import Driver
-    ( getConfigParam,
-      randomElements,
-      randomizeList,
-      writeScore,
-      Driver )
+       (Driver, getConfigParam, randomElements, randomizeList, writeScore)
 import Types
 import Utils
+
 
 data MottoVoiceTup = MottoVoiceTup {_vtInstr :: Instrument
                                    ,_vtKey   :: KeySignature
@@ -385,7 +382,7 @@ genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess
     veKeySig = VeKeySignature keySig
     veTimeSig = VeTimeSignature timeSig
 
--- to avoid cluttering score with repeats of the same dynamic, accent, 
+-- to avoid cluttering score with repeats of the same dynamic, accent,
 tagFirstNotes :: Note -> ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
 tagFirstNotes (Note _ _ _ acc dyn _ _) = bimap tagFirstNote tagFirstNote
   where
@@ -438,7 +435,7 @@ genRRests addLen curLen timeSig =
     durs = addEndDurs timeSig curLen addLen
     dur2RightRest = Right . flip Rest NoDynamic
 
--- tied notes have no accent, no dynamic, 
+-- tied notes have no accent, no dynamic,
 stripNoteOrRest :: Bool -> NoteOrRest -> NoteOrRest
 stripNoteOrRest tie (Left Note{..}) = Left $ Note _notePit _noteOct _noteDur (singleton NoAccent) NoDynamic NoSwell tie
 stripNoteOrRest _ (Right rest) = Right rest
@@ -556,7 +553,7 @@ splitNoteOrRests winLen =
     equalClefs (Left n1) (Left n2) = pickNoteClef n1 == pickNoteClef n2
     equalClefs (Right _) (Right _) = True
     equalClefs _          _        = False
-    
+
 cfg2SwirlsScore :: String -> Driver ()
 cfg2SwirlsScore title = do
   let voicesNames = NE.fromList ["voice1","voice2","voice3"]
@@ -569,7 +566,7 @@ cfg2SwirlsScore title = do
       -- regular voices, first apportion durations by position in beat and bar
       winLens       = replicate cntVoices 5 -- tbd: magic constant
       voices        = zipWith alignNoteOrRestsDurations (NE.toList (_stTime <$> tups)) noteOrRestss
-                      & pipeline tempo noteTags veLens tups winLens 
+                      & pipeline tempo noteTags veLens tups winLens
       -- ghost voices
       timeSigs      = NE.toList (_stTime <$> tups)
       manyIntPrss   = cycle <$> nes2arrs (_stGhosts <$> tups)
@@ -581,9 +578,9 @@ cfg2SwirlsScore title = do
     pipeline :: Tempo -> [Note] -> [Int] -> NE.NonEmpty SwirlsTup -> [Int] -> [[NoteOrRest]] -> NE.NonEmpty Voice
     pipeline tempo noteTags veLens tups winLens nOrRss =
       zipWith splitNoteOrRests winLens nOrRss
-      & zipWith tagFirstNotes noteTags 
+      & zipWith tagFirstNotes noteTags
       & zipWith3 (mkTotDur (maximum veLens)) veLens (NE.toList (_stTime <$> tups))
-      & NE.fromList . (<$>) (bimap NE.fromList NE.fromList) 
+      & NE.fromList . (<$>) (bimap NE.fromList NE.fromList)
       & neZipWith4 genPolyVocs (_stInstr <$> tups) (_stKey <$> tups) (_stTime <$> tups)
       & tagTempo tempo
 

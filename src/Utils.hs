@@ -127,7 +127,7 @@ addEndDurs (TimeSignatureSimple numCnt denomDur) curLen addLen =
         remBar =  barLen - (cur `rem` barLen)
     beatLen = dur2DurVal denomDur
     barLen  = numCnt * beatLen
--- Split grouped time signature into little internal bars by groupings.    
+-- Split grouped time signature into little internal bars by groupings.
 addEndDurs (TimeSignatureGrouping groups numCnt denomDur) curLen addLen =
   concatMap (uncurry3 addEndDurs) (firstTuple:endTuples)
   where

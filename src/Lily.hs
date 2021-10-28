@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 
 {- | Lilypond encoding and decoding.
      TBD:  String is inefficient datatype, though UTF-8, which is LilyPond char set:
@@ -21,16 +21,16 @@ module Lily (ToLily(..)
             ,mkParseLily
             ) where
 
-import Control.Monad ( void )
+import Control.Monad (void)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as M
-import Data.Maybe ( fromMaybe )
-import Data.Natural ( Natural )
-import Data.String.Interpolation ( endline, str )
+import Data.Maybe (fromMaybe)
+import Data.Natural (Natural)
+import Data.String.Interpolation (endline, str)
 import Text.Parsec
-import Text.Parsec.String ( Parser )
+import Text.Parsec.String (Parser)
 import Types
-import Utils ( getDurSum, composedDur, sumDurs )
+import Utils (composedDur, getDurSum, sumDurs)
 
 class ToLily a where
   -- | Convert a Haskell value to a Lilypond string
