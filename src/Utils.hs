@@ -263,12 +263,6 @@ rotNRev :: Int -> [[a]] -> [[a]]
 rotNRev _ [] = error "rotRevN empty list"
 rotNRev i xs = iterate rotRev xs !! i
 
--- [(Int,a)] Int is proportions by element of [a], e.g.:
--- [(1,a),(1,a)] => [50%,50%],
--- [(1,a),(1,a),(2,a)] => [25%,25%,50%]
-genByWeight :: [(Int,a)] -> [a]
-genByWeight = concatMap (uncurry replicate)
-
 -- Constraints:
 --  * num > denom, -- no, this is wrong!
 --  * length _tupNotes `mod` num == 0,

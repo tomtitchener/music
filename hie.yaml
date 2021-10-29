@@ -3,6 +3,9 @@ cradle:
     - path: "./src"
       component: "music:lib"
 
+    - path: "./music"
+      component: "music:lib"
+
     - path: "./exec/Main.hs"
       component: "music:exe:music"
 

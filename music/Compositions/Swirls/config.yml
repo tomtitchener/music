@@ -1,0 +1,24 @@
+# piece
+swirls:
+  globals:
+    tempo:   int 120
+    key:     c major
+    instr:   acoustic grand
+    time:    ((2,2,3),(7,8))
+    scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
+    mpitss:  ((a,fis,e,b,d,dis,ais,g,g,ais),(c,g,d,d,a,dis,r,d),(f,g,a,dis,e,fis,c,b,r,b,r,b))
+  voice1:
+    durs:    (4,8,8,4,8,8,8)
+    accents: (~,~,>,>,~,~,~,~)
+    range:   ((c,-3),(c,3))
+    ghosts:  ((3,4),(2,5))
+  voice2:
+    durs:    (4,8,8,8,4,8,8)
+    accents: (~,>,~,>,>,~)
+    range:   ((c,-3),(c,3))
+    ghosts:  ((10,5),(2,10))
+  voice3:
+    durs:    (4,8,4,16,16,8,4)
+    accents: (~,>,>,>,>,~,~,~)
+    range:   ((c,-3),(c,3))
+    ghosts:  ((3,7),(1,4))

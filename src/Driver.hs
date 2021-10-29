@@ -18,7 +18,9 @@ module Driver (initEnv
               ,randomizeList
               ,getConfigParam
               ,getMConfigParam
+              ,searchConfigParam
               ,printIt
+              ,cfg2Tups
               ,Driver
               )where
 
@@ -28,6 +30,8 @@ import Control.Monad.Random.Class (MonadRandom(getRandomR, getRandomRs))
 import Control.Monad.Reader (MonadIO(..), MonadReader, asks)
 import Data.Aeson (Value)
 import Data.Aeson.Lens (AsPrimitive(_String), key)
+import Data.List (intercalate)
+import qualified Data.List.NonEmpty as NE
 import Data.List.Split (splitOn)
 import qualified Data.Text as T
 import System.Random.Shuffle (shuffleM)
@@ -35,7 +39,6 @@ import System.Random.Shuffle (shuffleM)
 import Config (FromConfig(..))
 import Lily (ToLily(..))
 import Types (Score(Score))
-import Utils (genByWeight)
 
 data DriverEnv = DriverEnv {
      _config :: Value
@@ -104,6 +107,12 @@ printLily l = liftF $ DoAction (PrintLily l) ()
 randomElement :: [a] -> Driver a
 randomElement ls = liftF $ DoActionThen (RandomElement ls) id
 
+-- [(Int,a)] Int is proportions by element of [a], e.g.:
+-- [(1,a),(1,a)] => [50%,50%],
+-- [(1,a),(1,a),(2,a)] => [25%,25%,50%]
+genByWeight :: [(Int,a)] -> [a]
+genByWeight = concatMap (uncurry replicate)
+
 randomWeightedElement :: [(Int,a)] -> Driver a
 randomWeightedElement ws = liftF $ DoActionThen (RandomElement (genByWeight ws)) id
 
@@ -121,6 +130,33 @@ getMConfigParam path = liftF $ DoActionThen (GetMConfigParam path) id
 
 printIt :: Show a => a -> Driver ()
 printIt s = liftF $ DoAction (Print (show s)) ()
+
+-- If initial path doesn't contain key, repeatedly swap next higher level
+-- with "globals" looking for same key, e.g.:
+--   ["title","section1","voice1","tempo"] -> ["title","section1","globals","tempo"]
+--   ["title","section1","globals","tempo"] -> ["title","globals","tempo"]
+--   ["title","globals","tempo"] -> []
+searchConfigParam :: (FromConfig a, Show a) => String -> Driver a
+searchConfigParam path = do
+  let go segs =
+        if null segs
+        then do
+          getConfigParam path
+        else do
+          mVal <- getMConfigParam (intercalate "." segs)
+          case mVal of
+            Just val -> pure val
+            Nothing  -> go (retrySegs segs)
+  go $ splitOn "." path
+  where
+    retrySegs :: [String] -> [String]
+    retrySegs segs
+      | "globals" `notElem` segs = take (length segs - 2) segs <> ["globals"] <> [last segs]
+      | length segs > 3 = take (length segs - 3) segs  <> drop (length segs - 2) segs
+      | otherwise = []
+
+cfg2Tups :: (String -> Driver a) -> String -> NE.NonEmpty String -> Driver (NE.NonEmpty a)
+cfg2Tups f title = traverse (\v -> f (title <> "." <> v))
 
 -- https://www.parsonsmatt.org/2017/09/22/what_does_free_buy_us.html
 
