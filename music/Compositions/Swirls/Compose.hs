@@ -3,7 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 
-module Compositions.Swirls.Swirls (cfg2SwirlsScore) where
+module Compositions.Swirls.Compose (cfg2SwirlsScore) where
 
 import Control.Lens hiding (pre)
 import Data.Either (isRight)
@@ -76,7 +76,7 @@ genSwirl durs accts motifs scale (Range (start,stop)) = do
     unfoldf _ (prev, Nothing:mSteps) =
       (Nothing, Just (prev, mSteps))
     unfoldf _ steps = error $ "invalid list of steps, (" <> show (fst steps) <> "," <> show (take 10 (snd steps)) <> ")"
-    mkNoteOrRest (Just (p,o)) d a = Left $ Note p o d (Staccatissimo NE.:| [a]) NoDynamic  NoSwell False -- tbd: magic constant Stacctissimo
+    mkNoteOrRest (Just (p,o)) d a = Left $ Note p o d (Staccatissimo NE.:| [a]) NoDynamic  NoSwell False -- tbd: magic constant Staccatissimo
     mkNoteOrRest Nothing d _ = Right $ Rest d  NoDynamic
 
 data SwirlsTup = SwirlsTup {_stInstr  :: Instrument
@@ -299,7 +299,7 @@ cfg2SwirlsScore title = do
   let voicesNames = NE.fromList ["voice1","voice2","voice3"]
       cntVoices = NE.length voicesNames
   tempo <- searchConfigParam (title <> ".globals.tempo") <&> (\(i :: Int) -> TempoDur QDur $ fromIntegral i)
-  tups <- cfg2SwirlsTups title voicesNames
+  tups <- cfg2SwirlsTups (title <> ".section1") voicesNames
   noteOrRestss <- traverse swirlsTup2NoteOrRests tups <&> NE.toList
   let veLens        = nOrRs2DurVal <$> noteOrRestss
       noteTags      = replicate cntVoices (Note C COct EDur (singleton Staccatissimo) PPP NoSwell False)

@@ -12,7 +12,7 @@ import qualified Data.List.NonEmpty as NE
 import Data.Semigroup (stimesMonoid)
 import GHC.Base (sconcat)
 
-import Compositions.Swirls.Swirls (cfg2SwirlsScore)
+import Compositions.Swirls.Compose (cfg2SwirlsScore)
 import Driver
        ( Driver
        , cfg2Tups

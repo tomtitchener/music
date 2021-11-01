@@ -21,10 +21,10 @@ cabal.sandbox.config
 *.aux
 *.hp
 *.eventlog
+*.ly
+*.pdf
+*.midi
 .stack-work/
 cabal.project.local
 Contact GitHub API Training Shop Blog About
 *~
-*.pdf
-*.ly
-*.midi
