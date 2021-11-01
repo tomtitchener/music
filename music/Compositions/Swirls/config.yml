@@ -1,4 +1,4 @@
-# piece
+# swirls
 swirls:
   globals:
     tempo:   int 120
@@ -9,18 +9,29 @@ swirls:
   section1:
     globals:
       mpitss:  ((a,fis,e,b,d,dis,ais,g,g,ais),(c,g,d,d,a,dis,r,d),(f,g,a,dis,e,fis,c,b,r,b,r,b))
+      range:   ((c,-3),(c,3))
     voice1:
       durs:    (4,8,8,4,8,8,8)
       accents: (~,~,>,>,~,~,~,~)
-      range:   ((c,-3),(c,3))
-      ghosts:  ((3,4),(2,5))
+      # ghosts:  ((3,4),(2,5))
     voice2:
       durs:    (4,8,8,8,4,8,8)
       accents: (~,>,~,>,>,~)
-      range:   ((c,-3),(c,3))
-      ghosts:  ((10,5),(2,10))
+      # ghosts:  ((10,5),(2,10))
     voice3:
       durs:    (4,8,4,16,16,8,4)
       accents: (~,>,>,>,>,~,~,~)
-      range:   ((c,-3),(c,3))
-      ghosts:  ((3,7),(1,4))
+      # ghosts:  ((3,7),(1,4))
+  section2:
+    globals:
+      range:   ((c,3),(c,-3))
+      mpitss:  ((b,dis,a,cis,ais,d,gis,cis),(g,b,f,a,e,g,d,f,c,e),(e,b,a,d,dis,ais,gis,cis),(f,g,ais,gis,e,fis,a,g,d,dis,cis,c),(gis,b,fis,a,e,g,d,f))
+    voice1:
+      durs:    (4,8,8,4,8,8,8)
+      accents: (~,~,>,>,~,~,~,~)
+    voice2:
+      durs:    (4,8,8,8,4,8,8)
+      accents: (~,>,~,>,>,~)
+    voice3:
+      durs:    (4,8,4,16,16,8,4)
+      accents: (~,>,>,>,>,~,~,~)

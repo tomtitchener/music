@@ -24,7 +24,7 @@ cfg2SwirlsScore title = do
   let voicesNames = NE.fromList ["voice1","voice2","voice3"]
       cntVoices = NE.length voicesNames
   tempo <- searchConfigParam (title <> ".globals.tempo") <&> (\(i :: Int) -> TempoDur QDur $ fromIntegral i)
-  tups <- cfg2SwirlsTups (title <> ".section1") voicesNames
+  tups <- cfg2SwirlsTups (title <> ".section2") voicesNames
   noteOrRestss <- traverse swirlsTup2NoteOrRests tups <&> NE.toList
   let veLens        = nOrRs2DurVal <$> noteOrRestss
       noteTags      = replicate cntVoices (Note C COct EDur (singleton Staccatissimo) PPP NoSwell False)

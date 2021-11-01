@@ -277,6 +277,9 @@ mkTuplet num denom notes
     durs = NE.map _noteDur notes
     numNotes = NE.length notes
 
+nes2arrs :: NE.NonEmpty (NE.NonEmpty a) -> [[a]]
+nes2arrs = map NE.toList . NE.toList
+
 -- Cloned from https://hackage.haskell.org/package/base-4.14.1.0/docs/src/Data.List.NonEmpty.html#zipWith
 neZipWith3 :: (a1 -> a2 -> a3 -> a4) -> NE.NonEmpty a1 -> NE.NonEmpty a2 -> NE.NonEmpty a3 -> NE.NonEmpty a4
 neZipWith3 f ~(x1 NE.:| x1s) ~(x2 NE.:| x2s) ~(x3 NE.:| x3s) = f x1 x2 x3 NE.:| zipWith3 f x1s x2s x3s

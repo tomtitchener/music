@@ -66,9 +66,6 @@ cfg2MottoVocTup pre =
 cfg2MottoVocTups :: String -> [String] -> Driver [MottoVoiceTup]
 cfg2MottoVocTups root = mapM (\v -> cfg2MottoVocTup (root <> "." <> v))
 
-nes2arrs :: NE.NonEmpty (NE.NonEmpty a) -> [[a]]
-nes2arrs = map NE.toList . NE.toList
-
 cfg2VocMottos :: String -> Driver VoiceMottos
 cfg2VocMottos title =
   VoiceMottos
