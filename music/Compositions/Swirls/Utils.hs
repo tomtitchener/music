@@ -16,8 +16,6 @@ import Data.Sequence (adjust, fromList)
 import Data.Tuple (swap)
 import Safe (headMay)
 
-import Debug.Trace
-
 import Driver (Driver, cfg2Tups, randomizeList, searchConfigParam)
 import Types
 import Utils
@@ -56,18 +54,18 @@ cfg2SwirlsTups = cfg2Tups cfg2SwirlsTup
 -- Implicitly works against chromatic scale, fmap normPitch gives Maybe 0..11.
 -- Just Int maps to a new interval for a new Pitch, Nothing maps to Rest.
 -- Pitch in [Maybe Pitch] is from chromatic scale so stays within one octave
--- where C (Bs, Dff) is 0.
--- tbd: does not exceed octave span so e.g. you cannot say up a sixth followed
--- by up another sixth
-genMIntervalList :: [Maybe Pitch] -> [Maybe Int]
-genMIntervalList mps =
-  trace
-  ("genMIntervalList " <> show mps <> " :" <> show ret')
-  ret'
+-- where C (Bs, Dff) is 0.  When ordering of range is LT, then all intervals
+-- are with respect to C above, else from C below.
+genMIntervalList :: Ordering -> [Maybe Pitch] -> [Maybe Int]
+genMIntervalList rangeOrd =
+  reverse . snd . foldl f (0,[]) . (fmap . fmap) ((+ off) . normPitch)
   where
     f (prev,ret) (Just curr) = (curr, Just (curr - prev):ret)
     f (prev,ret) Nothing     = (prev, Nothing:ret)
-    ret' = reverse . snd . foldl f (0,[]) . (fmap . fmap) normPitch $ mps
+    off = case rangeOrd of
+            LT -> -12
+            GT -> 0
+            EQ -> 0
 
 -- tbd: this picks a single permutation of the motifs then repeats it over and over
 -- so the voice moves pretty consistently and fairly rapidly in one direction until
@@ -78,12 +76,8 @@ genMIntervalList mps =
 -- spread things out, maybe stringing together a series of shuffles of the motifs?
 genSwirl :: NE.NonEmpty Duration -> NE.NonEmpty Accent -> NE.NonEmpty (NE.NonEmpty (Maybe Pitch)) -> Scale -> Range -> Driver (NE.NonEmpty NoteOrRest)
 genSwirl durs accts motifs scale (Range (start,stop)) = do
-  mSteps <- randomizeList (nes2arrs motifs) <&> concatMap genMIntervalList
-  let sum' = trace
-             ("sum: " <> show (fromMaybe 0 <$> mSteps) <> " is " <> show (sum (fromMaybe 0 <$> mSteps)))
-             (fromMaybe 0 <$> mSteps)
-      stepOrd = sum sum' `compare` 0
-      rangeOrd = swap stop `compare` swap start
+  mSteps <- randomizeList (nes2arrs motifs) <&> concatMap (genMIntervalList rangeOrd)
+  let stepOrd = sum (fromMaybe 0 <$> mSteps) `compare` 0
       compareOp = if stepOrd == rangeOrd && stepOrd /= EQ
                   then if stepOrd == LT then (<=) else (>=)
                   else error $ "invalid step order " <> show stepOrd <> " compared with range order " <> show rangeOrd
@@ -93,6 +87,7 @@ genSwirl durs accts motifs scale (Range (start,stop)) = do
       mPOs :: NE.NonEmpty (Maybe (Pitch,Octave)) = NE.unfoldr (unfoldf compareOp) (start,manyMSteps)
   pure $ neZipWith3 mkNoteOrRest mPOs manyDurs manyAccts
   where
+    rangeOrd = swap stop `compare` swap start
     unfoldf cmp (prev,(Just step1):(Just step2):mSteps)
       | swap nextnext `cmp` swap stop = (Just next, Nothing)
       | otherwise = (Just next, Just (next, Just step2:mSteps))

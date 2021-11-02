@@ -25,10 +25,14 @@ swirls:
   section2:
     globals:
       range:   ((c,3),(c,-3))
-      mpitss:  ((b,dis,a,cis,ais,d,gis,cis),(g,b,f,a,e,g,d,f,c,e),(e,b,a,d,dis,ais,gis,cis),(f,g,ais,gis,e,fis,a,g,d,dis,cis,c),(gis,b,fis,a,e,g,d,f))
+      mpitss:  ((b,dis,a,r,cis,ais,d,gis,cis),
+                (g,b,r,f,a,e,r,g,d,f,c,e),
+                (e,b,a,d,r,r,dis,ais,gis,cis),
+                (f,g,ais,gis,e,r,fis,r,a,g,r,d,dis,cis,c),
+                (gis,b,r,fis,r,a,e,g,d,f))
     voice1:
-      durs:    (4,8,8,4,8,8,8)
-      accents: (~,~,>,>,~,~,~,~)
+      durs:    (4,8,8,4,8,8)
+      accents: (>,~,~,>,~,~)
     voice2:
       durs:    (4,8,8,8,4,8,8)
       accents: (~,>,~,>,>,~)
