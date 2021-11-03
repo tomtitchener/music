@@ -21,15 +21,17 @@ module Driver (initEnv
               ,searchConfigParam
               ,printIt
               ,cfg2Tups
+              ,cfgPath2Keys
               ,Driver
               )where
 
-import Control.Lens (preview)
+import Control.Lens
 import Control.Monad.Free (Free(..), liftF)
 import Control.Monad.Random.Class (MonadRandom(getRandomR, getRandomRs))
 import Control.Monad.Reader (MonadIO(..), MonadReader, asks)
 import Data.Aeson (Value)
-import Data.Aeson.Lens (AsPrimitive(_String), key)
+import Data.Aeson.Lens
+import Data.HashMap.Strict (keys)
 import Data.List (intercalate)
 import qualified Data.List.NonEmpty as NE
 import Data.List.Split (splitOn)
@@ -54,11 +56,12 @@ data ActionNoValue where
   Print     :: String -> ActionNoValue
 
 data ActionWithValue a where
-  RandomElement   :: [b] -> ActionWithValue b
-  RandomElements  :: [b] -> ActionWithValue [b]
-  RandomizeList   :: [b] -> ActionWithValue [b]
-  GetConfigParam  :: FromConfig a => String -> ActionWithValue a
-  GetMConfigParam :: FromConfig a => String -> ActionWithValue (Maybe a)
+  RandomElement    :: [b] -> ActionWithValue b
+  RandomElements   :: [b] -> ActionWithValue [b]
+  RandomizeList    :: [b] -> ActionWithValue [b]
+  GetConfigParam   :: FromConfig a => String -> ActionWithValue a
+  GetMConfigParam  :: FromConfig a => String -> ActionWithValue (Maybe a)
+  GetConfigSubKeys :: String -> ActionWithValue [String]
 
 data DriverF next where
   DoAction       :: ActionNoValue -> next -> DriverF next
@@ -71,11 +74,12 @@ type Driver = Free DriverF
 runDriver :: forall a m.(MonadIO m, MonadRandom m, MonadReader DriverEnv m) => Driver a -> m a
 runDriver (Free (DoActionThen act k)) =
   case act of
-    RandomElement  l    -> getRandomR (0, length l - 1) >>= runDriver . k . (l !!)
-    RandomElements l    -> getRandomRs (0, length l - 1) >>= runDriver . k . map (l !!)
-    RandomizeList  l    -> shuffleM l >>= runDriver . k
-    GetConfigParam path -> asks (lookupConfig path . _config) >>= runDriver . k
-    GetMConfigParam path -> asks (lookupMConfig path . _config) >>= runDriver . k
+    RandomElement  l      -> getRandomR (0, length l - 1) >>= runDriver . k . (l !!)
+    RandomElements l      -> getRandomRs (0, length l - 1) >>= runDriver . k . map (l !!)
+    RandomizeList  l      -> shuffleM l >>= runDriver . k
+    GetConfigParam path   -> asks (lookupConfig path . _config) >>= runDriver . k
+    GetMConfigParam path  -> asks (lookupMConfig path . _config) >>= runDriver . k
+    GetConfigSubKeys path -> asks (lookupConfigKeys path . _config) >>= runDriver . k
 runDriver (Free (DoAction act k)) =
   case act of
     WriteScore fileName (Score c vs) -> asks _seed >>= (\s -> liftIO (writeFile fileName (toLily (Score (c <> " " <> s) vs))) *> runDriver k)
@@ -97,6 +101,16 @@ lookupMConfig :: FromConfig a => String -> Value -> Maybe a
 lookupMConfig path config =
   let segments = splitOn "." path
   in parseConfig . T.unpack <$> preview (foldl1 (.) (map (key . T.pack) segments) . _String) config
+
+lookupConfigKeys :: String -> Value -> [String]
+lookupConfigKeys path config =
+  let segments = splitOn "." path
+  in case preview (foldl1 (.) (map (key . T.pack) segments) . _Object) config of
+    Nothing -> error $
+               "Could not find value for path: " <>
+               path <> "\nin values:\n" <>
+               show config
+    Just m -> T.unpack <$> keys m
 
 writeScore :: FilePath -> Score -> Driver ()
 writeScore fName s = liftF $ DoAction (WriteScore fName s) ()
@@ -155,8 +169,16 @@ searchConfigParam path = do
       | length segs > 3 = take (length segs - 3) segs  <> drop (length segs - 2) segs
       | otherwise = []
 
+-- Call with f as e.g. cfg2SwirlsTup :: String -> Driver SwirlsTup to build "a" in
+-- Driver (NE.NonEmpty a) given path to "a" fields converted from text in config.yml
+-- file via searchConfigParam or getConfigParam.
 cfg2Tups :: (String -> Driver a) -> String -> NE.NonEmpty String -> Driver (NE.NonEmpty a)
-cfg2Tups f title = traverse (\v -> f (title <> "." <> v))
+cfg2Tups f title = traverse (f . ((title <> ".") <>))
+
+-- String in path must end with key for Value that is Object (HashMap Text Value),
+-- answers list of keys in Object omitting "globals".
+cfgPath2Keys :: String -> Driver [String]
+cfgPath2Keys path = liftF $ DoActionThen (GetConfigSubKeys path) (filter (/= "globals"))
 
 -- https://www.parsonsmatt.org/2017/09/22/what_does_free_buy_us.html
 
