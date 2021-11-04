@@ -74,20 +74,20 @@ genMIntervalList rangeOrd =
 -- if I keep the odd count--as in 4 8 8 8 4 8 8 8--then it gets more regular, but
 -- the mismatch with the count of notes in the motifs keeps things off balance
 -- spread things out, maybe stringing together a series of shuffles of the motifs?
-genSwirl :: NE.NonEmpty (NE.NonEmpty Duration) -> NE.NonEmpty (NE.NonEmpty Accent) -> NE.NonEmpty (NE.NonEmpty (Maybe Pitch)) -> Scale -> Range -> Driver (NE.NonEmpty NoteOrRest)
+genSwirl :: [[Duration]] -> [[Accent]] -> [[Maybe Pitch]] -> Scale -> Range -> Driver [NoteOrRest]
 genSwirl durss acctss mPitss scale (Range (start,stop)) = do
-  durs   <- randomizeList (nes2arrs durss)  <&> concat
-  accts  <- randomizeList (nes2arrs acctss) <&> concat
-  mSteps <- randomizeList (nes2arrs mPitss) <&> concatMap (genMIntervalList rangeOrd)
+  durs   <- randomizeList durss  <&> concat
+  accts  <- randomizeList acctss <&> concat
+  mSteps <- randomizeList mPitss <&> concatMap (genMIntervalList rangeOrd)
   let stepOrd = sum (fromMaybe 0 <$> mSteps) `compare` 0
       compareOp = if stepOrd == rangeOrd && stepOrd /= EQ
                   then if stepOrd == LT then (<=) else (>=)
                   else error $ "invalid step order " <> show stepOrd <> " compared with range order " <> show rangeOrd
-      manyMSteps = concat $ repeat mSteps
-      manyAccts = cycle accts
-      manyDurs = cycle durs
+      manyMSteps = cycle mSteps
+      manyAccts  = cycle accts
+      manyDurs   = cycle durs
       mPOs :: [Maybe (Pitch,Octave)] = unfoldr (unfoldf compareOp) (start,manyMSteps)
-  pure . NE.fromList $ zipWith3 mkNoteOrRest mPOs manyDurs manyAccts
+  pure $ zipWith3 mkNoteOrRest mPOs manyDurs manyAccts
   where
     rangeOrd = swap stop `compare` swap start
     unfoldf cmp (prev,(Just step1):(Just step2):mSteps)
@@ -114,7 +114,7 @@ pickNoteClef Note{..}
 
 swirlsTup2NoteOrRests :: SwirlsTup -> Driver [NoteOrRest]
 swirlsTup2NoteOrRests SwirlsTup{..} =
-  genSwirl _stDurss _stAcctss _stMPitss _stScale (Range _stRange) <&> NE.toList
+  genSwirl (nes2arrs _stDurss) (nes2arrs _stAcctss) (nes2arrs _stMPitss) _stScale (Range _stRange)
 
 genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
 genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess
