@@ -24,8 +24,8 @@ import Compositions.Swirls.Utils
 cfg2SwirlsScore :: String -> Driver ()
 cfg2SwirlsScore title = do
   tempoInt::Int <- searchConfigParam (title <> ".globals.tempo")
-  sections      <- cfgPath2Keys title <&> fmap ((title <> ".") <>)
-  secVcsPrs     <- traverse (secondM cfgPath2Keys . dupe) sections
+  sections      <- cfgPath2Keys "section[[:digit:]]" title <&> fmap ((title <> ".") <>)
+  secVcsPrs     <- traverse (secondM (cfgPath2Keys "voice[[:digit:]]") . dupe) sections
   tupss         <- traverse (uncurry cfg2SwirlsTups) (second NE.fromList <$> secVcsPrs)
   nOrRsss       <- traverse (\tups -> traverse swirlsTup2NoteOrRests tups <&> ZipList . NE.toList) tupss
   let nOrRss    = concat <$> getZipList (sequenceA nOrRsss)
