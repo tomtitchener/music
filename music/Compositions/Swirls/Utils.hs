@@ -16,37 +16,40 @@ import Data.Sequence (adjust, fromList)
 import Data.Tuple (swap)
 import Safe (headMay)
 
-import Driver (Driver, cfg2Tups, randomizeList, searchConfigParam)
+import Driver
+       (Driver, cfg2Tups, randomizeList, searchConfigParam, searchMConfigParam)
 import Types
 import Utils
 
 type NoteOrRest = Either Note Rest
 
-newtype Range = Range ((Pitch, Octave),(Pitch, Octave)) deriving (Eq, Show)
+newtype Range = Range ((Pitch,Octave),(Pitch,Octave)) deriving (Eq, Show)
 
-data SwirlsTup = SwirlsTup {_stInstr  :: Instrument
-                           ,_stKey    :: KeySignature
-                           ,_stScale  :: Scale
-                           ,_stTime   :: TimeSignature
-                           ,_stMPitss :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch))
-                           ,_stDurss  :: NE.NonEmpty (NE.NonEmpty Duration)
-                           ,_stAcctss :: NE.NonEmpty (NE.NonEmpty Accent)
-                           ,_stRange  :: ((Pitch,Octave),(Pitch,Octave))
+data SwirlsTup = SwirlsTup {_stInstr   :: Instrument
+                           ,_stKey     :: KeySignature
+                           ,_stScale   :: Scale
+                           ,_stTime    :: TimeSignature
+                           ,_stMPitss  :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch))
+                           ,_stDurss   :: NE.NonEmpty (NE.NonEmpty Duration)
+                           ,_stAcctss  :: NE.NonEmpty (NE.NonEmpty Accent)
+                           ,_stRange   :: ((Pitch,Octave),(Pitch,Octave))
+                           ,_stMDurVal :: Maybe Int
                            -- ,_stGhosts :: NE.NonEmpty (Int,Int)
                            } deriving Show
 
 cfg2SwirlsTup :: String -> Driver SwirlsTup
 cfg2SwirlsTup pre =
   SwirlsTup
-    <$> searchConfigParam (pre <> ".instr")
-    <*> searchConfigParam (pre <> ".key")
-    <*> searchConfigParam (pre <> ".scale")
-    <*> searchConfigParam (pre <> ".time")
-    <*> searchConfigParam (pre <> ".mpitss")
-    <*> searchConfigParam (pre <> ".durss")
-    <*> searchConfigParam (pre <> ".accentss")
-    <*> searchConfigParam (pre <> ".range")
---  <*> searchConfigParam (pre <> ".ghosts")
+    <$> searchConfigParam  (pre <> ".instr")
+    <*> searchConfigParam  (pre <> ".key")
+    <*> searchConfigParam  (pre <> ".scale")
+    <*> searchConfigParam  (pre <> ".time")
+    <*> searchConfigParam  (pre <> ".mpitss")
+    <*> searchConfigParam  (pre <> ".durss")
+    <*> searchConfigParam  (pre <> ".accentss")
+    <*> searchConfigParam  (pre <> ".range")
+    <*> searchMConfigParam (pre <> ".durval")
+--  <*> searchConfigParam  (pre <> ".ghosts")
 
 cfg2SwirlsTups :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty SwirlsTup)
 cfg2SwirlsTups = cfg2Tups cfg2SwirlsTup
@@ -67,54 +70,63 @@ genMIntervalList rangeOrd =
             GT -> 0
             EQ -> 0
 
--- tbd: this picks a single permutation of the motifs then repeats it over and over
--- so the voice moves pretty consistently and fairly rapidly in one direction until
--- it reaches the target boundary
--- if I change the rhythm to uniform eighth notes then I hear the repetitions clearly
--- if I keep the odd count--as in 4 8 8 8 4 8 8 8--then it gets more regular, but
--- the mismatch with the count of notes in the motifs keeps things off balance
--- spread things out, maybe stringing together a series of shuffles of the motifs?
+-- Unfold repeated transpositions of [[Maybe Pitch]] across Range
+-- matching up with repetitions of [[Duration]] and [[Accent] to generate NoteOrRest.a
 genSwirl :: [[Duration]] -> [[Accent]] -> [[Maybe Pitch]] -> Scale -> Range -> Driver [NoteOrRest]
 genSwirl durss acctss mPitss scale (Range (start,stop)) = do
-  durs   <- randomizeList durss  <&> concat
-  accts  <- randomizeList acctss <&> concat
-  mSteps <- randomizeList mPitss <&> concatMap (genMIntervalList rangeOrd)
+  mSteps    <- randomizeList mPitss <&> concatMap (genMIntervalList rangeOrd)
+  manyDurs  <- randomizeList durss  <&> cycle . concat
+  manyAccts <- randomizeList acctss <&> cycle . concat
   let stepOrd = sum (fromMaybe 0 <$> mSteps) `compare` 0
       compareOp = if stepOrd == rangeOrd && stepOrd /= EQ
                   then if stepOrd == LT then (<=) else (>=)
                   else error $ "invalid step order " <> show stepOrd <> " compared with range order " <> show rangeOrd
-      manyMSteps = cycle mSteps
-      manyAccts  = cycle accts
-      manyDurs   = cycle durs
-      mPOs :: [Maybe (Pitch,Octave)] = unfoldr (unfoldf compareOp) (start,manyMSteps)
+      mPOs = unfoldr (unfoldf compareOp) (start,cycle mSteps)
   pure $ zipWith3 mkNoteOrRest mPOs manyDurs manyAccts
   where
     rangeOrd = swap stop `compare` swap start
-    unfoldf cmp (prev,(Just step1):(Just step2):mSteps)
-      | swap nextnext `cmp` swap stop = Nothing
-      | otherwise = Just (Just next,(next, Just step2:mSteps))
-      where
-        next = xp scale prev step1
-        nextnext = xp scale next step2
-    unfoldf cmp (prev,(Just step1):Nothing:mSteps)
+    -- unfoldf cmp (prev,(Just step1):(Just step2):mSteps)
+    --   | swap nextnext `cmp` swap stop = Nothing
+    --   | otherwise = Just (Just next,(next, Just step2:mSteps))
+    --   where
+    --     next = xp scale prev step1
+    --     nextnext = xp scale next step2
+    unfoldf cmp (prev,(Just step1):mSteps)
       | swap next `cmp` swap stop = Nothing
-      | otherwise = Just (Just next,(next, Nothing:mSteps))
+      | otherwise = Just (Just next,(next, mSteps))
       where
         next = xp scale prev step1
-    unfoldf _ (prev, Nothing:mSteps) =
-      Just (Nothing,(prev, mSteps))
+    unfoldf _ (prev, Nothing:mSteps) = Just (Nothing,(prev, mSteps))
     unfoldf _ steps = error $ "invalid list of steps, (" <> show (fst steps) <> "," <> show (take 10 (snd steps)) <> ")"
-    mkNoteOrRest (Just (p,o)) d a = Left $ Note p o d (Staccatissimo NE.:| [a]) NoDynamic  NoSwell False -- tbd: magic constant Staccatissimo
-    mkNoteOrRest Nothing d _ = Right $ Rest d  NoDynamic
 
-pickNoteClef :: Note -> Clef
-pickNoteClef Note{..}
-  | (_noteOct,_notePit) <= (COct,E) = Bass
-  | otherwise = Treble
+mkNoteOrRest :: Maybe (Pitch, Octave) -> Duration -> Accent -> Either Note Rest
+mkNoteOrRest (Just (p,o)) d a = Left $ Note p o d (Staccatissimo NE.:| [a]) NoDynamic  NoSwell False -- tbd: magic constant Staccatissimo
+mkNoteOrRest Nothing d _ = Right $ Rest d  NoDynamic
+
+genStatic :: [[Duration]] -> [[Accent]] -> [[Maybe Pitch]] -> Scale -> Range -> Maybe Int -> Driver [NoteOrRest]
+genStatic _ _ _ _  _ Nothing = error "genStatic missing max duration value"
+genStatic durss acctss mPitss scale (Range (start,stop)) (Just maxDurVal)= do
+  manyMSteps <- randomizeList mPitss <&> cycle . concatMap (genMIntervalList rangeOrd)
+  manyDurs   <- randomizeList durss  <&> cycle . concat
+  manyAccts  <- randomizeList acctss <&> cycle . concat
+  let allDurs = unfoldr unfoldf (0,manyDurs)
+      manyPOs = snd $ foldr foldrf (start,[]) manyMSteps
+  pure $ zipWith3 mkNoteOrRest manyPOs allDurs manyAccts
+  where
+    rangeOrd = swap stop `compare` swap start
+    unfoldf (durVal,durs)
+      | durVal >= maxDurVal = Nothing
+      | otherwise = Just (head durs,(durVal + dur2DurVal (head durs),tail durs))
+    foldrf :: Maybe Int -> ((Pitch,Octave),[Maybe (Pitch,Octave)]) -> ((Pitch,Octave),[Maybe (Pitch,Octave)])
+    foldrf Nothing (prev,ret) = (prev,ret <> [Nothing])
+    foldrf (Just step) (prev,ret) = (next,ret <> [Just next])
+      where
+        next = xp scale prev step
 
 swirlsTup2NoteOrRests :: SwirlsTup -> Driver [NoteOrRest]
-swirlsTup2NoteOrRests SwirlsTup{..} =
-  genSwirl (nes2arrs _stDurss) (nes2arrs _stAcctss) (nes2arrs _stMPitss) _stScale (Range _stRange)
+swirlsTup2NoteOrRests SwirlsTup{..}
+  | uncurry (==) _stRange = genStatic (nes2arrs _stDurss) (nes2arrs _stAcctss) (nes2arrs _stMPitss) _stScale (Range _stRange) _stMDurVal
+  | otherwise = genSwirl (nes2arrs _stDurss) (nes2arrs _stAcctss) (nes2arrs _stMPitss) _stScale (Range _stRange)
 
 genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
 genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess
@@ -166,52 +178,6 @@ tagTempo tempo (v1 NE.:| rest) = tagVoice v1 NE.:| rest
 stripNoteOrRest :: Bool -> NoteOrRest -> NoteOrRest
 stripNoteOrRest tie (Left Note{..}) = Left $ Note _notePit _noteOct _noteDur (singleton NoAccent) NoDynamic NoSwell tie
 stripNoteOrRest _ (Right rest) = Right rest
-
-{--
-genLNotes :: Int -> Int -> TimeSignature -> Note -> [Either Note Rest]
-genLNotes addLen curLen timeSig note =
-  (dur2LeftNote True <$> init durs) <> [dur2LeftNote False (last durs)]
-  where
-    durs = addEndDurs timeSig curLen addLen
-    dur2LeftNote tie dur = Left (note { _noteDur = dur, _noteTie = tie })
-
-genRRests :: Int -> Int -> TimeSignature -> [Either Note Rest]
-genRRests addLen curLen timeSig =
-  dur2RightRest <$> durs
-  where
-    durs = addEndDurs timeSig curLen addLen
-    dur2RightRest = Right . flip Rest NoDynamic
--- using counts in pair (#rests, #notes) combine #rests of NoteOrRest together into one rest
--- followed by #notes of notes of NoteOrRest together into one note *if* the first NoteOrRest
--- is a (Left Note), else accumulate duration of #notes and duration of #rests with duration
--- of previously accumulated rests and continue
-squashNoteOrRests :: [(Int,Int)] -> TimeSignature -> [NoteOrRest] -> [NoteOrRest]
-squashNoteOrRests prs timeSig =
-  flush . foldl foldlf ((0,0),[]) . chunkByPairCounts prs . fmap (stripNoteOrRest False)
-  where
-    flush ((_,0),nOrRs)                       = nOrRs
-    flush ((curDurVal,prevRestsDurVal),nOrRs) = nOrRs <> genRRests prevRestsDurVal curDurVal timeSig
-    foldlf ((curDurVal,prevRestsDurVal),ret) (rests,notes) =
-      maybe restsRet notesRet $ mFirstNote notes
-      where
-        restsRet      = ((curDurVal
-                         ,prevRestsDurVal
-                          + restsDurVal
-                          + notesDurVal)
-                        ,ret)
-        notesRet note = ((curDurVal
-                          + prevRestsDurVal
-                          + restsDurVal
-                          + notesDurVal
-                         ,0),
-                         ret
-                         <> genRRests (prevRestsDurVal + restsDurVal) curDurVal timeSig
-                         <> genLNotes notesDurVal (curDurVal + prevRestsDurVal + restsDurVal) timeSig note)
-        restsDurVal   = nOrRs2DurVal rests
-        notesDurVal   = nOrRs2DurVal notes
-    mFirstNote (Left note:_) = Just note
-    mFirstNote _             = Nothing
---}
 
 nOrRs2DurVal :: [NoteOrRest] -> Int
 nOrRs2DurVal = sum . fmap nOrR2DurVal
@@ -295,4 +261,56 @@ splitNoteOrRests winLen =
     equalClefs (Left n1) (Left n2) = pickNoteClef n1 == pickNoteClef n2
     equalClefs (Right _) (Right _) = True
     equalClefs _          _        = False
+    pickNoteClef :: Note -> Clef
+    pickNoteClef Note{..}
+      | (_noteOct,_notePit) <= (COct,E) = Bass
+      | otherwise = Treble
+
+{--
+Graveyard:
+
+genLNotes :: Int -> Int -> TimeSignature -> Note -> [Either Note Rest]
+genLNotes addLen curLen timeSig note =
+  (dur2LeftNote True <$> init durs) <> [dur2LeftNote False (last durs)]
+  where
+    durs = addEndDurs timeSig curLen addLen
+    dur2LeftNote tie dur = Left (note { _noteDur = dur, _noteTie = tie })
+
+genRRests :: Int -> Int -> TimeSignature -> [Either Note Rest]
+genRRests addLen curLen timeSig =
+  dur2RightRest <$> durs
+  where
+    durs = addEndDurs timeSig curLen addLen
+    dur2RightRest = Right . flip Rest NoDynamic
+-- using counts in pair (#rests, #notes) combine #rests of NoteOrRest together into one rest
+-- followed by #notes of notes of NoteOrRest together into one note *if* the first NoteOrRest
+-- is a (Left Note), else accumulate duration of #notes and duration of #rests with duration
+-- of previously accumulated rests and continue
+squashNoteOrRests :: [(Int,Int)] -> TimeSignature -> [NoteOrRest] -> [NoteOrRest]
+squashNoteOrRests prs timeSig =
+  flush . foldl foldlf ((0,0),[]) . chunkByPairCounts prs . fmap (stripNoteOrRest False)
+  where
+    flush ((_,0),nOrRs)                       = nOrRs
+    flush ((curDurVal,prevRestsDurVal),nOrRs) = nOrRs <> genRRests prevRestsDurVal curDurVal timeSig
+    foldlf ((curDurVal,prevRestsDurVal),ret) (rests,notes) =
+      maybe restsRet notesRet $ mFirstNote notes
+      where
+        restsRet      = ((curDurVal
+                         ,prevRestsDurVal
+                          + restsDurVal
+                          + notesDurVal)
+                        ,ret)
+        notesRet note = ((curDurVal
+                          + prevRestsDurVal
+                          + restsDurVal
+                          + notesDurVal
+                         ,0),
+                         ret
+                         <> genRRests (prevRestsDurVal + restsDurVal) curDurVal timeSig
+                         <> genLNotes notesDurVal (curDurVal + prevRestsDurVal + restsDurVal) timeSig note)
+        restsDurVal   = nOrRs2DurVal rests
+        notesDurVal   = nOrRs2DurVal notes
+    mFirstNote (Left note:_) = Just note
+    mFirstNote _             = Nothing
+--}
 

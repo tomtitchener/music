@@ -19,6 +19,7 @@ module Driver (initEnv
               ,getConfigParam
               ,getMConfigParam
               ,searchConfigParam
+              ,searchMConfigParam
               ,printIt
               ,cfg2Tups
               ,cfgPath2Keys
@@ -161,6 +162,25 @@ searchConfigParam path = do
           mVal <- getMConfigParam (intercalate "." segs)
           case mVal of
             Just val -> pure val
+            Nothing  -> go (retrySegs segs)
+  go $ splitOn "." path
+  where
+    retrySegs :: [String] -> [String]
+    retrySegs segs
+      | "globals" `notElem` segs = take (length segs - 2) segs <> ["globals"] <> [last segs]
+      | length segs > 3 = take (length segs - 3) segs  <> drop (length segs - 2) segs
+      | otherwise = []
+
+searchMConfigParam :: (FromConfig a, Show a) => String -> Driver (Maybe a)
+searchMConfigParam path = do
+  let go segs =
+        if null segs
+        then do
+          pure Nothing
+        else do
+          mVal <- getMConfigParam (intercalate "." segs)
+          case mVal of
+            Just val -> pure $ Just val
             Nothing  -> go (retrySegs segs)
   go $ splitOn "." path
   where

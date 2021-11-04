@@ -10,6 +10,7 @@ swirls:
     globals:
       mpitss:  ((a,fis,e,b,d,dis,ais,g,g,ais),(c,g,d,d,a,dis,r,d),(f,g,a,dis,e,fis,c,b,r,b,r,b))
       range:   ((c,-3),(c,3))
+      durval:   int 1000
     voice1:
       durss:    ((4,8,8,4),(8,8,8),(8,16,16,8),(4,16,16,8,4))
       accentss: ((~,~,>,>),(~,~,~,~))
