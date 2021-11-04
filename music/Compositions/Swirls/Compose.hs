@@ -31,17 +31,17 @@ cfg2SwirlsScore title = do
   let nOrRss    = concat <$> getZipList (sequenceA nOrRsss)
       tempo     = TempoDur QDur (fromIntegral tempoInt)
       voices    = pipeline tempo (head tupss) nOrRss
-  writeScore ("./" <> title <> ".ly") $ Score "no comment" voices -- (voices <> ghostVoices)
+  writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
   where
     pipeline :: Tempo -> NE.NonEmpty SwirlsTup -> [[NoteOrRest]] -> NE.NonEmpty Voice
-    pipeline tempo tups nOrRss = -- Assumes: TimeSignature, Instrument, Key are the same for all Voice
-      zipWith alignNoteOrRestsDurations (NE.toList timeSigs) nOrRss      -- --> [[NoteOrRest]]
-      & zipWith splitNoteOrRests winLens                                 -- --> [([VoiceEvent],[VoiceEvent])]
-      & zipWith tagFirstNotes firstNotes                                 -- --> [([VoiceEvent],[VoiceEvent])]
-      & zipWith3 (mkTotDur (maximum veLens)) veLens (NE.toList timeSigs) -- --> [([VoiceEvent],[VoiceEvent])]
-      & NE.fromList . (<$>) (bimap NE.fromList NE.fromList)              -- --> NonEmpty (NonEmpty VoiceEvent,NonEmpty VoiceEvent)
-      & neZipWith4 genPolyVocs instrs keys timeSigs                      -- --> NonEmpty Voice
-      & tagTempo tempo                                                   -- --> NonEmpty Voice
+    pipeline tempo tups nOrRss = -- Assumes: TimeSignature, Instrument, Key are the same for all Voices
+      zipWith alignNoteOrRestsDurations (NE.toList timeSigs) nOrRss      -- -> [[NoteOrRest]]
+      & zipWith splitNoteOrRests winLens                                 -- -> [([VoiceEvent],[VoiceEvent])]
+      & zipWith tagFirstNotes firstNotes                                 -- -> [([VoiceEvent],[VoiceEvent])]
+      & zipWith3 (mkTotDur (maximum veLens)) veLens (NE.toList timeSigs) -- -> [([VoiceEvent],[VoiceEvent])]
+      & NE.fromList . (<$>) (bimap NE.fromList NE.fromList)              -- -> NonEmpty (NonEmpty VoiceEvent,NonEmpty VoiceEvent)
+      & neZipWith4 genPolyVocs instrs keys timeSigs                      -- -> NonEmpty Voice
+      & tagTempo tempo                                                   -- -> NonEmpty Voice
       where
         veLens     = nOrRs2DurVal <$> nOrRss
         timeSigs   = _stTime  <$> tups

@@ -9,7 +9,7 @@ import Control.Lens hiding (pre)
 import Data.Either (isRight)
 import Data.Foldable
 import Data.Function (on)
-import Data.List (findIndex, groupBy)
+import Data.List (findIndex, groupBy, unfoldr)
 import qualified Data.List.NonEmpty as NE
 import Data.Maybe (fromMaybe)
 import Data.Sequence (adjust, fromList)
@@ -29,8 +29,8 @@ data SwirlsTup = SwirlsTup {_stInstr  :: Instrument
                            ,_stScale  :: Scale
                            ,_stTime   :: TimeSignature
                            ,_stMPitss :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch))
-                           ,_stDurs   :: NE.NonEmpty Duration
-                           ,_stAccts  :: NE.NonEmpty Accent
+                           ,_stDurss  :: NE.NonEmpty (NE.NonEmpty Duration)
+                           ,_stAcctss :: NE.NonEmpty (NE.NonEmpty Accent)
                            ,_stRange  :: ((Pitch,Octave),(Pitch,Octave))
                            -- ,_stGhosts :: NE.NonEmpty (Int,Int)
                            } deriving Show
@@ -43,8 +43,8 @@ cfg2SwirlsTup pre =
     <*> searchConfigParam (pre <> ".scale")
     <*> searchConfigParam (pre <> ".time")
     <*> searchConfigParam (pre <> ".mpitss")
-    <*> searchConfigParam (pre <> ".durs")
-    <*> searchConfigParam (pre <> ".accents")
+    <*> searchConfigParam (pre <> ".durss")
+    <*> searchConfigParam (pre <> ".accentss")
     <*> searchConfigParam (pre <> ".range")
 --  <*> searchConfigParam (pre <> ".ghosts")
 
@@ -74,33 +74,35 @@ genMIntervalList rangeOrd =
 -- if I keep the odd count--as in 4 8 8 8 4 8 8 8--then it gets more regular, but
 -- the mismatch with the count of notes in the motifs keeps things off balance
 -- spread things out, maybe stringing together a series of shuffles of the motifs?
-genSwirl :: NE.NonEmpty Duration -> NE.NonEmpty Accent -> NE.NonEmpty (NE.NonEmpty (Maybe Pitch)) -> Scale -> Range -> Driver (NE.NonEmpty NoteOrRest)
-genSwirl durs accts motifs scale (Range (start,stop)) = do
-  mSteps <- randomizeList (nes2arrs motifs) <&> concatMap (genMIntervalList rangeOrd)
+genSwirl :: NE.NonEmpty (NE.NonEmpty Duration) -> NE.NonEmpty (NE.NonEmpty Accent) -> NE.NonEmpty (NE.NonEmpty (Maybe Pitch)) -> Scale -> Range -> Driver (NE.NonEmpty NoteOrRest)
+genSwirl durss acctss mPitss scale (Range (start,stop)) = do
+  durs   <- randomizeList (nes2arrs durss)  <&> concat
+  accts  <- randomizeList (nes2arrs acctss) <&> concat
+  mSteps <- randomizeList (nes2arrs mPitss) <&> concatMap (genMIntervalList rangeOrd)
   let stepOrd = sum (fromMaybe 0 <$> mSteps) `compare` 0
       compareOp = if stepOrd == rangeOrd && stepOrd /= EQ
                   then if stepOrd == LT then (<=) else (>=)
                   else error $ "invalid step order " <> show stepOrd <> " compared with range order " <> show rangeOrd
       manyMSteps = concat $ repeat mSteps
-      manyAccts = NE.cycle accts
-      manyDurs = NE.cycle durs
-      mPOs :: NE.NonEmpty (Maybe (Pitch,Octave)) = NE.unfoldr (unfoldf compareOp) (start,manyMSteps)
-  pure $ neZipWith3 mkNoteOrRest mPOs manyDurs manyAccts
+      manyAccts = cycle accts
+      manyDurs = cycle durs
+      mPOs :: [Maybe (Pitch,Octave)] = unfoldr (unfoldf compareOp) (start,manyMSteps)
+  pure . NE.fromList $ zipWith3 mkNoteOrRest mPOs manyDurs manyAccts
   where
     rangeOrd = swap stop `compare` swap start
     unfoldf cmp (prev,(Just step1):(Just step2):mSteps)
-      | swap nextnext `cmp` swap stop = (Just next, Nothing)
-      | otherwise = (Just next, Just (next, Just step2:mSteps))
+      | swap nextnext `cmp` swap stop = Nothing
+      | otherwise = Just (Just next,(next, Just step2:mSteps))
       where
         next = xp scale prev step1
         nextnext = xp scale next step2
     unfoldf cmp (prev,(Just step1):Nothing:mSteps)
-      | swap next `cmp` swap stop = (Nothing,Nothing)
-      | otherwise = (Just next, Just (next, Nothing:mSteps))
+      | swap next `cmp` swap stop = Nothing
+      | otherwise = Just (Just next,(next, Nothing:mSteps))
       where
         next = xp scale prev step1
     unfoldf _ (prev, Nothing:mSteps) =
-      (Nothing, Just (prev, mSteps))
+      Just (Nothing,(prev, mSteps))
     unfoldf _ steps = error $ "invalid list of steps, (" <> show (fst steps) <> "," <> show (take 10 (snd steps)) <> ")"
     mkNoteOrRest (Just (p,o)) d a = Left $ Note p o d (Staccatissimo NE.:| [a]) NoDynamic  NoSwell False -- tbd: magic constant Staccatissimo
     mkNoteOrRest Nothing d _ = Right $ Rest d  NoDynamic
@@ -112,7 +114,7 @@ pickNoteClef Note{..}
 
 swirlsTup2NoteOrRests :: SwirlsTup -> Driver [NoteOrRest]
 swirlsTup2NoteOrRests SwirlsTup{..} =
-  genSwirl _stDurs _stAccts _stMPitss _stScale (Range _stRange) <&> NE.toList
+  genSwirl _stDurss _stAcctss _stMPitss _stScale (Range _stRange) <&> NE.toList
 
 genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
 genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess

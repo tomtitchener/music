@@ -11,17 +11,14 @@ swirls:
       mpitss:  ((a,fis,e,b,d,dis,ais,g,g,ais),(c,g,d,d,a,dis,r,d),(f,g,a,dis,e,fis,c,b,r,b,r,b))
       range:   ((c,-3),(c,3))
     voice1:
-      durs:    (4,8,8,4,8,8,8)
-      accents: (~,~,>,>,~,~,~,~)
-      # ghosts:  ((3,4),(2,5))
+      durss:    ((4,8,8,4),(8,8,8),(8,16,16,8),(4,16,16,8,4))
+      accentss: ((~,~,>,>),(~,~,~,~))
     voice2:
-      durs:    (4,8,8,8,4,8,8)
-      accents: (~,>,~,>,>,~)
-      # ghosts:  ((10,5),(2,10))
+      durss:    ((4,8,8),(8,4,8,8),(8,4,8,8),(4,8,16,16))
+      accentss: ((~,>,~),(>,>,~))
     voice3:
-      durs:    (4,8,4,16,16,8,4)
-      accents: (~,>,>,>,>,~,~,~)
-      # ghosts:  ((3,7),(1,4))
+      durss:    ((4,8,4),(16,16,8,4),(4,8,4),(4,8,4))
+      accentss: ((~,>,>),(>,>,~,~,~))
   section2:
     globals:
       range:   ((c,3),(c,-3))
@@ -31,11 +28,12 @@ swirls:
                 (f,g,ais,gis,e,r,fis,r,a,g,r,d,dis,cis,c),
                 (gis,b,r,fis,r,a,e,g,d,f))
     voice1:
-      durs:    (4,8,8,4,8,8)
-      accents: (>,~,~,>,~,~)
+      durss:    ((4,8,8,4),(8,8,8))
+      accentss: ((~,~,>,>),(~,~,~,~))
     voice2:
-      durs:    (4,8,8,8,4,8,8)
-      accents: (~,>,~,>,>,~)
+      durss:    ((4,8,8),(8,4,8,8))
+      accentss: ((~,>,~),(>,>,~))
     voice3:
-      durs:    (4,8,4,16,16,8,4)
-      accents: (~,>,>,>,>,~,~,~)
+      durss:    ((4,8,4),(16,16,8,4))
+      accentss: ((~,>,>),(>,>,~,~,~))
+
