@@ -137,11 +137,14 @@ int2Off i
   | i == 0 = error "int2Off invalid interval 0"
   | otherwise = i - 1
 
+pM :: Parser a -> Parser (Maybe a)
+pM p = Just <$> p <|> (char 'r' >> pure Nothing)
+
 pMInt :: Parser (Maybe Int)
-pMInt = Just . int2Off <$> int <|> (char 'r' >> pure Nothing)
+pMInt = pM (int2Off <$> int)
 
 pMPitch :: Parser (Maybe Pitch)
-pMPitch = Just <$> parsePitch <|> (char 'r' >> pure Nothing)
+pMPitch = pM parsePitch
 
 modeStrs :: [String]
 modeStrs = ["major", "minor"]
