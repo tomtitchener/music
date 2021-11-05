@@ -234,7 +234,10 @@ splitNoteOrRests winLen =
   where
     flush :: ((Maybe Clef,[NoteOrRest]),([VoiceEvent],[VoiceEvent])) -> ([VoiceEvent],[VoiceEvent])
     flush ((Just _,[]),vesPr) = vesPr
-    flush ((Nothing,pending),_) = error $ "splitNoteOrRests flush but no clef for pending " <> show pending
+    -- must be we never hit winLen Left Note in a row, try again decrementing winLen by onea
+    flush ((Nothing,pending),_)
+      | winLen == 0 = error $ "splitNoteOrRests flush but no clef for pending " <> show pending
+      | otherwise   = splitNoteOrRests (winLen - 1) pending
     flush ((Just clef,pending),vesPr) = vesPr <> genVesPr clef pending
     foldlf :: ((Maybe Clef,[NoteOrRest]),([VoiceEvent],[VoiceEvent])) -> [NoteOrRest] -> ((Maybe Clef,[NoteOrRest]),([VoiceEvent],[VoiceEvent]))
     foldlf ((mCl,pending),vesPr) nOrRs
