@@ -1,13 +1,12 @@
 {-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
 
 module Compositions.Swirls.Compose (cfg2SwirlsScore) where
 
 
 import Control.Applicative
 import Control.Lens (Bifunctor(bimap), (&), (<&>))
+import Data.List (isPrefixOf)
 import qualified Data.List.NonEmpty as NE
 import Data.Tuple.Extra (dupe, second, secondM)
 
@@ -24,8 +23,8 @@ import Compositions.Swirls.Utils
 cfg2SwirlsScore :: String -> Driver ()
 cfg2SwirlsScore title = do
   tempoInt::Int <- searchConfigParam (title <> ".globals.tempo")
-  sections      <- cfgPath2Keys "section[[:digit:]]" title <&> fmap ((title <> ".") <>)
-  secVcsPrs     <- traverse (secondM (cfgPath2Keys "voice[[:digit:]]") . dupe) sections
+  sections      <- cfgPath2Keys ("section" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
+  secVcsPrs     <- traverse (secondM (cfgPath2Keys ("voice" `isPrefixOf`)) . dupe) sections
   tupss         <- traverse (uncurry cfg2SwirlsTups) (second NE.fromList <$> secVcsPrs)
   nOrRsss       <- traverse (\tups -> traverse swirlsTup2NoteOrRests tups <&> ZipList . NE.toList) tupss
   let nOrRss    = concat <$> getZipList (sequenceA nOrRsss)

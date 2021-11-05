@@ -38,7 +38,6 @@ library
                      , safe
                      , split
                      , text
-                     , regex-posix
                      , unordered-containers
   ghc-options:         -Wall -Werror -haddock -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns -fno-warn-orphans
 
@@ -88,7 +87,6 @@ test-suite tests
                     , QuickCheck
                     , random
                     , random-shuffle
-                    , regex-posix
                     , split
                     , tasty
                     , tasty-hunit

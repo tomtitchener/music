@@ -38,7 +38,6 @@ import qualified Data.List.NonEmpty as NE
 import Data.List.Split (splitOn)
 import qualified Data.Text as T
 import System.Random.Shuffle (shuffleM)
-import Text.Regex.Posix ((=~))
 
 import Config (FromConfig(..))
 import Lily (ToLily(..))
@@ -198,8 +197,8 @@ cfg2Tups f title = traverse (f . ((title <> ".") <>))
 
 -- String in path must end with key for Value that is Object (HashMap Text Value),
 -- answers list of keys in Object matching regexp in target
-cfgPath2Keys :: String -> String -> Driver [String]
-cfgPath2Keys target path = liftF $ DoActionThen (GetConfigSubKeys path) (filter (=~ target))
+cfgPath2Keys :: (String ->  Bool) -> String -> Driver [String]
+cfgPath2Keys filtf path = liftF $ DoActionThen (GetConfigSubKeys path) (filter filtf)
 
 -- https://www.parsonsmatt.org/2017/09/22/what_does_free_buy_us.html
 

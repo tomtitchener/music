@@ -1,40 +1,64 @@
 # swirls
+
 swirls:
   globals:
     tempo:   int 120
     key:     c major
     instr:   acoustic grand
-    time:    ((2,2,3),(7,8))
+    time:    (4,4)
     scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
   section1:
     globals:
-      mpitss:  ((a,fis,e,b,d,dis,ais,g,g,ais),(c,g,d,d,a,dis,r,d),(f,g,a,dis,e,fis,c,b,r,b,r,b))
-      range:   ((c,-3),(c,3))
-      durval:   int 1000
+      range:    ((c,-3),(c,-3))
+      durval:   int 1024
     voice1:
-      durss:    ((4,8,8,4),(8,8,8),(8,16,16,8),(4,16,16,8,4))
-      accentss: ((~,~,>,>),(~,~,~,~))
+      mintss:   ((3),(1))
+      durss:    ((8))
+      accentss: ((>,~),(~,>))
     voice2:
-      durss:    ((4,8,8),(8,4,8,8),(8,4,8,8),(4,8,16,16))
-      accentss: ((~,>,~),(>,>,~))
+      mintss:   ((1,10,-6,r),(3,1,9,-7),(r))
+      durss:    ((8,16,16),(8.,16),(8,8,8))
+      accentss: ((>,~,~))
     voice3:
-      durss:    ((4,8,4),(16,16,8,4),(4,8,4),(4,8,4))
+      mintss:   ((12,-10),(3,3),(4,-4))
+      durss:    ((16,8.))
       accentss: ((~,>,>),(>,>,~,~,~))
-  section2:
-    globals:
-      range:   ((c,3),(c,-3))
-      mpitss:  ((b,dis,a,r,cis,ais,d,gis,cis),
-                (g,b,r,f,a,e,r,g,d,f,c,e),
-                (e,b,a,d,r,r,dis,ais,gis,cis),
-                (f,g,ais,gis,e,r,fis,r,a,g,r,d,dis,cis,c),
-                (gis,b,r,fis,r,a,e,g,d,f))
-    voice1:
-      durss:    ((4,8,8,4),(8,8,8))
-      accentss: ((~,~,>,>),(~,~,~,~))
-    voice2:
-      durss:    ((4,8,8),(8,4,8,8))
-      accentss: ((~,>,~),(>,>,~))
-    voice3:
-      durss:    ((4,8,4),(16,16,8,4))
-      accentss: ((~,>,>),(>,>,~,~,~))
+    
+# globals:
+#   tempo:   int 120
+#   key:     c major
+#   instr:   acoustic grand
+#   time:    ((2,2,3),(7,8))
+#   scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
+# section1:
+#   globals:
+#     mpitss:  ((a,fis,e,b,d,dis,ais,g,g,ais),(c,g,d,d,a,dis,r,d),(f,g,a,dis,e,fis,c,b,r,b,r,b))
+#     range:   ((c,-3),(c,3))
+#   voice1:
+#     durval:   int 1000
+#     durss:    ((4,8,8,4),(8,8,8),(8,16,16,8),(4,16,16,8,4))
+#     accentss: ((~,~,>,>),(~,~,~,~))
+#   voice2:
+#     durss:    ((4,8,8),(8,4,8,8),(8,4,8,8),(4,8,16,16))
+#     accentss: ((~,>,~),(>,>,~))
+#   voice3:
+#     durss:    ((4,8,4),(16,16,8,4),(4,8,4),(4,8,4))
+#     accentss: ((~,>,>),(>,>,~,~,~))
+# section2:
+#   globals:
+#     range:   ((c,3),(c,-3))
+#     mpitss:  ((b,dis,a,r,cis,ais,d,gis,cis),
+#               (g,b,r,f,a,e,r,g,d,f,c,e),
+#               (e,b,a,d,r,r,dis,ais,gis,cis),
+#               (f,g,ais,gis,e,r,fis,r,a,g,r,d,dis,cis,c),
+#               (gis,b,r,fis,r,a,e,g,d,f))
+#   voice1:
+#     durss:    ((4,8,8,4),(8,8,8))
+#     accentss: ((~,~,>,>),(~,~,~,~))
+#   voice2:
+#     durss:    ((4,8,8),(8,4,8,8))
+#     accentss: ((~,>,~),(>,>,~))
+#   voice3:
+#     durss:    ((4,8,4),(16,16,8,4))
+#     accentss: ((~,>,>),(>,>,~,~,~))
 

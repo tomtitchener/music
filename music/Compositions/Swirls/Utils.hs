@@ -1,7 +1,6 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
 
 module Compositions.Swirls.Utils  where
 
@@ -29,12 +28,11 @@ data SwirlsTup = SwirlsTup {_stInstr   :: Instrument
                            ,_stKey     :: KeySignature
                            ,_stScale   :: Scale
                            ,_stTime    :: TimeSignature
-                           ,_stMPitss  :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch))
+                           ,_stMIntss  :: NE.NonEmpty (NE.NonEmpty (Maybe Int))
                            ,_stDurss   :: NE.NonEmpty (NE.NonEmpty Duration)
                            ,_stAcctss  :: NE.NonEmpty (NE.NonEmpty Accent)
                            ,_stRange   :: ((Pitch,Octave),(Pitch,Octave))
                            ,_stMDurVal :: Maybe Int
-                           -- ,_stGhosts :: NE.NonEmpty (Int,Int)
                            } deriving Show
 
 cfg2SwirlsTup :: String -> Driver SwirlsTup
@@ -44,37 +42,20 @@ cfg2SwirlsTup pre =
     <*> searchConfigParam  (pre <> ".key")
     <*> searchConfigParam  (pre <> ".scale")
     <*> searchConfigParam  (pre <> ".time")
-    <*> searchConfigParam  (pre <> ".mpitss")
+    <*> searchConfigParam  (pre <> ".mintss")
     <*> searchConfigParam  (pre <> ".durss")
     <*> searchConfigParam  (pre <> ".accentss")
     <*> searchConfigParam  (pre <> ".range")
     <*> searchMConfigParam (pre <> ".durval")
---  <*> searchConfigParam  (pre <> ".ghosts")
 
 cfg2SwirlsTups :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty SwirlsTup)
 cfg2SwirlsTups = cfg2Tups cfg2SwirlsTup
 
--- Implicitly works against chromatic scale, fmap normPitch gives Maybe 0..11.
--- Just Int maps to a new interval for a new Pitch, Nothing maps to Rest.
--- Pitch in [Maybe Pitch] is from chromatic scale so stays within one octave
--- where C (Bs, Dff) is 0.  When ordering of range is LT, then all intervals
--- are with respect to C above, else from C below.
-genMIntervalList :: Ordering -> [Maybe Pitch] -> [Maybe Int]
-genMIntervalList rangeOrd =
-  reverse . snd . foldl f (0,[]) . (fmap . fmap) ((+ off) . normPitch)
-  where
-    f (prev,ret) (Just curr) = (curr, Just (curr - prev):ret)
-    f (prev,ret) Nothing     = (prev, Nothing:ret)
-    off = case rangeOrd of
-            LT -> -12
-            GT -> 0
-            EQ -> 0
-
 -- Unfold repeated transpositions of [[Maybe Pitch]] across Range
--- matching up with repetitions of [[Duration]] and [[Accent] to generate NoteOrRest.a
-genSwirl :: [[Duration]] -> [[Accent]] -> [[Maybe Pitch]] -> Scale -> Range -> Driver [NoteOrRest]
-genSwirl durss acctss mPitss scale (Range (start,stop)) = do
-  mSteps    <- randomizeList mPitss <&> concatMap (genMIntervalList rangeOrd)
+-- matching up with repetitions of [[Duration]] and [[Accent] to generate NoteOrRest.
+genSwirl :: [[Duration]] -> [[Accent]] -> [[Maybe Int]] -> Scale -> Range -> Driver [NoteOrRest]
+genSwirl durss acctss mIntss scale (Range (start,stop)) = do
+  mSteps    <- randomizeList mIntss <&> concat
   manyDurs  <- randomizeList durss  <&> cycle . concat
   manyAccts <- randomizeList acctss <&> cycle . concat
   let stepOrd = sum (fromMaybe 0 <$> mSteps) `compare` 0
@@ -85,12 +66,6 @@ genSwirl durss acctss mPitss scale (Range (start,stop)) = do
   pure $ zipWith3 mkNoteOrRest mPOs manyDurs manyAccts
   where
     rangeOrd = swap stop `compare` swap start
-    -- unfoldf cmp (prev,(Just step1):(Just step2):mSteps)
-    --   | swap nextnext `cmp` swap stop = Nothing
-    --   | otherwise = Just (Just next,(next, Just step2:mSteps))
-    --   where
-    --     next = xp scale prev step1
-    --     nextnext = xp scale next step2
     unfoldf cmp (prev,(Just step1):mSteps)
       | swap next `cmp` swap stop = Nothing
       | otherwise = Just (Just next,(next, mSteps))
@@ -103,30 +78,29 @@ mkNoteOrRest :: Maybe (Pitch, Octave) -> Duration -> Accent -> Either Note Rest
 mkNoteOrRest (Just (p,o)) d a = Left $ Note p o d (Staccatissimo NE.:| [a]) NoDynamic  NoSwell False -- tbd: magic constant Staccatissimo
 mkNoteOrRest Nothing d _ = Right $ Rest d  NoDynamic
 
-genStatic :: [[Duration]] -> [[Accent]] -> [[Maybe Pitch]] -> Scale -> Range -> Maybe Int -> Driver [NoteOrRest]
+genStatic :: [[Duration]] -> [[Accent]] -> [[Maybe Int]] -> Scale -> Range -> Maybe Int -> Driver [NoteOrRest]
 genStatic _ _ _ _  _ Nothing = error "genStatic missing max duration value"
-genStatic durss acctss mPitss scale (Range (start,stop)) (Just maxDurVal)= do
-  manyMSteps <- randomizeList mPitss <&> cycle . concatMap (genMIntervalList rangeOrd)
+genStatic durss acctss mPitss scale (Range (start,_)) (Just maxDurVal)= do
+  manyMSteps <- randomizeList mPitss <&> cycle . concat
   manyDurs   <- randomizeList durss  <&> cycle . concat
   manyAccts  <- randomizeList acctss <&> cycle . concat
-  let allDurs = unfoldr unfoldf (0,manyDurs)
-      manyPOs = snd $ foldr foldrf (start,[]) manyMSteps
-  pure $ zipWith3 mkNoteOrRest manyPOs allDurs manyAccts
+  let allDurs  = unfoldr unfoldDurs (0,manyDurs)
+      manyMPOs = unfoldr unfoldMPOs (start,manyMSteps)
+  pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts
   where
-    rangeOrd = swap stop `compare` swap start
-    unfoldf (durVal,durs)
+    unfoldDurs (durVal,durs)
       | durVal >= maxDurVal = Nothing
       | otherwise = Just (head durs,(durVal + dur2DurVal (head durs),tail durs))
-    foldrf :: Maybe Int -> ((Pitch,Octave),[Maybe (Pitch,Octave)]) -> ((Pitch,Octave),[Maybe (Pitch,Octave)])
-    foldrf Nothing (prev,ret) = (prev,ret <> [Nothing])
-    foldrf (Just step) (prev,ret) = (next,ret <> [Just next])
+    unfoldMPOs (prev,Nothing:mSteps) = Just (Nothing,(prev,mSteps))
+    unfoldMPOs (prev,Just step:mSteps) = Just (Just next,(next,mSteps))
       where
         next = xp scale prev step
+    unfoldMPOs _ = error "unfoldf' unexpected input"
 
 swirlsTup2NoteOrRests :: SwirlsTup -> Driver [NoteOrRest]
 swirlsTup2NoteOrRests SwirlsTup{..}
-  | uncurry (==) _stRange = genStatic (nes2arrs _stDurss) (nes2arrs _stAcctss) (nes2arrs _stMPitss) _stScale (Range _stRange) _stMDurVal
-  | otherwise = genSwirl (nes2arrs _stDurss) (nes2arrs _stAcctss) (nes2arrs _stMPitss) _stScale (Range _stRange)
+  | uncurry (==) _stRange = genStatic (nes2arrs _stDurss) (nes2arrs _stAcctss) (nes2arrs _stMIntss) _stScale (Range _stRange) _stMDurVal
+  | otherwise = genSwirl (nes2arrs _stDurss) (nes2arrs _stAcctss) (nes2arrs _stMIntss) _stScale (Range _stRange)
 
 genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
 genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess
