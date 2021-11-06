@@ -9,8 +9,7 @@ swirls:
     scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
   section1:
     globals:
-      range:    ((c,-3),(c,-3))
-      durval:   int 1024
+      range:    ((c,-3),(c,3))
     voice1:
       mintss:   ((3),(1))
       durss:    ((8))
@@ -23,6 +22,8 @@ swirls:
       mintss:   ((12,-10),(3,3),(4,-4))
       durss:    ((16,8.))
       accentss: ((~,>,>),(>,>,~,~,~))
+      register: (g,0)
+      durval:   int 1024
     
 # globals:
 #   tempo:   int 120

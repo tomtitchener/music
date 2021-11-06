@@ -24,29 +24,52 @@ type NoteOrRest = Either Note Rest
 
 newtype Range = Range ((Pitch,Octave),(Pitch,Octave)) deriving (Eq, Show)
 
-data SwirlsTup = SwirlsTup {_stInstr   :: Instrument
-                           ,_stKey     :: KeySignature
-                           ,_stScale   :: Scale
-                           ,_stTime    :: TimeSignature
-                           ,_stMIntss  :: NE.NonEmpty (NE.NonEmpty (Maybe Int))
-                           ,_stDurss   :: NE.NonEmpty (NE.NonEmpty Duration)
-                           ,_stAcctss  :: NE.NonEmpty (NE.NonEmpty Accent)
-                           ,_stRange   :: ((Pitch,Octave),(Pitch,Octave))
-                           ,_stMDurVal :: Maybe Int
-                           } deriving Show
+data SwirlsTup =
+  SwirlsTupXPose {_stxInstr   :: Instrument
+                 ,_stxKey     :: KeySignature
+                 ,_stxScale   :: Scale
+                 ,_stxTime    :: TimeSignature
+                 ,_stxMIntss  :: NE.NonEmpty (NE.NonEmpty (Maybe Int))
+                 ,_stxDurss   :: NE.NonEmpty (NE.NonEmpty Duration)
+                 ,_stxAcctss  :: NE.NonEmpty (NE.NonEmpty Accent)
+                 ,_stxRange   :: ((Pitch,Octave),(Pitch,Octave))
+                 }
+  | SwirlsTupRepeat {_strInstr    :: Instrument
+                    ,_strKey      :: KeySignature
+                    ,_strScale    :: Scale
+                    ,_strTime     :: TimeSignature
+                    ,_strMIntss   :: NE.NonEmpty (NE.NonEmpty (Maybe Int))
+                    ,_strDurss    :: NE.NonEmpty (NE.NonEmpty Duration)
+                    ,_strAcctss   :: NE.NonEmpty (NE.NonEmpty Accent)
+                    ,_strRegister :: (Pitch,Octave)
+                    ,_strDurVal   :: Int
+                 }
 
 cfg2SwirlsTup :: String -> Driver SwirlsTup
-cfg2SwirlsTup pre =
-  SwirlsTup
-    <$> searchConfigParam  (pre <> ".instr")
-    <*> searchConfigParam  (pre <> ".key")
-    <*> searchConfigParam  (pre <> ".scale")
-    <*> searchConfigParam  (pre <> ".time")
-    <*> searchConfigParam  (pre <> ".mintss")
-    <*> searchConfigParam  (pre <> ".durss")
-    <*> searchConfigParam  (pre <> ".accentss")
-    <*> searchConfigParam  (pre <> ".range")
-    <*> searchMConfigParam (pre <> ".durval")
+cfg2SwirlsTup pre = do
+  mIntss::(Maybe (NE.NonEmpty (NE.NonEmpty (Maybe Int)))) <- searchMConfigParam (pre <> ".register")
+  case mIntss of
+    Just _ ->
+      SwirlsTupRepeat
+        <$> searchConfigParam  (pre <> ".instr")
+        <*> searchConfigParam  (pre <> ".key")
+        <*> searchConfigParam  (pre <> ".scale")
+        <*> searchConfigParam  (pre <> ".time")
+        <*> searchConfigParam  (pre <> ".mintss")
+        <*> searchConfigParam  (pre <> ".durss")
+        <*> searchConfigParam  (pre <> ".accentss")
+        <*> searchConfigParam  (pre <> ".register")
+        <*> searchConfigParam  (pre <> ".durval")
+    Nothing ->
+      SwirlsTupXPose
+        <$> searchConfigParam  (pre <> ".instr")
+        <*> searchConfigParam  (pre <> ".key")
+        <*> searchConfigParam  (pre <> ".scale")
+        <*> searchConfigParam  (pre <> ".time")
+        <*> searchConfigParam  (pre <> ".mintss")
+        <*> searchConfigParam  (pre <> ".durss")
+        <*> searchConfigParam  (pre <> ".accentss")
+        <*> searchConfigParam  (pre <> ".range")
 
 cfg2SwirlsTups :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty SwirlsTup)
 cfg2SwirlsTups = cfg2Tups cfg2SwirlsTup
@@ -74,33 +97,29 @@ genSwirl durss acctss mIntss scale (Range (start,stop)) = do
     unfoldf _ (prev, Nothing:mSteps) = Just (Nothing,(prev, mSteps))
     unfoldf _ steps = error $ "invalid list of steps, (" <> show (fst steps) <> "," <> show (take 10 (snd steps)) <> ")"
 
-mkNoteOrRest :: Maybe (Pitch, Octave) -> Duration -> Accent -> Either Note Rest
-mkNoteOrRest (Just (p,o)) d a = Left $ Note p o d (Staccatissimo NE.:| [a]) NoDynamic  NoSwell False -- tbd: magic constant Staccatissimo
-mkNoteOrRest Nothing d _ = Right $ Rest d  NoDynamic
-
-genStatic :: [[Duration]] -> [[Accent]] -> [[Maybe Int]] -> Scale -> Range -> Maybe Int -> Driver [NoteOrRest]
-genStatic _ _ _ _  _ Nothing = error "genStatic missing max duration value"
-genStatic durss acctss mPitss scale (Range (start,_)) (Just maxDurVal)= do
-  manyMSteps <- randomizeList mPitss <&> cycle . concat
+-- static means each [Maybe Int] is interpreted with respect to (Pitch,Octave)
+-- instead of continuing to transpose from the end of one [Maybe Int] to the next
+genStatic :: [[Duration]] -> [[Accent]] -> [[Maybe Int]] -> Scale -> (Pitch,Octave) -> Int -> Driver [NoteOrRest]
+genStatic durss acctss mIntss scale start maxDurVal= do
+  manyMPOs   <- randomizeList mIntss <&> cycle . concatMap (mtranspose scale start)
   manyDurs   <- randomizeList durss  <&> cycle . concat
   manyAccts  <- randomizeList acctss <&> cycle . concat
   let allDurs  = unfoldr unfoldDurs (0,manyDurs)
-      manyMPOs = unfoldr unfoldMPOs (start,manyMSteps)
   pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts
   where
     unfoldDurs (durVal,durs)
       | durVal >= maxDurVal = Nothing
       | otherwise = Just (head durs,(durVal + dur2DurVal (head durs),tail durs))
-    unfoldMPOs (prev,Nothing:mSteps) = Just (Nothing,(prev,mSteps))
-    unfoldMPOs (prev,Just step:mSteps) = Just (Just next,(next,mSteps))
-      where
-        next = xp scale prev step
-    unfoldMPOs _ = error "unfoldf' unexpected input"
+
+mkNoteOrRest :: Maybe (Pitch, Octave) -> Duration -> Accent -> Either Note Rest
+mkNoteOrRest (Just (p,o)) d a = Left $ Note p o d (Staccatissimo NE.:| [a]) NoDynamic  NoSwell False -- tbd: magic constant Staccatissimo
+mkNoteOrRest Nothing d _ = Right $ Rest d  NoDynamic
 
 swirlsTup2NoteOrRests :: SwirlsTup -> Driver [NoteOrRest]
-swirlsTup2NoteOrRests SwirlsTup{..}
-  | uncurry (==) _stRange = genStatic (nes2arrs _stDurss) (nes2arrs _stAcctss) (nes2arrs _stMIntss) _stScale (Range _stRange) _stMDurVal
-  | otherwise = genSwirl (nes2arrs _stDurss) (nes2arrs _stAcctss) (nes2arrs _stMIntss) _stScale (Range _stRange)
+swirlsTup2NoteOrRests SwirlsTupXPose{..} =
+  genSwirl (nes2arrs _stxDurss) (nes2arrs _stxAcctss) (nes2arrs _stxMIntss) _stxScale (Range _stxRange)
+swirlsTup2NoteOrRests SwirlsTupRepeat{..} =
+  genStatic (nes2arrs _strDurss) (nes2arrs _strAcctss) (nes2arrs _strMIntss) _strScale _strRegister _strDurVal
 
 genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
 genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess

@@ -6,7 +6,7 @@ module Compositions.Swirls.Compose (cfg2SwirlsScore) where
 
 import Control.Applicative
 import Control.Lens (Bifunctor(bimap), (&), (<&>))
-import Data.List (isPrefixOf)
+import Data.List (isPrefixOf, zipWith4)
 import qualified Data.List.NonEmpty as NE
 import Data.Tuple.Extra (dupe, second, secondM)
 
@@ -22,31 +22,34 @@ import Compositions.Swirls.Utils
 
 cfg2SwirlsScore :: String -> Driver ()
 cfg2SwirlsScore title = do
-  tempoInt::Int <- searchConfigParam (title <> ".globals.tempo")
-  sections      <- cfgPath2Keys ("section" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
-  secVcsPrs     <- traverse (secondM (cfgPath2Keys ("voice" `isPrefixOf`)) . dupe) sections
-  tupss         <- traverse (uncurry cfg2SwirlsTups) (second NE.fromList <$> secVcsPrs)
-  nOrRsss       <- traverse (\tups -> traverse swirlsTup2NoteOrRests tups <&> ZipList . NE.toList) tupss
+  tempoInt  <- searchConfigParam (title <> ".globals.tempo")::(Driver Int)
+  timeSig   <- searchConfigParam (title <> ".globals.time")::(Driver TimeSignature)
+  keySig    <- searchConfigParam (title <> ".globals.key")::(Driver KeySignature)
+  instr     <- searchConfigParam (title <> ".globals.instr")::(Driver Instrument)
+  sections  <- cfgPath2Keys ("section" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
+  secVcsPrs <- traverse (secondM (cfgPath2Keys ("voice" `isPrefixOf`)) . dupe) sections
+  vocTups   <- traverse (uncurry cfg2SwirlsTups) (second NE.fromList <$> secVcsPrs)
+  nOrRsss   <- traverse (\tups -> traverse swirlsTup2NoteOrRests tups <&> ZipList . NE.toList) vocTups
   let nOrRss    = concat <$> getZipList (sequenceA nOrRsss)
       tempo     = TempoDur QDur (fromIntegral tempoInt)
-      voices    = pipeline tempo (head tupss) nOrRss
+      voices    = pipeline tempo timeSig keySig instr nOrRss
   writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
   where
-    pipeline :: Tempo -> NE.NonEmpty SwirlsTup -> [[NoteOrRest]] -> NE.NonEmpty Voice
-    pipeline tempo tups nOrRss = -- Assumes: TimeSignature, Instrument, Key are the same for all Voices
-      zipWith alignNoteOrRestsDurations (NE.toList timeSigs) nOrRss      -- -> [[NoteOrRest]]
-      & zipWith splitNoteOrRests winLens                                 -- -> [([VoiceEvent],[VoiceEvent])]
-      & zipWith tagFirstNotes firstNotes                                 -- -> [([VoiceEvent],[VoiceEvent])]
-      & zipWith3 (mkTotDur (maximum veLens)) veLens (NE.toList timeSigs) -- -> [([VoiceEvent],[VoiceEvent])]
-      & NE.fromList . (<$>) (bimap NE.fromList NE.fromList)              -- -> NonEmpty (NonEmpty VoiceEvent,NonEmpty VoiceEvent)
-      & neZipWith4 genPolyVocs instrs keys timeSigs                      -- -> NonEmpty Voice
-      & tagTempo tempo                                                   -- -> NonEmpty Voice
+    pipeline :: Tempo -> TimeSignature -> KeySignature -> Instrument -> [[NoteOrRest]] -> NE.NonEmpty Voice
+    pipeline tempo timeSig keySig instr nOrRss = --
+      zipWith alignNoteOrRestsDurations timeSigs nOrRss            -- -> [[NoteOrRest]]
+      & zipWith splitNoteOrRests winLens                           -- -> [([VoiceEvent],[VoiceEvent])]
+      & zipWith tagFirstNotes firstNotes                           -- -> [([VoiceEvent],[VoiceEvent])]
+      & zipWith3 (mkTotDur (maximum veLens)) veLens timeSigs       -- -> [([VoiceEvent],[VoiceEvent])]
+      & fmap (bimap NE.fromList NE.fromList)                       -- -> [(NonEmpty VoiceEvent,NonEmpty VoiceEvent)]
+      & NE.fromList . zipWith4 genPolyVocs instrs keySigs timeSigs -- -> NonEmpty Voice
+      & tagTempo tempo                                             -- -> NonEmpty Voice
       where
-        veLens     = nOrRs2DurVal <$> nOrRss
-        timeSigs   = _stTime  <$> tups
-        instrs     = _stInstr <$> tups
-        keys       = _stKey   <$> tups
         cntVoices  = length nOrRss
+        veLens     = nOrRs2DurVal <$> nOrRss
+        timeSigs   = replicate cntVoices timeSig
+        keySigs    = replicate cntVoices keySig
+        instrs     = replicate cntVoices instr
         winLens    = replicate cntVoices 5 -- tbd: magic constant
         firstNotes = replicate cntVoices firstNote
         firstNote  = Note C COct EDur (singleton Staccatissimo) PPP NoSwell False
