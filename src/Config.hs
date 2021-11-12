@@ -18,6 +18,9 @@ class FromConfig a where
 instance FromConfig Int where
   parseConfig = mkParseConfig (string "int" *> spaces *> int)
 
+instance FromConfig String where
+  parseConfig = mkParseConfig identifier
+
 instance FromConfig Instrument where
   parseConfig = mkParseConfig parseInstrument
 
@@ -190,3 +193,11 @@ clefStrs = ["bass_8", "bass", "tenor", "alto", "treble", "treble^8"]
 
 pClefStr :: Parser Clef
 pClefStr = choice (zipWith mkParser clefStrs [Bass8VB ..Treble8VA])
+
+-- from https://jakewheat.github.io/intro_to_parsing
+identifier :: Parser String
+identifier = lexeme ((:) <$> firstChar <*> many nonFirstChar)
+  where
+    firstChar = letter <|> char '_'
+    nonFirstChar = digit <|> firstChar
+

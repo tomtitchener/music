@@ -147,10 +147,10 @@ printIt :: Show a => a -> Driver ()
 printIt s = liftF $ DoAction (Print (show s)) ()
 
 -- If initial path doesn't contain key, repeatedly swap next higher level
--- with "globals" looking for same key, e.g.:
---   ["title","section1","voice1","tempo"] -> ["title","section1","globals","tempo"]
---   ["title","section1","globals","tempo"] -> ["title","globals","tempo"]
---   ["title","globals","tempo"] -> []
+-- with "common" looking for same key, e.g.:
+--   ["title","section1","voice1","tempo"] -> ["title","section1","common","tempo"]
+--   ["title","section1","common","tempo"] -> ["title","common","tempo"]
+--   ["title","common","tempo"] -> []
 searchConfigParam :: (FromConfig a, Show a) => String -> Driver a
 searchConfigParam path = do
   let go segs =
@@ -166,7 +166,7 @@ searchConfigParam path = do
   where
     retrySegs :: [String] -> [String]
     retrySegs segs
-      | "globals" `notElem` segs = take (length segs - 2) segs <> ["globals"] <> [last segs]
+      | "common" `notElem` segs = take (length segs - 2) segs <> ["common"] <> [last segs]
       | length segs > 3 = take (length segs - 3) segs  <> drop (length segs - 2) segs
       | otherwise = []
 
@@ -185,11 +185,11 @@ searchMConfigParam path = do
   where
     retrySegs :: [String] -> [String]
     retrySegs segs
-      | "globals" `notElem` segs = take (length segs - 2) segs <> ["globals"] <> [last segs]
+      | "common" `notElem` segs = take (length segs - 2) segs <> ["common"] <> [last segs]
       | length segs > 3 = take (length segs - 3) segs  <> drop (length segs - 2) segs
       | otherwise = []
 
--- Call with f as e.g. cfg2SwirlsTup :: String -> Driver SwirlsTup to build "a" in
+-- Call with f as e.g. cfg2VoiceConfigTup :: String -> Driver VoiceConfigTup to build "a" in
 -- Driver (NE.NonEmpty a) given path to "a" fields converted from text in config.yml
 -- file via searchConfigParam or getConfigParam.
 cfg2Tups :: (String -> Driver a) -> String -> NE.NonEmpty String -> Driver (NE.NonEmpty a)

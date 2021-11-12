@@ -28,8 +28,8 @@ cfg2SwirlsScore title = do
   instr     <- searchConfigParam (title <> ".globals.instr")::(Driver Instrument)
   sections  <- cfgPath2Keys ("section" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
   secVcsPrs <- traverse (secondM (cfgPath2Keys ("voice" `isPrefixOf`)) . dupe) sections
-  vocTups   <- traverse (uncurry cfg2SwirlsTups) (second NE.fromList <$> secVcsPrs)
-  nOrRsss   <- traverse (\tups -> traverse swirlsTup2NoteOrRests tups <&> ZipList . NE.toList) vocTups
+  vocTups   <- traverse (uncurry cfg2VoiceConfigTups) (second NE.fromList <$> secVcsPrs)
+  nOrRsss   <- traverse (\tups -> traverse configTup2NoteOrRests tups <&> ZipList) vocTups
   let nOrRss    = concat <$> getZipList (sequenceA nOrRsss)
       tempo     = TempoDur QDur (fromIntegral tempoInt)
       voices    = pipeline tempo timeSig keySig instr nOrRss

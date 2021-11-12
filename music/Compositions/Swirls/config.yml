@@ -1,38 +1,41 @@
 # swirls
 
 swirls:
-  globals:
+  common:
     tempo:   int 120
     key:     c major
     instr:   acoustic grand
     time:    (4,4)
     scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
   section1:
-    globals:
+    common:
       range:    ((c,-3),(c,3))
     voice1:
+      type:     xpose
       mintss:   ((3),(1))
       durss:    ((8))
       accentss: ((>,~),(~,>))
     voice2:
+      type:     xpose
       mintss:   ((1,10,-6,r),(3,1,9,-7),(r))
       durss:    ((8,16,16),(8.,16),(8,8,8))
       accentss: ((>,~,~))
     voice3:
+      type:     repeat
       mintss:   ((12,-10),(3,3),(4,-4))
       durss:    ((16,8.))
       accentss: ((~,>,>),(>,>,~,~,~))
       register: (g,0)
       durval:   int 1024
     
-# globals:
+# common:
 #   tempo:   int 120
 #   key:     c major
 #   instr:   acoustic grand
 #   time:    ((2,2,3),(7,8))
 #   scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
 # section1:
-#   globals:
+#   common:
 #     mpitss:  ((a,fis,e,b,d,dis,ais,g,g,ais),(c,g,d,d,a,dis,r,d),(f,g,a,dis,e,fis,c,b,r,b,r,b))
 #     range:   ((c,-3),(c,3))
 #   voice1:
@@ -46,7 +49,7 @@ swirls:
 #     durss:    ((4,8,4),(16,16,8,4),(4,8,4),(4,8,4))
 #     accentss: ((~,>,>),(>,>,~,~,~))
 # section2:
-#   globals:
+#   common:
 #     range:   ((c,3),(c,-3))
 #     mpitss:  ((b,dis,a,r,cis,ais,d,gis,cis),
 #               (g,b,r,f,a,e,r,g,d,f,c,e),
