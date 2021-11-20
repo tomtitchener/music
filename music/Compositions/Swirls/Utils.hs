@@ -12,13 +12,12 @@ import Data.Function (on)
 import Data.List (elemIndex, findIndex, groupBy, unfoldr)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
-import Data.Maybe (fromMaybe, isJust, fromJust)
+import Data.Maybe (fromMaybe)
 import Data.Sequence (adjust, fromList)
 import Data.Tuple (swap)
 import Safe (headMay)
-
 import Driver
-       (Driver, cfg2Tups, randomizeList, randomElements, searchConfigParam)
+       (Driver, cfg2Tups, randomElements, searchConfigParam)
 import Types
 import Utils
 
@@ -119,35 +118,29 @@ cfg2VoiceConfigTup pre =
 cfg2VoiceConfigTups :: String -> NE.NonEmpty String -> Driver [VoiceConfigTup]
 cfg2VoiceConfigTups pre keys = cfg2Tups cfg2VoiceConfigTup pre keys <&> NE.toList
 
--- Unfold random transpositions of [[Maybe Pitch]] across Range, matching up 
--- with random transpositions of [[Duration]] and [[Accent] to generate NoteOrRest.
+-- Unfold repeated transpositions of [[Maybe Pitch]] across Range
+-- matching up with repetitions of [[Duration]] and [[Accent] to generate NoteOrRest.
 genXPose :: [[Duration]] -> [[Accent]] -> [[Maybe Int]] -> Scale -> Range -> Driver [NoteOrRest]
-genXPose durss acctss mIntss scale (Range (start,stop)) =
-  let rangeOrd  = (compare `on` swap) stop start
-      stepOrd   = sum (fromMaybe 0 <$> concat mIntss) `compare` 0
-      compareOp = if stepOrd == rangeOrd && stepOrd /= EQ
-                  then if stepOrd == LT then (<=) else (>=)
-                  else error $ "invalid step order " <> show stepOrd <> " compared with range order " <> show rangeOrd
-      go (start',ret) = do
-        (durs,accts,mInts) <- (,,) <$> nexts durss <*> nexts acctss <*> nexts mIntss
-        let mPOs      = unfoldr (unfoldf compareOp) (start',mInts)
-            start''   = fromJust . last . filter isJust $ mPOs
-            ret'      = ret <> zipWith3 mkNoteOrRest mPOs (cycle durs) (cycle accts)
-        if length mPOs == length mInts
-        then go (start'',ret')
-        else pure ret'
-        where
-          nexts xss = randomizeList xss <&> concat
-          unfoldf cmp (prev,(Just step):mSteps)
-            | swap next `cmp` swap stop = Nothing
-            | otherwise = Just (Just next,(next, mSteps))
-            where
-              next = xp scale prev step
-          unfoldf _ (prev, Nothing:mSteps) = Just (Nothing,(prev, mSteps))
-          unfoldf _ (_,[]) = Nothing
-  in
-    go (start,[])
-
+genXPose durss acctss mIntss scale (Range (start,stop)) = do
+  mSteps    <- randomElements mIntss <&> concat
+  manyDurs  <- randomElements durss  <&> concat
+  manyAccts <- randomElements acctss <&> concat
+  let mPOs = unfoldr (unfoldf compareOp) (start,mSteps)
+  pure $ zipWith3 mkNoteOrRest mPOs manyDurs manyAccts
+  where
+    stepOrd   = sum (fromMaybe 0 <$> concat mIntss) `compare` 0
+    rangeOrd  = swap stop `compare` swap start
+    compareOp = if stepOrd == rangeOrd && stepOrd /= EQ
+                then if stepOrd == LT then (<=) else (>=)
+                else error $ "invalid step order " <> show stepOrd <> " compared with range order " <> show rangeOrd
+    unfoldf cmp (prev,(Just step1):mSteps)
+      | swap next `cmp` swap stop = Nothing
+      | otherwise = Just (Just next,(next, mSteps))
+      where
+        next = xp scale prev step1
+    unfoldf _ (prev, Nothing:mSteps) = Just (Nothing,(prev, mSteps))
+    unfoldf _ steps = error $ "invalid list of steps, (" <> show (fst steps) <> "," <> show (take 10 (snd steps)) <> ")"
+    
 -- static means each [Maybe Int] is interpreted with respect to (Pitch,Octave)
 -- instead of continuing to transpose from the end of one [Maybe Int] to the next
 genStatic :: [[Duration]] -> [[Accent]] -> [[Maybe Int]] -> Scale -> (Pitch,Octave) -> Int -> Driver [NoteOrRest]
