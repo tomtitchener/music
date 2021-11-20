@@ -1,8 +1,14 @@
+-- TO BE DEPRECATED --
+
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Compose (cfg2Driver) where
+module Compose ( cfg2MaxRandScore
+               , cfg2HomoPhonScore
+               , cfg2CanonScore
+               , cfg2RandMotScore
+               , cfg2ArpeggiosScore) where
 
 import Control.Monad (zipWithM)
 import Data.Foldable
@@ -11,7 +17,6 @@ import qualified Data.List.NonEmpty as NE
 import Data.Semigroup (stimesMonoid)
 import GHC.Base (sconcat)
 
-import Compositions.Swirls.Compose (cfg2SwirlsScore)
 import Driver
        ( Driver
        , cfg2Tups
@@ -275,19 +280,3 @@ cfg2ArpeggiosScore title = do
       vess   = neZipWith7 genArpVEs scales ranges (NE.repeat _amMIntss) _amDurss _amAcctss  _amDynss _amSlurss
       voices = neZipWith3 genVocs instrs keys vess
   writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
-
---------------------
--- Hook with main --
---------------------
-
-driverFuns :: [(String,String -> Driver ())]
-driverFuns =
-  [("example_texture",   cfg2MaxRandScore)   -- to be deprecated
-  ,("example_texture",   cfg2HomoPhonScore)  -- to be deprecated
-  ,("example_texture",   cfg2CanonScore)     -- to be deprecated
-  ,("exmaple_texture",   cfg2RandMotScore)   -- to be deprecated
-  ,("example_arpeggios", cfg2ArpeggiosScore) -- to be deprecated
-  ,("swirls",            cfg2SwirlsScore)]
-
-cfg2Driver :: String -> Driver ()
-cfg2Driver title = maybe (error $ "cfg2Driver: no fun for title " <> title) ($ title) $ lookup title driverFuns

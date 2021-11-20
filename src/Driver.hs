@@ -33,7 +33,7 @@ import Control.Monad.Reader (MonadIO(..), MonadReader, asks)
 import Data.Aeson (Value)
 import Data.Aeson.Lens
 import Data.HashMap.Strict (keys)
-import Data.List (intercalate)
+import Data.List (intercalate, sort)
 import qualified Data.List.NonEmpty as NE
 import Data.List.Split (splitOn)
 import qualified Data.Text as T
@@ -198,7 +198,7 @@ cfg2Tups f title = traverse (f . ((title <> ".") <>))
 -- String in path must end with key for Value that is Object (HashMap Text Value),
 -- answers list of keys in Object matching regexp in target
 cfgPath2Keys :: (String ->  Bool) -> String -> Driver [String]
-cfgPath2Keys filtf path = liftF $ DoActionThen (GetConfigSubKeys path) (filter filtf)
+cfgPath2Keys filtf path = liftF $ DoActionThen (GetConfigSubKeys path) (sort . filter filtf)
 
 -- https://www.parsonsmatt.org/2017/09/22/what_does_free_buy_us.html
 

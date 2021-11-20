@@ -33,6 +33,15 @@ instance FromConfig TimeSignature where
 instance FromConfig Clef where
   parseConfig = mkParseConfig pClefStr
 
+instance FromConfig Octave where
+  parseConfig = mkParseConfig pOctaveStr
+  
+instance FromConfig (NE.NonEmpty Octave) where
+  parseConfig = mkParseConfig (mkPs pOctaveStr)
+  
+instance FromConfig (NE.NonEmpty (NE.NonEmpty Octave)) where
+  parseConfig = mkParseConfig (mkPss pOctaveStr)
+
 instance FromConfig (Pitch,Octave) where
   parseConfig = mkParseConfig pPitOctPr
 
@@ -48,9 +57,15 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty Pitch)) where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe Pitch))) where
   parseConfig = mkParseConfig (mkPss pMPitch)
 
+instance FromConfig Accent where
+  parseConfig = mkParseConfig pAccentStr
+  
 instance FromConfig (NE.NonEmpty Accent) where
   parseConfig = mkParseConfig (mkPs pAccentStr)
-
+  
+instance FromConfig Dynamic where
+  parseConfig = mkParseConfig pDynamicStr
+  
 instance FromConfig (NE.NonEmpty Dynamic) where
   parseConfig = mkParseConfig (mkPs pDynamicStr)
 

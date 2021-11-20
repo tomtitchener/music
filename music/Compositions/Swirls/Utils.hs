@@ -4,11 +4,12 @@
 
 module Compositions.Swirls.Utils  where
 
+import Control.Applicative ((<|>))
 import Control.Lens hiding (pre)
 import Data.Either (isRight)
 import Data.Foldable
 import Data.Function (on)
-import Data.List (findIndex, groupBy, unfoldr)
+import Data.List (elemIndex, findIndex, groupBy, unfoldr)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe, isJust, fromJust)
@@ -17,7 +18,7 @@ import Data.Tuple (swap)
 import Safe (headMay)
 
 import Driver
-       (Driver, cfg2Tups, randomizeList, searchConfigParam, searchMConfigParam)
+       (Driver, cfg2Tups, randomizeList, searchConfigParam)
 import Types
 import Utils
 
@@ -26,7 +27,8 @@ type NoteOrRest = Either Note Rest
 newtype Range = Range ((Pitch,Octave),(Pitch,Octave)) deriving (Eq, Show)
 
 data VoiceConfigTup =
-  VoiceConfigTupXPose {_vctxInstr   :: Instrument
+  VoiceConfigTupXPose {
+                  _vctxInstr   :: Instrument
                  ,_vctxKey     :: KeySignature
                  ,_vctxScale   :: Scale
                  ,_vctxTime    :: TimeSignature
@@ -35,7 +37,8 @@ data VoiceConfigTup =
                  ,_vctxAcctss  :: NE.NonEmpty (NE.NonEmpty Accent)
                  ,_vctxRange   :: ((Pitch,Octave),(Pitch,Octave))
                  }
-  | VoiceConfigTupRepeat {_vctrInstr    :: Instrument
+  | VoiceConfigTupRepeat {
+                    _vctrInstr    :: Instrument
                     ,_vctrKey      :: KeySignature
                     ,_vctrScale    :: Scale
                     ,_vctrTime     :: TimeSignature
@@ -44,6 +47,19 @@ data VoiceConfigTup =
                     ,_vctrAcctss   :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vctrRegister :: (Pitch,Octave)
                     ,_vctrDurVal   :: Int
+                 }
+  | VoiceConfigTupCanon {
+                    _vctcInstr    :: Instrument
+                    ,_vctcKey      :: KeySignature
+                    ,_vctcScale    :: Scale
+                    ,_vctcTime     :: TimeSignature
+                    ,_vctcMPitss   :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch))
+                    ,_vctcOctss    :: NE.NonEmpty (NE.NonEmpty Octave)
+                    ,_vctcDurss    :: NE.NonEmpty (NE.NonEmpty Duration)
+                    ,_vctcAcctss   :: NE.NonEmpty (NE.NonEmpty Accent)
+                    ,_vctcRegister :: (Pitch,Octave)
+                    ,_vctcDurVal   :: Int
+                    ,_vctcRotVal   :: Int
                  }
 
 tup2VoiceConfigTupXPose :: String -> Driver VoiceConfigTup
@@ -71,18 +87,34 @@ tup2VoiceConfigTupRepeat pre =
         <*> searchConfigParam  (pre <> ".register")
         <*> searchConfigParam  (pre <> ".durval")
 
+tup2VoiceConfigTupCanon :: String -> Driver VoiceConfigTup
+tup2VoiceConfigTupCanon pre =
+      VoiceConfigTupCanon
+        <$> searchConfigParam  (pre <> ".instr")
+        <*> searchConfigParam  (pre <> ".key")
+        <*> searchConfigParam  (pre <> ".scale")
+        <*> searchConfigParam  (pre <> ".time")
+        <*> searchConfigParam  (pre <> ".mpitss")
+        <*> searchConfigParam  (pre <> ".octss")
+        <*> searchConfigParam  (pre <> ".durss")
+        <*> searchConfigParam  (pre <> ".accentss")
+        <*> searchConfigParam  (pre <> ".register")
+        <*> searchConfigParam  (pre <> ".durval")
+        <*> searchConfigParam  (pre <> ".rotval")
+
 type2ConfigTup :: M.Map String (String -> Driver VoiceConfigTup)
-type2ConfigTup = M.fromList [("xpose",tup2VoiceConfigTupXPose)
-                            ,("repeat",tup2VoiceConfigTupRepeat)]
+type2ConfigTup = M.fromList [("xpose" ,tup2VoiceConfigTupXPose)
+                            ,("repeat",tup2VoiceConfigTupRepeat)
+                            ,("canon" ,tup2VoiceConfigTupCanon)]
 
 cfg2VoiceConfigTup :: String -> Driver VoiceConfigTup
-cfg2VoiceConfigTup pre = do
-  mConfigType <- searchMConfigParam (pre <> ".type")
-  case mConfigType of
-    Nothing -> error "cfg2VoiceConfigTup no \"type\" keyword in voice block"
-    Just cfgType -> case M.lookup cfgType type2ConfigTup of
-      Nothing -> error $ "cfg2VoiceConfigTup no converter for \"type:\" " <> cfgType
-      Just tup2VoiceConfigTup -> tup2VoiceConfigTup pre
+cfg2VoiceConfigTup pre =
+  searchConfigParam (pre <> ".type") >>= runConfigType
+  where
+    runConfigType cfgType =
+      case M.lookup cfgType type2ConfigTup of
+        Nothing -> error $ "cfg2VoiceConfigTup no converter for \"type:\" " <> cfgType
+        Just tup2VoiceConfigTup -> tup2VoiceConfigTup pre
 
 cfg2VoiceConfigTups :: String -> NE.NonEmpty String -> Driver [VoiceConfigTup]
 cfg2VoiceConfigTups pre keys = cfg2Tups cfg2VoiceConfigTup pre keys <&> NE.toList
@@ -90,7 +122,7 @@ cfg2VoiceConfigTups pre keys = cfg2Tups cfg2VoiceConfigTup pre keys <&> NE.toLis
 -- Unfold random transpositions of [[Maybe Pitch]] across Range, matching up 
 -- with random transpositions of [[Duration]] and [[Accent] to generate NoteOrRest.
 genXPose :: [[Duration]] -> [[Accent]] -> [[Maybe Int]] -> Scale -> Range -> Driver [NoteOrRest]
-genXPose durss acctss mIntss scale (Range (start,stop)) = 
+genXPose durss acctss mIntss scale (Range (start,stop)) =
   let rangeOrd  = (compare `on` swap) stop start
       stepOrd   = sum (fromMaybe 0 <$> concat mIntss) `compare` 0
       compareOp = if stepOrd == rangeOrd && stepOrd /= EQ
@@ -123,12 +155,56 @@ genStatic durss acctss mIntss scale start maxDurVal= do
   manyMPOs   <- randomizeList mIntss <&> cycle . concatMap (mtranspose scale start)
   manyDurs   <- randomizeList durss  <&> cycle . concat
   manyAccts  <- randomizeList acctss <&> cycle . concat
-  let allDurs  = unfoldr unfoldDurs (0,manyDurs)
+  let allDurs  = unfoldr (unfoldDurs maxDurVal) (0,manyDurs)
   pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts
+  
+genCanon :: [[Duration]] -> [[Accent]] -> [[Maybe Pitch]] -> [[Octave]] -> Scale -> (Pitch,Octave) -> Int -> Int -> Driver [NoteOrRest]
+genCanon durss acctss mPitss octss scale (startPit,_) maxDurVal rotVal = do
+  randMIntss <- randomizeList mPitss <&> fmap (fmap (mPitch2MScaleDegree scale) . rotN rotVal)
+  manyOcts   <- randomizeList octss  <&> cycle . concat
+  manyDurs   <- randomizeList durss  <&> cycle . concat
+  manyAccts  <- randomizeList acctss <&> cycle . concat
+  let manyPOs    = (,) startPit <$> manyOcts
+      manyMIntss = cycle $ mInts2IntDiffs <$> randMIntss
+      manyMPOs   = concat $ zipWith (mtranspose scale) manyPOs manyMIntss
+      allDurs  = unfoldr (unfoldDurs maxDurVal) (0,manyDurs)
+  pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts
+
+-- TBD:  repeats of randomized lists causes repetitions, whereas
+--       what I want is for randomization to happen repeatedly
+--       issue is to determine where to stop, currently the effect
+--       of the unfoldr from 0 to maxDurVal, while the rest of the
+--       lists are infinitely long, terminated by zip behavior
+--       problem is different lists--mPits, durs, accents--all
+--       could have different lengths
+--       in fact, there's an earlier example between mPits and octs
+--       what's determinant, the shortest list or the longest list?
+--
+-- There are three mkNoteOrRest inputs, 
+
+unfoldDurs :: Int -> (Int, [Duration]) -> Maybe (Duration, (Int, [Duration]))
+unfoldDurs maxDurVal (durVal,durs)
+  | durVal >= maxDurVal = Nothing
+  | otherwise = Just (head durs,(durVal + dur2DurVal (head durs),tail durs))
+
+rotN :: Int -> [a] -> [a]
+rotN cnt as
+  | cnt >= length as = error $ "rotN cnt: " <> show cnt <> " >= length as " <> show (length as)
+  | otherwise = drop cnt as <> take cnt as
+
+mPitch2MScaleDegree :: Scale -> Maybe Pitch -> Maybe Int
+mPitch2MScaleDegree _ Nothing = Nothing
+mPitch2MScaleDegree Scale{..} (Just pitch) =
+  elemIndex pitch pitches <|> err
   where
-    unfoldDurs (durVal,durs)
-      | durVal >= maxDurVal = Nothing
-      | otherwise = Just (head durs,(durVal + dur2DurVal (head durs),tail durs))
+    pitches = NE.toList _scPitches
+    err = error $ "mPitch2ScaleDegree no pitch: " <> show pitch <> " in pitches for scale: " <> show pitches
+
+mInts2IntDiffs :: [Maybe Int] -> [Maybe Int]
+mInts2IntDiffs = snd . foldl foldlf (0,[])
+  where
+    foldlf (prev,ret) Nothing  = (prev,ret <> [Nothing])
+    foldlf (prev,ret) (Just i) = (i,ret <> [Just (i - prev)])
 
 mkNoteOrRest :: Maybe (Pitch, Octave) -> Duration -> Accent -> Either Note Rest
 mkNoteOrRest (Just (p,o)) d a = Left $ Note p o d (Staccatissimo NE.:| [a]) NoDynamic  NoSwell False -- tbd: magic constant Staccatissimo
@@ -139,6 +215,8 @@ configTup2NoteOrRests VoiceConfigTupXPose{..} =
   genXPose (nes2arrs _vctxDurss) (nes2arrs _vctxAcctss) (nes2arrs _vctxMIntss) _vctxScale (Range _vctxRange)
 configTup2NoteOrRests VoiceConfigTupRepeat{..} =
   genStatic (nes2arrs _vctrDurss) (nes2arrs _vctrAcctss) (nes2arrs _vctrMIntss) _vctrScale _vctrRegister _vctrDurVal
+configTup2NoteOrRests VoiceConfigTupCanon{..} =
+  genCanon (nes2arrs _vctcDurss) (nes2arrs _vctcAcctss) (nes2arrs _vctcMPitss) (nes2arrs _vctcOctss) _vctcScale _vctcRegister _vctcDurVal _vctcRotVal
 
 genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
 genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess
@@ -148,12 +226,12 @@ genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess
     veTimeSig = VeTimeSignature timeSig
 
 -- to avoid cluttering score with repeats of the same dynamic, accent,
-tagFirstNotes :: Note -> ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
-tagFirstNotes (Note _ _ _ acc dyn _ _) = bimap tagFirstNote tagFirstNote
+tagFirstNotes :: (Accent,Dynamic) -> ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
+tagFirstNotes (acc,dyn) = bimap tagFirstNote tagFirstNote
   where
     tagFirstNote ves = maybe ves (`tagNoteForIdx` ves) (findIndex isNote ves)
     tagNoteForIdx idx = toList . adjust tagNote idx .  fromList
-    tagNote (VeNote (Note p o d _ _ swell tie)) = VeNote (Note p o d acc dyn swell tie)
+    tagNote (VeNote (Note p o d _ _ swell tie)) = VeNote (Note p o d (singleton acc) dyn swell tie)
     tagNote ve = error $ "tagNote, VoiceEvent is not VeNote: " <> show ve
     isNote VeNote {} = True
     isNote _ = False

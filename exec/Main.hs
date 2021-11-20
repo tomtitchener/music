@@ -9,6 +9,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
 import qualified Data.Yaml as Y
+import Data.List
 import Options.Applicative
 import Prelude (String, error, show)
 import Protolude hiding (option, print, show, to)
@@ -19,7 +20,8 @@ import System.Random.SplitMix
 
 import Compose
 import Driver
-import Types
+
+import Compositions.Swirls.Compose (cfg2SwirlsScore)
 
 -- _optRandomSeed via command-line argument  -s "<string>"
 -- to recreate pseudo-random number generator by copying
@@ -67,17 +69,19 @@ main =  do
         let stdGen = StdGen { unStdGen = smGen }
         setStdGen stdGen
   gen <- getStdGen
-  void . liftIO $ runReaderT (runDriver (cfg2Driver _optTarget)) (initEnv config (show gen))
+  void . liftIO $ runReaderT (runDriver (cfg2Score _optTarget)) (initEnv config (show gen))
 
----------
--- Test -
----------
+cfg2Score :: String -> Driver ()
+cfg2Score title = do
+  scoreType <- searchConfigParam (title <> ".common.score")
+  maybe (error $ "cfg2Score: no fun for title " <> title) ($ title) $ lookup scoreType driverFuns
+  
+driverFuns :: [(String,String -> Driver ())]
+driverFuns =
+  [("example_maxrand",   cfg2MaxRandScore)   -- to be deprecated
+  ,("example_homophon",  cfg2HomoPhonScore)  -- to be deprecated
+  ,("example_canon",     cfg2CanonScore)     -- to be deprecated
+  ,("example_randmot",   cfg2RandMotScore)   -- to be deprecated
+  ,("example_arpeggios", cfg2ArpeggiosScore) -- to be deprecated
+  ,("swirls",            cfg2SwirlsScore)]
 
-exRandList :: Driver ()
-exRandList = randomizeList [C,D,E,F,G,A,B] >>= mapM_ printIt
-
-exRandElem :: Driver ()
-exRandElem = randomElement [C,D,E,F,G,A,B] >>= printIt
-
-exRandElems :: Int -> Driver ()
-exRandElems n = randomElements [C,D,E,F,G,A,B] >>= printIt . take n
