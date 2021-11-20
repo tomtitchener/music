@@ -18,7 +18,7 @@ import Data.Tuple (swap)
 import Safe (headMay)
 
 import Driver
-       (Driver, cfg2Tups, randomizeList, searchConfigParam)
+       (Driver, cfg2Tups, randomizeList, randomElements, searchConfigParam)
 import Types
 import Utils
 
@@ -152,35 +152,22 @@ genXPose durss acctss mIntss scale (Range (start,stop)) =
 -- instead of continuing to transpose from the end of one [Maybe Int] to the next
 genStatic :: [[Duration]] -> [[Accent]] -> [[Maybe Int]] -> Scale -> (Pitch,Octave) -> Int -> Driver [NoteOrRest]
 genStatic durss acctss mIntss scale start maxDurVal= do
-  manyMPOs   <- randomizeList mIntss <&> cycle . concatMap (mtranspose scale start)
-  manyDurs   <- randomizeList durss  <&> cycle . concat
-  manyAccts  <- randomizeList acctss <&> cycle . concat
+  manyMPOs   <- randomElements mIntss <&> concatMap (mtranspose scale start)
+  manyAccts  <- randomElements acctss <&> concat
+  manyDurs   <- randomElements durss  <&> concat
   let allDurs  = unfoldr (unfoldDurs maxDurVal) (0,manyDurs)
   pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts
   
 genCanon :: [[Duration]] -> [[Accent]] -> [[Maybe Pitch]] -> [[Octave]] -> Scale -> (Pitch,Octave) -> Int -> Int -> Driver [NoteOrRest]
 genCanon durss acctss mPitss octss scale (startPit,_) maxDurVal rotVal = do
-  randMIntss <- randomizeList mPitss <&> fmap (fmap (mPitch2MScaleDegree scale) . rotN rotVal)
-  manyOcts   <- randomizeList octss  <&> cycle . concat
-  manyDurs   <- randomizeList durss  <&> cycle . concat
-  manyAccts  <- randomizeList acctss <&> cycle . concat
+  manyMIntss <- randomElements mPitss <&> fmap (mInts2IntDiffs . fmap (mPitch2MScaleDegree scale) . rotN rotVal)
+  manyOcts   <- randomElements octss  <&> concat
+  manyDurs   <- randomElements durss  <&> concat
+  manyAccts  <- randomElements acctss <&> concat
   let manyPOs    = (,) startPit <$> manyOcts
-      manyMIntss = cycle $ mInts2IntDiffs <$> randMIntss
       manyMPOs   = concat $ zipWith (mtranspose scale) manyPOs manyMIntss
       allDurs  = unfoldr (unfoldDurs maxDurVal) (0,manyDurs)
   pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts
-
--- TBD:  repeats of randomized lists causes repetitions, whereas
---       what I want is for randomization to happen repeatedly
---       issue is to determine where to stop, currently the effect
---       of the unfoldr from 0 to maxDurVal, while the rest of the
---       lists are infinitely long, terminated by zip behavior
---       problem is different lists--mPits, durs, accents--all
---       could have different lengths
---       in fact, there's an earlier example between mPits and octs
---       what's determinant, the shortest list or the longest list?
---
--- There are three mkNoteOrRest inputs, 
 
 unfoldDurs :: Int -> (Int, [Duration]) -> Maybe (Duration, (Int, [Duration]))
 unfoldDurs maxDurVal (durVal,durs)
@@ -324,15 +311,16 @@ splitNoteOrRests winLen =
   where
     flush :: ((Maybe Clef,[NoteOrRest]),([VoiceEvent],[VoiceEvent])) -> ([VoiceEvent],[VoiceEvent])
     flush ((Just _,[]),vesPr) = vesPr
-    -- must be we never hit winLen Left Note in a row, try again decrementing winLen by onea
-    flush ((Nothing,pending),_)
+    flush ((Nothing,pending),vesPr) -- never hit winLen Left Note in a row, try again decrementing winLen by one
       | winLen == 0 = error $ "splitNoteOrRests flush but no clef for pending " <> show pending
-      | otherwise   = splitNoteOrRests (winLen - 1) pending
+      | otherwise   = vesPr <> splitNoteOrRests (winLen - 1) pending
     flush ((Just clef,pending),vesPr) = vesPr <> genVesPr clef pending
     foldlf :: ((Maybe Clef,[NoteOrRest]),([VoiceEvent],[VoiceEvent])) -> [NoteOrRest] -> ((Maybe Clef,[NoteOrRest]),([VoiceEvent],[VoiceEvent]))
     foldlf ((mCl,pending),vesPr) nOrRs
       | allRests || cntNotes nOrRs < winLen = ((mCl,pending <> nOrRs),vesPr)
-      | otherwise = ((Just cl,[]),vesPr <> genVesPr cl (pending <> nOrRs))
+      | otherwise = case mCl of
+                      Nothing -> ((Just nextCl,[]),vesPr <> genVesPr nextCl (pending <> nOrRs))
+                      Just cl -> ((Just nextCl,[]),vesPr <> genVesPr cl pending <> genVesPr nextCl nOrRs)
       where
         allRests = all isRest nOrRs
         isRest (Right _) = True
@@ -340,10 +328,10 @@ splitNoteOrRests winLen =
         cntNotes = length . filter (not . isTiedNote)
         isTiedNote (Left Note {..}) = _noteTie
         isTiedNote (Right r)        = error $ "isTiedNote unexpected rest: " <> show r
-        cl = case headMay (filter (not . isRest) nOrRs) of
-               Just (Left note) -> pickNoteClef note
-               Just (Right _)   -> error $ "splitNoteOrRests unexpected Rest in nOrRs " <> show nOrRs
-               Nothing          -> error "splitNoteOrRests unexpected empty list for nOrRs"
+        nextCl  = case headMay (filter (not . isRest) nOrRs) of
+                    Just (Left note) -> pickNoteClef note
+                    Just (Right _)   -> error $ "splitNoteOrRests unexpected Rest in nOrRs " <> show nOrRs
+                    Nothing          -> error "splitNoteOrRests unexpected empty list for nOrRs"
     genVesPr :: Clef -> [NoteOrRest] -> ([VoiceEvent],[VoiceEvent])
     genVesPr cl pending
       | cl == Treble = (either VeNote VeRest <$> pending,either note2Spacer rest2Spacer <$> pending)
