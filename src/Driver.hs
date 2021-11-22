@@ -193,7 +193,7 @@ searchMConfigParam path = do
 -- Driver (NE.NonEmpty a) given path to "a" fields converted from text in config.yml
 -- file via searchConfigParam or getConfigParam.
 cfg2Tups :: (String -> Driver a) -> String -> NE.NonEmpty String -> Driver (NE.NonEmpty a)
-cfg2Tups f title = traverse (f . ((title <> ".") <>))
+cfg2Tups f section = traverse (f . ((section <> ".") <>))
 
 -- String in path must end with key for Value that is Object (HashMap Text Value),
 -- answers list of keys in Object matching regexp in target

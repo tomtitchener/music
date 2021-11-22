@@ -40,8 +40,8 @@ cfg2SwirlsScore title = do
   fstDyn    <- searchMConfigParam (title <> ".common.initdyn")  <&> fromMaybe firstDynamic
   sections  <- cfgPath2Keys ("section" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
   secVcsPrs <- traverse (secondM (cfgPath2Keys ("voice" `isPrefixOf`)) . dupe) sections
-  vocTups   <- traverse (uncurry cfg2VoiceConfigTups) (second NE.fromList <$> secVcsPrs)
-  nOrRsss   <- traverse (\tups -> traverse configTup2NoteOrRests tups <&> ZipList) vocTups
+  secTups   <- traverse (uncurry cfg2SectionConfigTup) (second NE.fromList <$> secVcsPrs)
+  nOrRsss   <- traverse (\tup -> sectionConfigTup2NoteOrRests tup <&> ZipList) secTups
   let nOrRss    = concat <$> getZipList (sequenceA nOrRsss)
       voices    = pipeline chgClfInt tempoInt (fstAcc,fstDyn) timeSig keySig instr nOrRss
   writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
@@ -64,20 +64,6 @@ cfg2SwirlsScore title = do
         instrs     = replicate cntVoices instr
         winLens    = replicate cntVoices chgClfs
         firstTags  = replicate cntVoices inits
-{-
-TBD:
-  1) experiment with different config.yml components:
-     a) mpitss:
-        - long list of two or three note components, no rests
-        - list of easily recognizable motifs, c-d-c-d, e-g-e-g, etc.
-        - make interval arithmetic work with non-chromatic scale (does it already?)
-        - experiment with per-section scales
-     b) mpitss/durs/accents:
-        - uniform lengths of mpitss sub-lists, lengths of durs, accents
-     c) durs/accents:
-        - make multiples to also choose random order among parallel to mpitss
--}
-
 
 {-
 Graveyard:

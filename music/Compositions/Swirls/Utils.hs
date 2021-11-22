@@ -25,6 +25,23 @@ type NoteOrRest = Either Note Rest
 
 newtype Range = Range ((Pitch,Octave),(Pitch,Octave)) deriving (Eq, Show)
 
+data SectionConfigTup =
+  SectionConfigTupNeutral {
+                  _scnVoices :: NE.NonEmpty VoiceConfigTup
+                 }
+  | SectionConfigTupFadeIn {
+                       _scfiDelays :: NE.NonEmpty Int
+                      ,_scfiVoices :: NE.NonEmpty VoiceConfigTup
+                      }
+  | SectionConfigTupFadeOut {
+                       _scfoDrops  :: NE.NonEmpty Int
+                      ,_scfoVoices :: NE.NonEmpty VoiceConfigTup
+                      }
+  | SectionConfigTupXPosePitches { -- [(dur,[(target,xpose)])]
+                       _scppDurPOPrs :: NE.NonEmpty (Int,NE.NonEmpty (Pitch,Octave)) -- per VoiceConfigTup
+                      ,_scppVoices   :: NE.NonEmpty VoiceConfigTup
+                      }
+
 data VoiceConfigTup =
   VoiceConfigTupXPose {
                   _vctxInstr   :: Instrument
@@ -101,22 +118,58 @@ tup2VoiceConfigTupCanon pre =
         <*> searchConfigParam  (pre <> ".durval")
         <*> searchConfigParam  (pre <> ".rotval")
 
-type2ConfigTup :: M.Map String (String -> Driver VoiceConfigTup)
-type2ConfigTup = M.fromList [("xpose" ,tup2VoiceConfigTupXPose)
-                            ,("repeat",tup2VoiceConfigTupRepeat)
-                            ,("canon" ,tup2VoiceConfigTupCanon)]
+tup2SectionConfigTupNeutral :: String -> NE.NonEmpty String -> Driver SectionConfigTup
+tup2SectionConfigTupNeutral section voices =
+      SectionConfigTupNeutral
+      <$> cfg2Tups cfg2VoiceConfigTup section voices
+tup2SectionConfigTupFadeIn :: String -> NE.NonEmpty String -> Driver SectionConfigTup
+tup2SectionConfigTupFadeIn section voices = 
+      SectionConfigTupFadeIn
+      <$> searchConfigParam  (section <> ".delays")
+      <*> cfg2Tups cfg2VoiceConfigTup section voices
+tup2SectionConfigTupFadeOut :: String -> NE.NonEmpty String -> Driver SectionConfigTup
+tup2SectionConfigTupFadeOut section voices =
+      SectionConfigTupFadeOut
+      <$> searchConfigParam  (section <> ".drops")
+      <*> cfg2Tups cfg2VoiceConfigTup section voices
+tup2SectionConfigTupXPosePitches :: String -> NE.NonEmpty String -> Driver SectionConfigTup
+tup2SectionConfigTupXPosePitches section voices = 
+      SectionConfigTupXPosePitches
+      <$> searchConfigParam (section <> ".durxps")
+      <*> cfg2Tups cfg2VoiceConfigTup section voices
+
+type2SectionConfigTup :: M.Map String (String -> NE.NonEmpty String -> Driver SectionConfigTup)
+type2SectionConfigTup = M.fromList [("neutral",tup2SectionConfigTupNeutral)
+                                   ,("fadein" ,tup2SectionConfigTupFadeIn)
+                                   ,("fadeout",tup2SectionConfigTupFadeOut)
+                                   ,("xpose"  ,tup2SectionConfigTupXPosePitches)]
+
+type2VoiceConfigTup :: M.Map String (String -> Driver VoiceConfigTup)
+type2VoiceConfigTup = M.fromList [("xpose" ,tup2VoiceConfigTupXPose)
+                                 ,("repeat",tup2VoiceConfigTupRepeat)
+                                 ,("canon" ,tup2VoiceConfigTupCanon)]
 
 cfg2VoiceConfigTup :: String -> Driver VoiceConfigTup
-cfg2VoiceConfigTup pre =
-  searchConfigParam (pre <> ".type") >>= runConfigType
+cfg2VoiceConfigTup section =
+  searchConfigParam (section <> ".vtype") >>= runConfigType
   where
     runConfigType cfgType =
-      case M.lookup cfgType type2ConfigTup of
-        Nothing -> error $ "cfg2VoiceConfigTup no converter for \"type:\" " <> cfgType
-        Just tup2VoiceConfigTup -> tup2VoiceConfigTup pre
+      case M.lookup cfgType type2VoiceConfigTup of
+        Nothing -> error $ "cfg2VoiceConfigTup no converter for \"vtype:\" " <> cfgType
+        Just tup2VoiceConfigTup -> tup2VoiceConfigTup section
 
+cfg2SectionConfigTup :: String -> NE.NonEmpty String -> Driver SectionConfigTup
+cfg2SectionConfigTup section voices = 
+  searchConfigParam (section <> ".stype") >>= runConfigType
+  where
+    runConfigType cfgType =
+      case M.lookup cfgType type2SectionConfigTup of
+        Nothing -> error $ "cfg2VoiceConfigTup no converter for \"stype:\" " <> cfgType
+        Just tup2SectionConfigTup -> tup2SectionConfigTup section voices
+
+-- args are path to section, voices per section: "test.section1" ["voice1","voice2","voice3","voice4"]
 cfg2VoiceConfigTups :: String -> NE.NonEmpty String -> Driver [VoiceConfigTup]
-cfg2VoiceConfigTups pre keys = cfg2Tups cfg2VoiceConfigTup pre keys <&> NE.toList
+cfg2VoiceConfigTups section voices = cfg2Tups cfg2VoiceConfigTup section voices <&> NE.toList
 
 -- Unfold repeated transpositions of [[Maybe Pitch]] across Range
 -- matching up with repetitions of [[Duration]] and [[Accent] to generate NoteOrRest.
@@ -190,13 +243,23 @@ mkNoteOrRest :: Maybe (Pitch, Octave) -> Duration -> Accent -> Either Note Rest
 mkNoteOrRest (Just (p,o)) d a = Left $ Note p o d (Staccatissimo NE.:| [a]) NoDynamic  NoSwell False -- tbd: magic constant Staccatissimo
 mkNoteOrRest Nothing d _ = Right $ Rest d  NoDynamic
 
-configTup2NoteOrRests :: VoiceConfigTup -> Driver [NoteOrRest]
-configTup2NoteOrRests VoiceConfigTupXPose{..} =
+voiceConfigTup2NoteOrRests :: VoiceConfigTup -> Driver [NoteOrRest]
+voiceConfigTup2NoteOrRests VoiceConfigTupXPose{..} =
   genXPose (nes2arrs _vctxDurss) (nes2arrs _vctxAcctss) (nes2arrs _vctxMIntss) _vctxScale (Range _vctxRange)
-configTup2NoteOrRests VoiceConfigTupRepeat{..} =
+voiceConfigTup2NoteOrRests VoiceConfigTupRepeat{..} =
   genStatic (nes2arrs _vctrDurss) (nes2arrs _vctrAcctss) (nes2arrs _vctrMIntss) _vctrScale _vctrRegister _vctrDurVal
-configTup2NoteOrRests VoiceConfigTupCanon{..} =
+voiceConfigTup2NoteOrRests VoiceConfigTupCanon{..} =
   genCanon (nes2arrs _vctcDurss) (nes2arrs _vctcAcctss) (nes2arrs _vctcMPitss) (nes2arrs _vctcOctss) _vctcScale _vctcRegister _vctcDurVal _vctcRotVal
+
+sectionConfigTup2NoteOrRests :: SectionConfigTup -> Driver [[NoteOrRest]]
+sectionConfigTup2NoteOrRests (SectionConfigTupNeutral voices) =
+  traverse voiceConfigTup2NoteOrRests (NE.toList voices)
+sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn _ voices) =
+  traverse voiceConfigTup2NoteOrRests (NE.toList voices)
+sectionConfigTup2NoteOrRests (SectionConfigTupFadeOut _ voices)
+  = traverse voiceConfigTup2NoteOrRests (NE.toList voices)
+sectionConfigTup2NoteOrRests (SectionConfigTupXPosePitches _ voices) =
+  traverse voiceConfigTup2NoteOrRests (NE.toList voices)
 
 genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
 genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess

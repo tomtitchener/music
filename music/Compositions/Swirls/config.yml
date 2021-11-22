@@ -9,20 +9,21 @@ swirls:
     time:    (4,4)
     scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
   section1:
+    stype: neutral
     common:
       range:    ((c,-3),(c,3))
     voice1:
-      type:     xpose
+      vtype:    xpose
       mintss:   ((3),(1))
       durss:    ((8))
       accentss: ((>,~),(~,>))
     voice2:
-      type:     xpose
+      vtype:     pose
       mintss:   ((1,10,-6,r),(3,1,9,-7),(r))
       durss:    ((8,16,16),(8.,16),(8,8,8))
       accentss: ((>,~,~))
     voice3:
-      type:     repeat
+      vtype:    repeat
       mintss:   ((12,-10),(3,3),(4,-4))
       durss:    ((16,8.))
       accentss: ((~,>,>),(>,>,~,~,~))
@@ -38,8 +39,9 @@ canons:
     time:    (4,4)
     scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
   section1:
+    stype: neutral
     common:
-      type:     canon
+      vtype:    canon
       mpitss:   ((b,e,a,d,r,g,c,f,ais,cis,r,dis,fis,gis),(b,e,r,a,d,g,c,f,ais,cis,dis,r,fis,gis))
       durss:    ((8),(16,16),(4),(8,8),(16,16,16,16))
       accentss: ((>,>,~,~),(~,>,>),(>,>,>,>))
@@ -66,8 +68,9 @@ test:
     instr:   acoustic grand
     time:    ((2,2,3),(7,8))
     scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
-    type:    xpose
+    vtype:   xpose
   section1:
+    stype: neutral
     common:
       mintss:  ((10,-4,-3,8,-10,2,8,-4,1,2),(1,8,-6,1,8,-7,r,-2),(6,3,3,-6,2,3,-7,12,r,1,r,1))
       range:   ((c,-2),(c,2))
@@ -85,6 +88,7 @@ test:
       durss:    ((4,8,4),(16,16,8,4),(4,4,8))
       accentss: ((~,>,>),(>,>,~,~,~))
   section2:
+    stype: neutral
     common:
       range:   ((c,2),(c,-2))
       mintss:  ((-2,-9,7,r,-9,10,-9,7,-8),

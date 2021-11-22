@@ -45,6 +45,9 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty Octave)) where
 instance FromConfig (Pitch,Octave) where
   parseConfig = mkParseConfig pPitOctPr
 
+instance FromConfig (NE.NonEmpty (Int,NE.NonEmpty (Pitch,Octave))) where
+  parseConfig = mkParseConfig (mkPs pIntPitOctPrs)
+  
 instance FromConfig ((Pitch,Octave),(Pitch,Octave)) where
   parseConfig = mkParseConfig pPitOctsPr
 
@@ -178,6 +181,9 @@ pTimeSignatureGrouping = pIntsIntDurPr <&> \(groups,(num,denom)) -> TimeSignatur
 
 pIntsIntDurPr :: Parser (NE.NonEmpty Int,(Int,Duration))
 pIntsIntDurPr = between (char '(') (char ')') ((,) <$> mkPs parseInt <*> (char ',' *> pIntDurPr))
+
+pIntPitOctPrs :: Parser (Int,NE.NonEmpty (Pitch,Octave))
+pIntPitOctPrs = between (char '(') (char ')') ((,) <$> parseInt <*> mkPs pPitOctPr)
 
 pTimeSig :: Parser TimeSignature
 pTimeSig = pIntDurPr <&> uncurry TimeSignatureSimple
