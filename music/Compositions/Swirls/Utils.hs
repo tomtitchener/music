@@ -1,11 +1,13 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 
 module Compositions.Swirls.Utils  where
 
 import Control.Applicative ((<|>))
 import Control.Lens hiding (pre)
+import Control.Monad.Extra (concatMapM)
 import Data.Either (isRight)
 import Data.Foldable
 import Data.Function (on)
@@ -20,21 +22,21 @@ import Driver
        (Driver, cfg2Tups, randomElements, searchConfigParam)
 import Types
 import Utils
-
 type NoteOrRest = Either Note Rest
 
 newtype Range = Range ((Pitch,Octave),(Pitch,Octave)) deriving (Eq, Show)
 
 data SectionConfigTup =
   SectionConfigTupNeutral {
-                  _scnVoices :: NE.NonEmpty VoiceConfigTup
+                       _scnReps   :: Int
+                      ,_scnVoices :: NE.NonEmpty VoiceConfigTup
                  }
   | SectionConfigTupFadeIn {
-                       _scfiDelays :: NE.NonEmpty Int
+                       _scfiFIOrder :: NE.NonEmpty Int
                       ,_scfiVoices :: NE.NonEmpty VoiceConfigTup
                       }
   | SectionConfigTupFadeOut {
-                       _scfoDrops  :: NE.NonEmpty Int
+                       _scfoFOOrder  :: NE.NonEmpty Int
                       ,_scfoVoices :: NE.NonEmpty VoiceConfigTup
                       }
   | SectionConfigTupXPosePitches { -- [(dur,[(target,xpose)])]
@@ -121,9 +123,10 @@ tup2VoiceConfigTupCanon pre =
 tup2SectionConfigTupNeutral :: String -> NE.NonEmpty String -> Driver SectionConfigTup
 tup2SectionConfigTupNeutral section voices =
       SectionConfigTupNeutral
-      <$> cfg2Tups cfg2VoiceConfigTup section voices
+      <$> searchConfigParam (section <> ".reps")
+      <*> cfg2Tups cfg2VoiceConfigTup section voices
 tup2SectionConfigTupFadeIn :: String -> NE.NonEmpty String -> Driver SectionConfigTup
-tup2SectionConfigTupFadeIn section voices = 
+tup2SectionConfigTupFadeIn section voices =
       SectionConfigTupFadeIn
       <$> searchConfigParam  (section <> ".delays")
       <*> cfg2Tups cfg2VoiceConfigTup section voices
@@ -133,7 +136,7 @@ tup2SectionConfigTupFadeOut section voices =
       <$> searchConfigParam  (section <> ".drops")
       <*> cfg2Tups cfg2VoiceConfigTup section voices
 tup2SectionConfigTupXPosePitches :: String -> NE.NonEmpty String -> Driver SectionConfigTup
-tup2SectionConfigTupXPosePitches section voices = 
+tup2SectionConfigTupXPosePitches section voices =
       SectionConfigTupXPosePitches
       <$> searchConfigParam (section <> ".durxps")
       <*> cfg2Tups cfg2VoiceConfigTup section voices
@@ -159,7 +162,7 @@ cfg2VoiceConfigTup section =
         Just tup2VoiceConfigTup -> tup2VoiceConfigTup section
 
 cfg2SectionConfigTup :: String -> NE.NonEmpty String -> Driver SectionConfigTup
-cfg2SectionConfigTup section voices = 
+cfg2SectionConfigTup section voices =
   searchConfigParam (section <> ".stype") >>= runConfigType
   where
     runConfigType cfgType =
@@ -193,7 +196,7 @@ genXPose durss acctss mIntss scale (Range (start,stop)) = do
         next = xp scale prev step1
     unfoldf _ (prev, Nothing:mSteps) = Just (Nothing,(prev, mSteps))
     unfoldf _ steps = error $ "invalid list of steps, (" <> show (fst steps) <> "," <> show (take 10 (snd steps)) <> ")"
-    
+
 -- static means each [Maybe Int] is interpreted with respect to (Pitch,Octave)
 -- instead of continuing to transpose from the end of one [Maybe Int] to the next
 genStatic :: [[Duration]] -> [[Accent]] -> [[Maybe Int]] -> Scale -> (Pitch,Octave) -> Int -> Driver [NoteOrRest]
@@ -203,7 +206,7 @@ genStatic durss acctss mIntss scale start maxDurVal= do
   manyDurs   <- randomElements durss  <&> concat
   let allDurs  = unfoldr (unfoldDurs maxDurVal) (0,manyDurs)
   pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts
-  
+
 genCanon :: [[Duration]] -> [[Accent]] -> [[Maybe Pitch]] -> [[Octave]] -> Scale -> (Pitch,Octave) -> Int -> Int -> Driver [NoteOrRest]
 genCanon durss acctss mPitss octss scale (startPit,_) maxDurVal rotVal = do
   manyMIntss <- randomElements mPitss <&> fmap (mInts2IntDiffs . fmap (mPitch2MScaleDegree scale) . rotN rotVal)
@@ -252,14 +255,27 @@ voiceConfigTup2NoteOrRests VoiceConfigTupCanon{..} =
   genCanon (nes2arrs _vctcDurss) (nes2arrs _vctcAcctss) (nes2arrs _vctcMPitss) (nes2arrs _vctcOctss) _vctcScale _vctcRegister _vctcDurVal _vctcRotVal
 
 sectionConfigTup2NoteOrRests :: SectionConfigTup -> Driver [[NoteOrRest]]
-sectionConfigTup2NoteOrRests (SectionConfigTupNeutral voices) =
-  traverse voiceConfigTup2NoteOrRests (NE.toList voices)
-sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn _ voices) =
-  traverse voiceConfigTup2NoteOrRests (NE.toList voices)
-sectionConfigTup2NoteOrRests (SectionConfigTupFadeOut _ voices)
-  = traverse voiceConfigTup2NoteOrRests (NE.toList voices)
-sectionConfigTup2NoteOrRests (SectionConfigTupXPosePitches _ voices) =
-  traverse voiceConfigTup2NoteOrRests (NE.toList voices)
+sectionConfigTup2NoteOrRests (SectionConfigTupNeutral reps voiceConfigTups) =
+  traverse (concatMapM voiceConfigTup2NoteOrRests) voiceConfigTupss
+  where
+    voiceConfigTupss = concat . replicate reps . (:[]) <$> NE.toList voiceConfigTups
+sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn _ voiceConfigTups) =
+  traverse voiceConfigTup2NoteOrRests (NE.toList voiceConfigTups)
+sectionConfigTup2NoteOrRests (SectionConfigTupFadeOut _ voiceConfigTups)
+  = traverse voiceConfigTup2NoteOrRests (NE.toList voiceConfigTups)
+sectionConfigTup2NoteOrRests (SectionConfigTupXPosePitches _ voiceConfigTups) =
+  traverse voiceConfigTup2NoteOrRests (NE.toList voiceConfigTups)
+
+fiTest :: [Int] -> [[Bool]]
+fiTest is = snd $ foldl' foldlf (initMap,initRet) is
+  where
+    initMap = M.fromList $ (,False) <$> is
+    initRet = replicate (length is) []
+    foldlf (m,rets) i = (m',zipWith app rets r)
+      where
+        m' = M.insert i True m
+        r  = snd <$> M.toAscList m'
+        app as a = as <> [a]
 
 genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
 genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess

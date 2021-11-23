@@ -39,7 +39,8 @@ canons:
     time:    (4,4)
     scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
   section1:
-    stype: neutral
+    stype:   neutral
+    reps:    int 5
     common:
       vtype:    canon
       mpitss:   ((b,e,a,d,r,g,c,f,ais,cis,r,dis,fis,gis),(b,e,r,a,d,g,c,f,ais,cis,dis,r,fis,gis))
