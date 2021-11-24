@@ -28,20 +28,20 @@ newtype Range = Range ((Pitch,Octave),(Pitch,Octave)) deriving (Eq, Show)
 
 data SectionConfigTup =
   SectionConfigTupNeutral {
-                       _scnReps   :: Int
-                      ,_scnVoices :: NE.NonEmpty VoiceConfigTup
+                       _sctnReps   :: Int
+                      ,_sctnVoices :: NE.NonEmpty VoiceConfigTup
                  }
   | SectionConfigTupFadeIn {
-                       _scfiFIOrder :: NE.NonEmpty Int
-                      ,_scfiVoices :: NE.NonEmpty VoiceConfigTup
+                       _sctfiOrder  :: NE.NonEmpty Int
+                      ,_sctfiVoices :: NE.NonEmpty VoiceConfigTup
                       }
   | SectionConfigTupFadeOut {
-                       _scfoFOOrder  :: NE.NonEmpty Int
-                      ,_scfoVoices :: NE.NonEmpty VoiceConfigTup
+                       _sctfoOrder  :: NE.NonEmpty Int
+                      ,_sctfoVoices :: NE.NonEmpty VoiceConfigTup
                       }
   | SectionConfigTupXPosePitches { -- [(dur,[(target,xpose)])]
-                       _scppDurPOPrs :: NE.NonEmpty (Int,NE.NonEmpty (Pitch,Octave)) -- per VoiceConfigTup
-                      ,_scppVoices   :: NE.NonEmpty VoiceConfigTup
+                       _sctxDurPOPrs :: NE.NonEmpty (Int,NE.NonEmpty (Pitch,Octave)) -- per VoiceConfigTup
+                      ,_sctxVoices   :: NE.NonEmpty VoiceConfigTup
                       }
 
 data VoiceConfigTup =
@@ -254,28 +254,47 @@ voiceConfigTup2NoteOrRests VoiceConfigTupRepeat{..} =
 voiceConfigTup2NoteOrRests VoiceConfigTupCanon{..} =
   genCanon (nes2arrs _vctcDurss) (nes2arrs _vctcAcctss) (nes2arrs _vctcMPitss) (nes2arrs _vctcOctss) _vctcScale _vctcRegister _vctcDurVal _vctcRotVal
 
+voiceConfigTup2Rests :: VoiceConfigTup -> Driver [NoteOrRest]
+voiceConfigTup2Rests voiceConfigTup = voiceConfigTup2NoteOrRests voiceConfigTup <&> notes2Rests
+
+notes2Rests :: [NoteOrRest] -> [NoteOrRest]
+notes2Rests = fmap (either note2Rest Right)
+  where
+    note2Rest Note{..} = Right (Rest _noteDur NoDynamic)
+
 sectionConfigTup2NoteOrRests :: SectionConfigTup -> Driver [[NoteOrRest]]
 sectionConfigTup2NoteOrRests (SectionConfigTupNeutral reps voiceConfigTups) =
   traverse (concatMapM voiceConfigTup2NoteOrRests) voiceConfigTupss
   where
     voiceConfigTupss = concat . replicate reps . (:[]) <$> NE.toList voiceConfigTups
-sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn _ voiceConfigTups) =
-  traverse voiceConfigTup2NoteOrRests (NE.toList voiceConfigTups)
-sectionConfigTup2NoteOrRests (SectionConfigTupFadeOut _ voiceConfigTups)
-  = traverse voiceConfigTup2NoteOrRests (NE.toList voiceConfigTups)
+sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn fadeIdxs voiceConfigTups) =
+  traverse (concatMapM (either voiceConfigTup2Rests voiceConfigTup2NoteOrRests)) eVoiceConfigTupss
+  where
+    eVoiceConfigTupss = genInOrder (NE.toList fadeIdxs) (NE.toList voiceConfigTups)
+sectionConfigTup2NoteOrRests (SectionConfigTupFadeOut fadeIdxs voiceConfigTups) =
+  traverse (concatMapM (either voiceConfigTup2Rests voiceConfigTup2NoteOrRests)) eVoiceConfigTupss
+  where
+    eVoiceConfigTupss = genOutOrder (NE.toList fadeIdxs) (NE.toList voiceConfigTups)
 sectionConfigTup2NoteOrRests (SectionConfigTupXPosePitches _ voiceConfigTups) =
   traverse voiceConfigTup2NoteOrRests (NE.toList voiceConfigTups)
 
-fiTest :: [Int] -> [[Bool]]
-fiTest is = snd $ foldl' foldlf (initMap,initRet) is
+genInOrder :: Ord a => [a] -> [b] -> [[Either b b]]
+genInOrder = genOrder Left Right
+
+genOutOrder :: Ord a => [a] -> [b] -> [[Either b b]]
+genOutOrder = genOrder Right Left
+
+-- TBD: this is ugly!
+genOrder :: Ord a1 => (t -> a2) -> (t -> a2) -> [a1] -> [t] -> [[a2]]
+genOrder mkA mkB is as = snd $ foldl' foldlf (initMap,initRet) is
   where
-    initMap = M.fromList $ (,False) <$> is
+    initMap = M.fromList $ (,mkA) <$> is
     initRet = replicate (length is) []
     foldlf (m,rets) i = (m',zipWith app rets r)
       where
-        m' = M.insert i True m
-        r  = snd <$> M.toAscList m'
-        app as a = as <> [a]
+        m' = M.insert i mkB m
+        r  = zipWith (\(_,b) a -> b a) (M.toAscList m') as
+        app xs x = xs <> [x]
 
 genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
 genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess

@@ -39,8 +39,52 @@ canons:
     time:    (4,4)
     scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
   section1:
+    stype:   fadein
+    delays:  (3,0,2,1)
+    common:
+      vtype:    canon
+      mpitss:   ((b,e,a,d,r,g,c,f,ais,cis,r,dis,fis,gis),(b,e,r,a,d,g,c,f,ais,cis,dis,r,fis,gis))
+      durss:    ((8),(16,16),(4),(8,8),(16,16,16,16))
+      accentss: ((>,>,~,~),(~,>,>),(>,>,>,>))
+      register: (c,0)
+      durval:   int 2048
+    voice1:
+      octss:    ((0))
+      rotval:   int 0
+    voice2:
+      octss:    ((0))
+      rotval:   int 3
+    voice3:
+      octss:    ((0))
+      rotval:   int 7
+    voice4:
+      octss:    ((0))
+      rotval:   int 10
+  section2:
     stype:   neutral
-    reps:    int 5
+    reps:    int 1
+    common:
+      vtype:    canon
+      mpitss:   ((b,e,a,d,r,g,c,f,ais,cis,r,dis,fis,gis),(b,e,r,a,d,g,c,f,ais,cis,dis,r,fis,gis))
+      durss:    ((8),(16,16),(4),(8,8),(16,16,16,16))
+      accentss: ((>,>,~,~),(~,>,>),(>,>,>,>))
+      register: (c,0)
+      durval:   int 2048
+    voice1:
+      octss:    ((0))
+      rotval:   int 0
+    voice2:
+      octss:    ((0))
+      rotval:   int 3
+    voice3:
+      octss:    ((0))
+      rotval:   int 7
+    voice4:
+      octss:    ((0))
+      rotval:   int 10
+  section3:
+    stype:   fadeout
+    drops:   (3,0,2,1)
     common:
       vtype:    canon
       mpitss:   ((b,e,a,d,r,g,c,f,ais,cis,r,dis,fis,gis),(b,e,r,a,d,g,c,f,ais,cis,dis,r,fis,gis))
