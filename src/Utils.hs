@@ -1,6 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# OPTIONS_GHC -Wno-unused-local-binds #-}
 
 module Utils where
 
@@ -15,7 +14,7 @@ import Data.Tuple.Extra
 import Types
 
 newtype DurationSum = DurationSum { getDurSum :: Int }
-  deriving (Eq, Ord, Show, Num)
+  deriving (Eq, Ord, Show, Num) -- Num requires GeneralizedNewTypeDeriving
 
 incrOct :: Octave -> Octave
 incrOct o = toEnum $ min (1 + fromEnum o) (fromEnum (maxBound::Octave))

@@ -1,6 +1,4 @@
-{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 
 module Compositions.Swirls.Utils  where

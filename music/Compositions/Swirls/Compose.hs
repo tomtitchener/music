@@ -1,6 +1,3 @@
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Compositions.Swirls.Compose (cfg2SwirlsScore) where
 
 

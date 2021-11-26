@@ -1,7 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE QuasiQuotes                #-}
-{-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
 
 {- | Lilypond encoding and decoding.
      TBD:  String is inefficient datatype, though UTF-8, which is LilyPond char set:

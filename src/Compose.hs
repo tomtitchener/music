@@ -1,8 +1,6 @@
 -- TO BE DEPRECATED --
-
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RankNTypes      #-} -- (forall a . ([[a]] -> [[a]]))) -> VoiceMottos -> VoiceMottos
 
 module Compose ( cfg2MaxRandScore
                , cfg2HomoPhonScore

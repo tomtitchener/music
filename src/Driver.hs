@@ -1,9 +1,7 @@
 {-# LANGUAGE DeriveFunctor      #-}
 {-# LANGUAGE FlexibleContexts   #-}
-{-# LANGUAGE FlexibleInstances  #-}
-{-# LANGUAGE GADTs              #-}
-{-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RankNTypes         #-}
+{-# LANGUAGE GADTs              #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
 module Driver (initEnv
@@ -36,7 +34,7 @@ import Data.HashMap.Strict (keys)
 import Data.List (intercalate, sort)
 import qualified Data.List.NonEmpty as NE
 import Data.List.Split (splitOn)
-import qualified Data.Text as T
+import Data.Text (pack,unpack)
 import System.Random.Shuffle (shuffleM)
 
 import Config (FromConfig(..))
@@ -51,6 +49,7 @@ data DriverEnv = DriverEnv {
 initEnv :: Value -> String -> DriverEnv
 initEnv = DriverEnv
 
+-- requires GADTS
 data ActionNoValue where
   WriteScore ::  FilePath -> Score -> ActionNoValue
   PrintLily :: (ToLily a) => a -> ActionNoValue
@@ -68,10 +67,11 @@ data DriverF next where
   DoAction       :: ActionNoValue -> next -> DriverF next
   DoActionThen   :: ActionWithValue a -> (a -> next) -> DriverF next
 
-deriving instance Functor DriverF
+deriving instance Functor DriverF -- requires DeriveFunctor, StandaloneDeriving
 
 type Driver = Free DriverF
 
+-- requires FlexibleContexts and RankeNTypes
 runDriver :: forall a m.(MonadIO m, MonadRandom m, MonadReader DriverEnv m) => Driver a -> m a
 runDriver (Free (DoActionThen act k)) =
   case act of
@@ -91,27 +91,27 @@ runDriver (Pure k) = pure k
 lookupConfig :: FromConfig a => String -> Value -> a
 lookupConfig path config =
   let segments = splitOn "." path
-  in case preview (foldl1 (.) (map (key . T.pack) segments) . _String) config of
+  in case preview (foldl1 (.) (map (key . pack) segments) . _String) config of
     Nothing -> error $
                "Could not find value for path: " <>
                path <> "\nin values:\n" <>
                show config
-    Just txt -> parseConfig (T.unpack txt)
+    Just txt -> parseConfig (unpack txt)
 
 lookupMConfig :: FromConfig a => String -> Value -> Maybe a
 lookupMConfig path config =
   let segments = splitOn "." path
-  in parseConfig . T.unpack <$> preview (foldl1 (.) (map (key . T.pack) segments) . _String) config
+  in parseConfig . unpack <$> preview (foldl1 (.) (map (key . pack) segments) . _String) config
 
 lookupConfigKeys :: String -> Value -> [String]
 lookupConfigKeys path config =
   let segments = splitOn "." path
-  in case preview (foldl1 (.) (map (key . T.pack) segments) . _Object) config of
+  in case preview (foldl1 (.) (map (key . pack) segments) . _Object) config of
     Nothing -> error $
                "Could not find value for path: " <>
                path <> "\nin values:\n" <>
                show config
-    Just m -> T.unpack <$> keys m
+    Just m -> unpack <$> keys m
 
 writeScore :: FilePath -> Score -> Driver ()
 writeScore fName s = liftF $ DoAction (WriteScore fName s) ()

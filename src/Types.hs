@@ -1,4 +1,3 @@
-
 {- | Music types for translating to and from Lilypond strings.
      Atomic types (Pitch, Scale, Octave, Accent, Duration, Dynamic, etc.)
      don't require context to be rendered to or parsed from their Lilypond
