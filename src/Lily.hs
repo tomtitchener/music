@@ -178,10 +178,11 @@ instance FromLily Swell  where
 ----------
 
 instance ToLily Note where
-  toLily (Note pit oct dur accs dyn swell slr) = toLily pit <> toLily oct <> toLily dur <> toLilyFromNEList accs <> toLily dyn <> toLily swell <> if slr then "~" else ""
+  toLily (Note pit oct dur accs dyn swell ann slr) =
+    toLily pit <> toLily oct <> toLily dur <> toLilyFromNEList accs <> toLily dyn <> toLily swell <> (if null ann then "" else "^\"" <> ann <> "\"") <> if slr then "~" else "" 
 
 parseNote :: Parser Note
-parseNote = Note <$> parsePitch <*> parseOctave <*> parseDuration <*> parseAccents <*> parseDynamic <*> parseSwell <*> parseBool
+parseNote = Note <$> parsePitch <*> parseOctave <*> parseDuration <*> parseAccents <*> parseDynamic <*> parseSwell <*> parseAnnotation <*> parseBool
 
 instance FromLily Note  where
   parseLily = mkParseLily parseNote
@@ -252,7 +253,8 @@ pitchOctavePairsToLily :: NE.NonEmpty (Pitch,Octave) -> String
 pitchOctavePairsToLily = unwords . NE.toList . NE.map pitchOctavePairToLily
 
 instance ToLily Chord where
-  toLily (Chord prs dur accs dyn swell slr) = "<" <> pitchOctavePairsToLily prs <> ">" <> toLily dur <> toLilyFromNEList accs <> toLily dyn <> toLily swell <> if slr then "~" else ""
+  toLily (Chord prs dur accs dyn swell slr) =
+    "<" <> pitchOctavePairsToLily prs <> ">" <> toLily dur <> toLilyFromNEList accs <> toLily dyn <> toLily swell <> if slr then "~" else ""
 
 parsePair :: Parser (Pitch,Octave)
 parsePair = (,) <$> parsePitch <*> parseOctave
@@ -309,8 +311,8 @@ instance FromLily Tempo where
 -------------
 
 instance ToLily Tremolo where
-  toLily (NoteTremolo (Note pit oct dur accs dyn swell slr)) =
-    [str|\repeat tremolo $:reps$ {$toLily pit <> toLily oct <> toLily barring <> toLilyFromNEList accs  <> toLily dyn <> toLily swell <> if slr then "~" else ""$}|]
+  toLily (NoteTremolo (Note pit oct dur accs dyn swell ann slr)) =
+    [str|\repeat tremolo $:reps$ {$toLily pit <> toLily oct <> toLily barring <> toLilyFromNEList accs  <> toLily dyn <> toLily swell <> (if null ann then "" else "^" <> ann) <> if slr then "~" else ""$}|]
     where
       (reps,barring) = splitTremolo [dur] [SFDur, HTEDur]
   toLily (ChordTremolo (Chord prsL durL accL dynL swellL slrL) (Chord prsR durR accR dynR swellR slrR)) =
@@ -703,6 +705,9 @@ parseScore = Score <$> (string "% " *> parseQuotedString
 instance FromLily Score where
   parseLily = mkParseLily parseScore
 
+parseAnnotation :: Parser String
+parseAnnotation = try (char '^' *> parseOnlyQuotedString) <|> pure ""
+
 -----------
 -- Utils --
 -----------
@@ -717,7 +722,7 @@ parseNatural :: Parser Natural
 parseNatural = read <$> many1 digit
 
 parseBool :: Parser Bool
-parseBool = (string "~" >> pure True) <|> pure False
+parseBool = try (string "~" >> pure True) <|> pure False
 
 mkToLily :: (Show a, Ord a) => String -> [a] -> [String] -> a -> String
 mkToLily name vals syms v = fromMaybe (error $ "Invalid " <> name <> " val " <> show v <> " not in " <> show vals) $ M.lookup v (M.fromList (zip vals syms))
@@ -742,8 +747,11 @@ identifier = lexeme ((:) <$> firstChar <*> many nonFirstChar)
     firstChar = letter <|> char '_'
     nonFirstChar = digit <|> firstChar
 
+parseOnlyQuotedString :: Parser String
+parseOnlyQuotedString = char '\"' *> manyTill anyChar (char '\"')
+
 parseQuotedString :: Parser String
-parseQuotedString = lexeme (char '\"' *> manyTill anyChar (char '\"'))
+parseQuotedString = lexeme parseOnlyQuotedString
 
 parseQuotedIdentifier :: Parser String
 parseQuotedIdentifier = between (symbol '"') (symbol '"') identifier

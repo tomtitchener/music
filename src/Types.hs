@@ -71,7 +71,7 @@ data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FF
 data Swell = Crescendo | Decrescendo | Espressivo | SwellStop | NoSwell
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAccs :: NonEmpty Accent, _noteDyn :: Dynamic, _noteSwell :: Swell, _noteTie :: Bool }
+data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAccs :: NonEmpty Accent, _noteDyn :: Dynamic, _noteSwell :: Swell, _noteAnn :: String,  _noteTie :: Bool}
   deriving (Eq, Ord, Show)
 
 data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAccs :: NonEmpty Accent, _rhythmDyn :: Dynamic, _rhythmSwell :: Swell }

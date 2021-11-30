@@ -296,88 +296,83 @@ Experience implementing it:  headed into trouble with monoid instance
 for mappend of motto components, so there's some residual ordinary 
 list processing in Compose.hs.  Points to usefulness of empty lists
 when processing lists.
-** TODO Example Piano Score
-What components from Types.hs to capture for functions that
-generate textures?  Start simple.  Say a piano score of pairs
-of ascending/descending intervals:  overlapping, synchronous,
-echo.  So far:  composing routines are built around idea of a
-motto generated from lists of intervals/rests, durations, accents,
-and dynamics.  All driven by configuration information in YAML
-file, interpeted via (only) Main.hs through functions in Compose.hs.
-So to follow that pattern, I want a new config that specifies at a
-minimum: instrument, scale, matching lists of intervals and durations,
-and a low and a high octave.
-*** DONE Configuration: instr, key, scale, low octave, high octave,
-*** DONE Arpeggio generator: scale -> interval -> duration -> start octave -> finish octave
-*** TODO Dynamic Clef
-Arpeggio example shows need to change clef.  But don't want frequent changes
-in case of only a short stretch of notes that exceeds say two leger lines above
-or below.  
-What if I were to compute the static list of available clefs given any 
-clefs currently in NonEmpty VoiceEvent and the starting clef given the 
-first 50 notes?  
-Then as my state I passed in (Clef, VoiceEvent Clef :| []) as the kernel
-and NonEmpty VoiceEvent as the list to fold over?
-That wouldn't be enough.  I'd need some running computation of the average
-pitch or something that told me when to switch clefs.  Maybe that would
-replace the Clef in the first element of the pair so it'd look like
-((Pitch,Octave),NonEmpty VoiceEvent) instead.  Except that doesn't answer
-because (Pitch,Octave) are to discrete.  Goal is a running average on the
-subset of data to compute the running average over.  That begins to look
-like ([(Pitch,Octave)],NonEmpty VoiceEvent) where on each iteration I 
-derived the running average from the [(Pitch,Octave)] and swapped in the
-new (Pitch,Octave) and swapped out the oldest.  What does it look like 
-to take the average of a list of (Pitch,Octave)?  The answer would be to
-normalize them to e.g. an integer from lowest to highest pitch, then take
-the average of that over the list, and then convert it back to (Pitch,Octave)
-(which I think I already have routines to do).  Which means I could save
-computes by eagerly normalizing and using ([Int], NonEmpty VoiceEvent
-So this would be an edge-triggered change:  the instant the next Note 
-pulled the average beyond the range of the current Clef, I'd add a Clef
-VoiceEvent and change the current clef for the next computation.  Then
-the problem would be bouncing between clefs on a passage that danced around
-the dividing point between them.  So maybe at that point it'd make sense 
-to purge the [Int] record and start from scratch, where we'd recognize a
-buffer that wasn't full yet by just adding to the list and passing the
-VoiceEvent through unchanged.  Except note that to tell when my average
-exceeded the boundaries of the current clef, then I'd need to know what
-those boundaries were.  So that clef needs to be part of the state, e.g.
-(Clef, [Int], NonEmpty VoiceEvent)
-
-So now the plan is:
-  A) Pre-compute for running-average buffer of length N.  The first is
-     a constant referenced by scope in the fold that follows.  The rest
-     are are inputs to the fold.
-     1) List of clefs to choose from based on any VoiceEvent Clef in
-        existing stream and default list of four, sorted by register.
-     2) Starting clef by sampling first N VoiceEvent Note, taking the
-        average of normalized (Pitch,Octatve) pairs and mapping that 
-        back to list of ranges for list of clefs.  Note there may be
-        multiple clefs that cover the range so I need some measure
-        of which clef the average pitch fits best.  Which can be
-        ratio of distance to top over distance to bottom and best
-        is ratio closest to 1.
-     3) NonEmpty VoiceEvent with all VoiceEvent Clef stripped.
-  B) fold function that takes (Clef, [Int], NonEmpty VoiceEvent) where
-     values will be (startingClef, [], VoiceEvent startingClef .| []) 
-     and answers same.
-     foldfun :: VoiceEvent -> (Clef, [Int], NonEmpty VoiceEvent) -> (Clef, [Int], NonEmpty VoiceEvent)
-     Behavior first by type of VoiceEvent, then by state of buffer 
-       - ve@(VoiceEvent (Note ...))
-         if length buf < N
-         then 
-           (clef, norm pit oct:buf, ves <> [ve]) -- buf is [newest -> oldest]
-         else 
-	   (clef', buf'', ves <> ves')
-           where
-             buf' = norm pit oct : take (N - 1) buf
-             clef' = if avg buf' < low_range clef then next_down clef cleffs 
-                     else if avg buf' > high_range clef then next_up clef cleffs
-                     else clef
-             ves' = if clef' == clef then [ve] else [VoiceEvent clef', ve]
-             buf'' = if clef' == clef then buf' else []
-       - (VoiceEvent Clef) -> (clef, buf, ves)
-       - ve -> (clef, buf, ves <> [ve])
+** DONE FadeOut rests
+Add rests to voices that drop out.
+** TODO FadeIn/FadeOut Dynamics
+After first segment, voices should drop down a dynamic level
+so new voice predominates for a bit.
+** TODO Text for Note
+Add a text field for annotions for a note.  Default rendering
+can be above, e.g. a8^"pizz" (see Notation, 1.8.1 "Writing Text").
+** TODO Annotate sections with Note text
+Use text in voice textures to indicate start of a new rendering,
+so e.g. during repeats for a neutral section you can see where 
+voices repeat, same for a canon.  Just need a way to tag first
+Note in [NoteOrRest].  
+** TODO Retrograde, Inversion, and Retrograde Inversion
+Same row over and over winds up hammering in repetition.
+Could add another item to the configuration which is a list of
+orderings (n,r,i,ri) for normal, retrorade, inverted, and 
+retrograde inverted, then add those to the random soup.
+Note the octave banding is going to naturally call out the 
+highes and lows.
+Experimented with different ranges to avoid hammering on same
+highs and lows and effect tended toward mush, losing the 
+jazzy rhythms of the combined voices in the same range.
+Repetition problem ptends to go away with shorter fadein/fadeout 
+sections, less of one voice playing over and over same thing.
+** TODO Tuple notation for rhythms in config files
+Rhythmic configurations look like this:
+  durss:   ((1,2,4.),(8,16),(8,8,8,4))
+Add a way to group inside a duration list for tuples, e.g.:
+  durss:   ((1,2,4.),(8,16),(-8,8,8-,4)) 
+or:
+  durss:   ((1,2,4.),(8,16),((8,8,8),4)) 
+The tuple would be implicitly n:n-1, so for examples above, 
+triplets as 3:2.
+Going to make interpretation of [Duration] much more complicated.
+For one thing, Tuplet type should have _tupNoteOrRest :: NonEmpty NoteOrRest
+instead of _tupNote :: NonEmpty Note.  
+But there needs to be a way to capture a tuplet as a pure Duration as
+well, before it gets lined up with a list of notes/rests.  Given that
+the time signature is unknown, it'll probably just have to be an inner
+[Duration], turning each [Duration] into [ [Duration] ] where a single item
+list e.g. [EDur] corresponds to a single item in the original [Duration]
+and multiple-item list [EDur,EDur,EDur] counts as a tuplet.  Note that 
+a [Duration] is over-broad, as [Edur,EDur] makes no sense as a tuplet.
+But really, that's the only one, as once you're past a two-item list,
+the n:(n-1) formula gives you 3:2, 4:3, 5:4, and etc. as expected.  So
+it's a type of NonEmpty with minimum count of 3.  Note even this is 
+simplified, as a real tuplet might have more than n-1 for the actual
+duration, as in 5:3 or even 5:1.  However, that's going to make 
+notating the tuple quite a bit harder, unless there's some internal
+encoding, like a list of interpreted ints, e.g.:
+  (<#denom>,(Dur,Dur,Dur)) 
+as in 
+  (2,(EDur,EDur,EDur)) 
+for an eighth note triplet, or 
+  (3,(QDur,QDur,QDur,QDur,QDur))
+for a quarter-note 5:3 tuplet.
+The parsing validation would be that the list of Durations was always
+at least length n+1 where n is the count in the first item.
+So my earlier example would look like:
+  durss:   ((1,2,4.),(8,16),((2,(8,8,8)),4)) 
+Although for simpler parsing, it'd be better to do:
+  durss:   ((1,2,4.),(8,16),(((8,8,8),2),4))
+Finally, I'd need something more than just a [ [Duration] ] to capture
+a tuple, as there's now the denominator count as well.  So what was a
+simple [Duration] would turn into something like [DurationOrTuple] with
+Left Duration and Right DurationTuple where DurationTuple would be a
+record with list of Duration for numerator and count of duration for 
+denominator.
+Another thing to check is the use of Tuple in the context of NoteOrRest,
+because now a Note could be a Note or a a Tuplet, though even that's
+misleading because a tuplet might have a mix of notes and rests.
+Either way, replacing the NoteOrRest with NoteOrRestOrTuplet is 
+going to be a challenge because now alignNoteOrRestsDurations takes
+a [NoteOrRestOrTuplet].  I suppose the Note and Tuplet can be dealt
+with comparably, though there has to be a way to recognize transition
+of a tuplet across a bar line into a new bar, which could be tricky.
 ** TODO Re-Architect Driver
 First: ToLily doesn't need to be monadic at all, and can just be a 
 library routine.

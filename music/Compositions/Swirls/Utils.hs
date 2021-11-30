@@ -4,18 +4,20 @@
 module Compositions.Swirls.Utils  where
 
 import Control.Applicative ((<|>))
-import Control.Lens hiding (pre)
+import Control.Lens hiding (pre,ix)
+import Control.Monad (foldM)
 import Control.Monad.Extra (concatMapM)
 import Data.Either (isRight)
 import Data.Foldable
 import Data.Function (on)
-import Data.List (elemIndex, findIndex, groupBy, unfoldr)
+import Data.List (elemIndex, findIndex, groupBy, sort, unfoldr, (\\))
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
 import Data.Sequence (adjust, fromList)
 import Data.Tuple (swap)
 import Safe (headMay)
+
 import Driver
        (Driver, cfg2Tups, randomElements, searchConfigParam)
 import Types
@@ -241,7 +243,7 @@ mInts2IntDiffs = snd . foldl foldlf (0,[])
     foldlf (prev,ret) (Just i) = (i,ret <> [Just (i - prev)])
 
 mkNoteOrRest :: Maybe (Pitch, Octave) -> Duration -> Accent -> Either Note Rest
-mkNoteOrRest (Just (p,o)) d a = Left $ Note p o d (Staccatissimo NE.:| [a]) NoDynamic  NoSwell False -- tbd: magic constant Staccatissimo
+mkNoteOrRest (Just (p,o)) d a = Left $ Note p o d (Staccatissimo NE.:| [a]) NoDynamic  NoSwell "" False -- tbd: magic constant Staccatissimo
 mkNoteOrRest Nothing d _ = Right $ Rest d  NoDynamic
 
 voiceConfigTup2NoteOrRests :: VoiceConfigTup -> Driver [NoteOrRest]
@@ -265,34 +267,35 @@ sectionConfigTup2NoteOrRests (SectionConfigTupNeutral reps voiceConfigTups) =
   traverse (concatMapM voiceConfigTup2NoteOrRests) voiceConfigTupss
   where
     voiceConfigTupss = concat . replicate reps . (:[]) <$> NE.toList voiceConfigTups
-sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn fadeIdxs voiceConfigTups) =
-  traverse (concatMapM (either voiceConfigTup2Rests voiceConfigTup2NoteOrRests)) eVoiceConfigTupss
+sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn fadeIxs voiceConfigTups) = 
+  foldM foldMf ([],replicate cntVoices []) fadeIxs <&> snd
   where
-    eVoiceConfigTupss = genInOrder (NE.toList fadeIdxs) (NE.toList voiceConfigTups)
-sectionConfigTup2NoteOrRests (SectionConfigTupFadeOut fadeIdxs voiceConfigTups) =
-  traverse (concatMapM (either voiceConfigTup2Rests voiceConfigTup2NoteOrRests)) eVoiceConfigTupss
+    cntVoices = length voiceConfigTups
+    foldMf (ixs,nOrRss) ix = do
+      iXnOrRss <- traverse ix2IxNoteOrRestsPr ixs
+      nOrRs    <- voiceConfigTup2NoteOrRests (voiceConfigTups NE.!! ix)
+      let nOrRsRs = notes2Rests nOrRs
+          iXnOrRsRss = (,nOrRsRs) <$> ([0..(cntVoices - 1)] \\ (ix:ixs))
+          snOrRss = snd <$> sort ((ix,nOrRs):iXnOrRss <> iXnOrRsRss)
+      pure (ix:ixs,zipWith (<>) nOrRss snOrRss)
+      where
+        ix2IxNoteOrRestsPr ix' = voiceConfigTup2NoteOrRests (voiceConfigTups NE.!! ix') <&> (ix',)
+sectionConfigTup2NoteOrRests (SectionConfigTupFadeOut fadeIxs voiceConfigTups) = do
+  nOrRss <- foldM foldMf ([],replicate cntVoices []) fadeIxs <&> snd
+  let nOrRsDurs = nOrRs2DurVal <$> nOrRss
+  pure $ zipWith3 (mkNoRsTotDur (maximum nOrRsDurs)) nOrRsDurs timeSigs nOrRss
   where
-    eVoiceConfigTupss = genOutOrder (NE.toList fadeIdxs) (NE.toList voiceConfigTups)
+    cntVoices = length voiceConfigTups
+    timeSigs = NE.toList $ _vctcTime <$> voiceConfigTups
+    foldMf (ixs,nOrRss) ix = do
+      iXnOrRss <- traverse ix2IxNoteOrRestsPr ([0..(cntVoices - 1)] \\ (ix:ixs))
+      let iXNoNOrRss = (,[]) <$> ix:ixs
+          snOrRss = snd <$> sort (iXNoNOrRss <> iXnOrRss)
+      pure (ix:ixs,zipWith (<>) nOrRss snOrRss)
+      where
+        ix2IxNoteOrRestsPr ix' = voiceConfigTup2NoteOrRests (voiceConfigTups NE.!! ix') <&> (ix',)
 sectionConfigTup2NoteOrRests (SectionConfigTupXPosePitches _ voiceConfigTups) =
   traverse voiceConfigTup2NoteOrRests (NE.toList voiceConfigTups)
-
-genInOrder :: Ord a => [a] -> [b] -> [[Either b b]]
-genInOrder = genOrder Left Right
-
-genOutOrder :: Ord a => [a] -> [b] -> [[Either b b]]
-genOutOrder = genOrder Right Left
-
--- TBD: this is ugly!
-genOrder :: Ord a1 => (t -> a2) -> (t -> a2) -> [a1] -> [t] -> [[a2]]
-genOrder mkA mkB is as = snd $ foldl' foldlf (initMap,initRet) is
-  where
-    initMap = M.fromList $ (,mkA) <$> is
-    initRet = replicate (length is) []
-    foldlf (m,rets) i = (m',zipWith app rets r)
-      where
-        m' = M.insert i mkB m
-        r  = zipWith (\(_,b) a -> b a) (M.toAscList m') as
-        app xs x = xs <> [x]
 
 genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
 genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess
@@ -307,7 +310,7 @@ tagFirstNotes (acc,dyn) = bimap tagFirstNote tagFirstNote
   where
     tagFirstNote ves = maybe ves (`tagNoteForIdx` ves) (findIndex isNote ves)
     tagNoteForIdx idx = toList . adjust tagNote idx .  fromList
-    tagNote (VeNote (Note p o d _ _ swell tie)) = VeNote (Note p o d (singleton acc) dyn swell tie)
+    tagNote (VeNote (Note p o d _ _ swell "" tie)) = VeNote (Note p o d (singleton acc) dyn swell "" tie)
     tagNote ve = error $ "tagNote, VoiceEvent is not VeNote: " <> show ve
     isNote VeNote {} = True
     isNote _ = False
@@ -315,21 +318,31 @@ tagFirstNotes (acc,dyn) = bimap tagFirstNote tagFirstNote
 -- maxLen and vesLen are in 128th notes
 -- maxLen is target length so all voices are equal length
 -- vesLen is actual length maybe same as maxLen
-mkTotDur :: Int -> Int -> TimeSignature -> ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
-mkTotDur maxLen vesLen timeSig =
+mkVesPrTotDur :: Int -> Int -> TimeSignature -> ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
+mkVesPrTotDur maxLen vesLen timeSig =
   bimap addLenToVes addLenToVes
   where
     beatLen = dur2DurVal (timeSig2Denom timeSig)
     barLen  = timeSig2Num timeSig * beatLen
     remBar  = if maxLen `rem` barLen == 0 then 0 else barLen - (maxLen `rem` barLen)
     addLen  = if maxLen > vesLen then (maxLen - vesLen) + remBar else remBar
-    addLenToVes ves = ves ++ (spacerOrRest <$> addEndDurs timeSig vesLen addLen)
+    addLenToVes ves = ves <> (spacerOrRest <$> addEndDurs timeSig vesLen addLen)
       where
         spacerOrRest = if isSpacer (last ves) then VeSpacer . flip Spacer NoDynamic else VeRest . flip Rest NoDynamic
 
 isSpacer :: VoiceEvent -> Bool
 isSpacer VeSpacer {} = True
 isSpacer _           = False
+
+mkNoRsTotDur :: Int -> Int -> TimeSignature -> [NoteOrRest] -> [NoteOrRest]
+mkNoRsTotDur maxLen nOrRsLen timeSig =
+  addLenToNoRs
+  where
+    beatLen = dur2DurVal (timeSig2Denom timeSig)
+    barLen  = timeSig2Num timeSig * beatLen
+    remBar  = if maxLen `rem` barLen == 0 then 0 else barLen - (maxLen `rem` barLen)
+    addLen  = if maxLen > nOrRsLen then (maxLen - nOrRsLen) + remBar else remBar
+    addLenToNoRs = (<>) (Right . flip Rest NoDynamic <$> addEndDurs timeSig nOrRsLen addLen)
 
 tagTempo :: Tempo -> NE.NonEmpty Voice -> NE.NonEmpty Voice
 tagTempo tempo (v1 NE.:| rest) = tagVoice v1 NE.:| rest
@@ -342,7 +355,7 @@ tagTempo tempo (v1 NE.:| rest) = tagVoice v1 NE.:| rest
 
 -- tied notes have no accent, no dynamic,
 stripNoteOrRest :: Bool -> NoteOrRest -> NoteOrRest
-stripNoteOrRest tie (Left Note{..}) = Left $ Note _notePit _noteOct _noteDur (singleton NoAccent) NoDynamic NoSwell tie
+stripNoteOrRest tie (Left Note{..}) = Left $ Note _notePit _noteOct _noteDur (singleton NoAccent) NoDynamic NoSwell _noteAnn tie
 stripNoteOrRest _ (Right rest) = Right rest
 
 nOrRs2DurVal :: [NoteOrRest] -> Int
@@ -436,8 +449,55 @@ splitNoteOrRests winLen =
       | (_noteOct,_notePit) <= (COct,E) = Bass
       | otherwise = Treble
 
+
+{-- Graveyard I:
+
+-- Hard to predict because of indeterminite length of repetitions of voice config tups.
+-- Given voice index sequence 0,3,1,2 need:
+-- a) voice 0 to generate [NoteOrRest] from its VoiceTup,
+--    voices 1,2,3 to convert same to [Right Rest],
+--    voices 0,1,2,3 all end at same point
+-- b) voice 3 to generate [NoteOrRest] from its VoiceTup,
+--    voices 1,2 to convert to [RightRest]
+--    voice 0 to generate new [NoteOrRest] from its VoiceTup
+-- c) voice 1 to generate [NoteOrTest] from its VoiceTup
+--    voice 2 to convert to [RightRest]
+--    voices 0,3 to generate new [VoiceOrRest] from VoiceTups
+-- d) voice 2 to generate [NoteOrRest] from its VoiceTup
+--    voices 0,1,3 to generate new [VoiceOrRest] from VoiceTup
+--
+
+sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn fadeIdxs voiceConfigTups) =
+  traverse (concatMapM (either voiceConfigTup2Rests voiceConfigTup2NoteOrRests)) eVoiceConfigTupss
+  where
+    eVoiceConfigTupss = genInOrder (NE.toList fadeIdxs) (NE.toList voiceConfigTups)
+sectionConfigTup2NoteOrRests (SectionConfigTupFadeOut fadeIdxs voiceConfigTups) =
+  traverse (concatMapM (either voiceConfigTup2Rests voiceConfigTup2NoteOrRests)) eVoiceConfigTupss
+  where
+    eVoiceConfigTupss = genOutOrder (NE.toList fadeIdxs) (NE.toList voiceConfigTups)
+
+genInOrder :: Ord a => [a] -> [b] -> [[Either b b]]
+genInOrder = genOrder Left Right
+
+genOutOrder :: Ord a => [a] -> [b] -> [[Either b b]]
+genOutOrder = genOrder Right Left
+
+-- TBD: this is ugly!
+genOrder :: Ord a1 => (t -> a2) -> (t -> a2) -> [a1] -> [t] -> [[a2]]
+genOrder mkA mkB is as = snd $ foldl' foldlf (initMap,initRet) is
+  where
+    initMap = M.fromList $ (,mkA) <$> is
+    initRet = replicate (length is) []
+    foldlf (m,rets) i = (m',zipWith app rets r)
+      where
+        m' = M.insert i mkB m
+        r  = zipWith (\(_,b) a -> b a) (M.toAscList m') as
+        app xs x = xs <> [x]
+--}
+
+
 {--
-Graveyard:
+Graveyard II:
 
 genLNotes :: Int -> Int -> TimeSignature -> Note -> [Either Note Rest]
 genLNotes addLen curLen timeSig note =

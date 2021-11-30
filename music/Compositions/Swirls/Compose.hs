@@ -48,7 +48,7 @@ cfg2SwirlsScore title = do
       zipWith alignNoteOrRestsDurations timeSigs nOrRss            -- -> [[NoteOrRest]]
       & zipWith splitNoteOrRests winLens                           -- -> [([VoiceEvent],[VoiceEvent])]
       & zipWith tagFirstNotes firstTags                            -- -> [([VoiceEvent],[VoiceEvent])]
-      & zipWith3 (mkTotDur (maximum veLens)) veLens timeSigs       -- -> [([VoiceEvent],[VoiceEvent])]
+      & zipWith3 (mkVesPrTotDur (maximum veLens)) veLens timeSigs  -- -> [([VoiceEvent],[VoiceEvent])]
       & fmap (bimap NE.fromList NE.fromList)                       -- -> [(NonEmpty VoiceEvent,NonEmpty VoiceEvent)]
       & NE.fromList . zipWith4 genPolyVocs instrs keySigs timeSigs -- -> NonEmpty Voice
       & tagTempo tempo                                             -- -> NonEmpty Voice

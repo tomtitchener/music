@@ -133,7 +133,7 @@ instance Arbitrary KeySignature where
   shrink = genericShrink
 
 instance Arbitrary Note where
-  arbitrary = genericArbitrary
+  arbitrary = Note <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> elements ["a","b","c"] <*> arbitrary
   shrink = genericShrink
 
 instance Arbitrary Rest where
@@ -167,7 +167,7 @@ instance Arbitrary Tuplet where
   arbitrary = do
     arbGtr :: Bool <- arbitrary --  > tuple num / denum, e.g. 1 vs. < 1, e.g. True => N + 1 / N, False => N / N + 1
     arbNum :: Int <- elements [3..7] -- tuples from [4 in the time of 3 | 3 in the time of 4 ..  7 in the time of 6 | 6 in the time of 7]
-    note <- Note <$> arbitrary <*> arbitrary <*> pure dur <*> arbitrary <*> elements [Forte,Piano,FF,MF] <*> arbitrary <*> arbitrary
+    note <- Note <$> arbitrary <*> arbitrary <*> pure dur <*> arbitrary <*> elements [Forte,Piano,FF,MF] <*> arbitrary <*> pure "" <*> arbitrary
     let notes = NE.fromList $ replicate arbNum note                      -- hack ^^ to force not NoDynamic ^^
     if arbGtr
     then pure $ Tuplet arbNum (arbNum - 1) dur notes
@@ -195,7 +195,7 @@ instance Arbitrary TimeSignature where
 instance Arbitrary Tremolo where
   arbitrary = oneof [NoteTremolo <$> arbNote, arbChordTremolo]
     where
-      arbNote = Note <$> arbitrary <*> arbitrary <*> elements [DWDur, WDur, DHDur, HDur, DQDur, QDur] <*>  arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+      arbNote = Note <$> arbitrary <*> arbitrary <*> elements [DWDur, WDur, DHDur, HDur, DQDur, QDur] <*>  arbitrary <*> arbitrary <*> arbitrary <*> pure "" <*> arbitrary
       arbChordTremolo = do
         dur <- elements [DWDur, WDur, DHDur, HDur, DQDur, QDur]
         arbChord1 <- (`Chord` dur) . NE.fromList <$> listOfThree arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
@@ -207,10 +207,10 @@ minVEvents :: NE.NonEmpty VoiceEvent
 minVEvents = VeClef Treble NE.:|
              [VeTempo (TempoDur QDur 120)
              ,VeTimeSignature (TimeSignatureSimple 4 QDur)
-             ,VeNote (Note C COct QDur (NE.fromList [Marcato,Staccato]) NoDynamic NoSwell False)
-             ,VeNote (Note G COct QDur (NE.fromList [NoAccent]) Forte NoSwell False)
-             ,VeNote (Note C COct QDur (NE.fromList [NoAccent]) NoDynamic NoSwell False)
-             ,VeTremolo (NoteTremolo (Note C COct QDur (NE.fromList [NoAccent]) NoDynamic NoSwell False))]
+             ,VeNote (Note C COct QDur (NE.fromList [Marcato,Staccato]) NoDynamic NoSwell "a" False)
+             ,VeNote (Note G COct QDur (NE.fromList [NoAccent]) Forte NoSwell "b." False)
+             ,VeNote (Note C COct QDur (NE.fromList [NoAccent]) NoDynamic NoSwell "C!" False)
+             ,VeTremolo (NoteTremolo (Note C COct QDur (NE.fromList [NoAccent]) NoDynamic NoSwell "" False))]
 
 pitchedVoice :: Voice
 pitchedVoice = PitchedVoice AcousticGrand minVEvents
