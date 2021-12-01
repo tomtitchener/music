@@ -182,7 +182,7 @@ genXPose durss acctss mIntss scale (Range (start,stop)) = do
   manyDurs  <- randomElements durss  <&> concat
   manyAccts <- randomElements acctss <&> concat
   let mPOs = unfoldr (unfoldf compareOp) (start,mSteps)
-  pure $ zipWith3 mkNoteOrRest mPOs manyDurs manyAccts
+  pure $ zipWith3 mkNoteOrRest mPOs manyDurs manyAccts & annFirstNote "xpose"
   where
     stepOrd   = sum (fromMaybe 0 <$> concat mIntss) `compare` 0
     rangeOrd  = swap stop `compare` swap start
@@ -205,7 +205,7 @@ genStatic durss acctss mIntss scale start maxDurVal= do
   manyAccts  <- randomElements acctss <&> concat
   manyDurs   <- randomElements durss  <&> concat
   let allDurs  = unfoldr (unfoldDurs maxDurVal) (0,manyDurs)
-  pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts
+  pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts & annFirstNote "static"
 
 genCanon :: [[Duration]] -> [[Accent]] -> [[Maybe Pitch]] -> [[Octave]] -> Scale -> (Pitch,Octave) -> Int -> Int -> Driver [NoteOrRest]
 genCanon durss acctss mPitss octss scale (startPit,_) maxDurVal rotVal = do
@@ -216,7 +216,16 @@ genCanon durss acctss mPitss octss scale (startPit,_) maxDurVal rotVal = do
   let manyPOs    = (,) startPit <$> manyOcts
       manyMPOs   = concat $ zipWith (mtranspose scale) manyPOs manyMIntss
       allDurs  = unfoldr (unfoldDurs maxDurVal) (0,manyDurs)
-  pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts
+  pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts & annFirstNote "canon"
+
+annFirstNote :: String -> [NoteOrRest] -> [NoteOrRest]
+annFirstNote ann = reverse . snd . foldl' foldlf (False,[]) 
+  where
+    foldlf :: (Bool,[NoteOrRest]) -> NoteOrRest -> (Bool,[NoteOrRest])
+    foldlf (seen,ret) nor@(Right _) = (seen,nor:ret)
+    foldlf (False,ret)   (Left note) = (True,Left (annNote note):ret)
+    foldlf (True,ret) nor@(Left _) = (True,nor:ret)
+    annNote note@Note{..} = note { _noteAnn = _noteAnn <> ann }
 
 unfoldDurs :: Int -> (Int, [Duration]) -> Maybe (Duration, (Int, [Duration]))
 unfoldDurs maxDurVal (durVal,durs)
@@ -310,7 +319,7 @@ tagFirstNotes (acc,dyn) = bimap tagFirstNote tagFirstNote
   where
     tagFirstNote ves = maybe ves (`tagNoteForIdx` ves) (findIndex isNote ves)
     tagNoteForIdx idx = toList . adjust tagNote idx .  fromList
-    tagNote (VeNote (Note p o d _ _ swell "" tie)) = VeNote (Note p o d (singleton acc) dyn swell "" tie)
+    tagNote (VeNote (Note p o d _ _ swell ann tie)) = VeNote (Note p o d (singleton acc) dyn swell ann tie)
     tagNote ve = error $ "tagNote, VoiceEvent is not VeNote: " <> show ve
     isNote VeNote {} = True
     isNote _ = False
@@ -342,7 +351,7 @@ mkNoRsTotDur maxLen nOrRsLen timeSig =
     barLen  = timeSig2Num timeSig * beatLen
     remBar  = if maxLen `rem` barLen == 0 then 0 else barLen - (maxLen `rem` barLen)
     addLen  = if maxLen > nOrRsLen then (maxLen - nOrRsLen) + remBar else remBar
-    addLenToNoRs = (<>) (Right . flip Rest NoDynamic <$> addEndDurs timeSig nOrRsLen addLen)
+    addLenToNoRs = flip (<>) (Right . flip Rest NoDynamic <$> addEndDurs timeSig nOrRsLen addLen)
 
 tagTempo :: Tempo -> NE.NonEmpty Voice -> NE.NonEmpty Voice
 tagTempo tempo (v1 NE.:| rest) = tagVoice v1 NE.:| rest
@@ -353,10 +362,15 @@ tagTempo tempo (v1 NE.:| rest) = tagVoice v1 NE.:| rest
     tagVoice (PolyVoice instr (ves NE.:| vess)) = PolyVoice instr ((VeTempo tempo NE.<| ves) NE.:| vess)
     tagVoice (VoiceGroup (v1' NE.:| r)) = VoiceGroup (tagVoice v1' NE.:| r)
 
--- tied notes have no accent, no dynamic,
+-- tied notes have no accent, no dynamic
 stripNoteOrRest :: Bool -> NoteOrRest -> NoteOrRest
 stripNoteOrRest tie (Left Note{..}) = Left $ Note _notePit _noteOct _noteDur (singleton NoAccent) NoDynamic NoSwell _noteAnn tie
 stripNoteOrRest _ (Right rest) = Right rest
+
+-- tied-to notes have no annotation
+stripAnnotation :: NoteOrRest -> NoteOrRest
+stripAnnotation (Left Note{..}) = Left $ Note _notePit _noteOct _noteDur (singleton NoAccent) NoDynamic NoSwell "" _noteTie
+stripAnnotation (Right rest) = Right rest
 
 nOrRs2DurVal :: [NoteOrRest] -> Int
 nOrRs2DurVal = sum . fmap nOrR2DurVal
@@ -388,7 +402,7 @@ alignNoteOrRestsDurations timeSig =
       foldl' foldlf' (curLen,ret) allNotes
       where
         foldlf' (curLen',ret') (Left note@Note{..}) =
-          (curLen' + addLen,ret' <> stripAccents newNotes)
+          (curLen' + addLen,ret' <> (stripAnnotations . stripAccents $ newNotes))
           where
             addLen = dur2DurVal _noteDur
             durs = addEndDurs timeSig curLen' addLen
@@ -396,6 +410,9 @@ alignNoteOrRestsDurations timeSig =
             stripAccents nOrRs
               | length nOrRs < 2 = nOrRs
               | otherwise        = (stripNoteOrRest True <$> init nOrRs) <> [stripNoteOrRest False (last nOrRs)]
+            stripAnnotations nOrRs
+              | length nOrRs < 2 = nOrRs
+              | otherwise        = head nOrRs:(stripAnnotation <$> tail nOrRs)
         foldlf' (_,_) (Right rest) = error $ "alignNoteOrRestsDurations foldlf' unexpected Rest: " <> show rest
     foldlf (_,_) l = error $ "alignNoteOrRestsDurations unexpected list: " <> show l
 
