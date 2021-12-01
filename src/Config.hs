@@ -60,6 +60,12 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty Pitch)) where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe Pitch))) where
   parseConfig = mkParseConfig (mkPss pMPitch)
 
+instance FromConfig (NE.NonEmpty (Maybe Pitch,Int)) where
+  parseConfig = mkParseConfig (mkPs pMPitOctPr)
+  
+instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int))) where
+  parseConfig = mkParseConfig (mkPss pMPitOctPr)
+
 instance FromConfig Accent where
   parseConfig = mkParseConfig pAccentStr
   
@@ -80,6 +86,9 @@ instance FromConfig (NE.NonEmpty (Maybe Int)) where
 
 instance FromConfig (NE.NonEmpty (Pitch,Octave)) where
   parseConfig = mkParseConfig (mkPs pPitOctPr)
+
+instance FromConfig (NE.NonEmpty (NE.NonEmpty (Pitch,Octave))) where
+  parseConfig = mkParseConfig (mkPss pPitOctPr)
 
 instance FromConfig (NE.NonEmpty ((Pitch,Octave),(Pitch,Octave))) where
   parseConfig = mkParseConfig (mkPs pPitOctsPr)
@@ -208,6 +217,9 @@ pPitOctPr = between (char '(') (char ')') ((,) <$> parsePitch <*> (char ',' *> p
 
 pPitOctsPr :: Parser ((Pitch,Octave),(Pitch,Octave))
 pPitOctsPr = between (char '(') (char ')') ((,) <$> pPitOctPr <*> (char ',' *> pPitOctPr))
+
+pMPitOctPr :: Parser (Maybe Pitch,Int)
+pMPitOctPr = between (char '(') (char ')') ((,) <$> pMPitch <*> (char ',' *> parseInt))
 
 clefStrs :: [String]
 clefStrs = ["bass_8", "bass", "tenor", "alto", "treble", "treble^8"]

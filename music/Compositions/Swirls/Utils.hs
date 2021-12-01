@@ -50,34 +50,33 @@ data VoiceConfigTup =
                  ,_vctxKey     :: KeySignature
                  ,_vctxScale   :: Scale
                  ,_vctxTime    :: TimeSignature
-                 ,_vctxMIntss  :: NE.NonEmpty (NE.NonEmpty (Maybe Int))
+                 ,_vctxMIntss  :: NE.NonEmpty (NE.NonEmpty (Maybe Int))  -- TBD: change to (Maybe Pitch,Int)
                  ,_vctxDurss   :: NE.NonEmpty (NE.NonEmpty Duration)
                  ,_vctxAcctss  :: NE.NonEmpty (NE.NonEmpty Accent)
                  ,_vctxRange   :: ((Pitch,Octave),(Pitch,Octave))
                  }
   | VoiceConfigTupRepeat {
-                    _vctrInstr    :: Instrument
+                    _vctrInstr     :: Instrument
                     ,_vctrKey      :: KeySignature
                     ,_vctrScale    :: Scale
                     ,_vctrTime     :: TimeSignature
-                    ,_vctrMIntss   :: NE.NonEmpty (NE.NonEmpty (Maybe Int))
+                    ,_vctrMIntss   :: NE.NonEmpty (NE.NonEmpty (Maybe Int)) -- TBD: change to (Maybe Pitch,Int)
                     ,_vctrDurss    :: NE.NonEmpty (NE.NonEmpty Duration)
                     ,_vctrAcctss   :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vctrRegister :: (Pitch,Octave)
                     ,_vctrDurVal   :: Int
                  }
   | VoiceConfigTupCanon {
-                    _vctcInstr    :: Instrument
-                    ,_vctcKey      :: KeySignature
-                    ,_vctcScale    :: Scale
-                    ,_vctcTime     :: TimeSignature
-                    ,_vctcMPitss   :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch))
-                    ,_vctcOctss    :: NE.NonEmpty (NE.NonEmpty Octave)
-                    ,_vctcDurss    :: NE.NonEmpty (NE.NonEmpty Duration)
-                    ,_vctcAcctss   :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vctcRegister :: (Pitch,Octave)
-                    ,_vctcDurVal   :: Int
-                    ,_vctcRotVal   :: Int
+                    _vctcInstr      :: Instrument
+                    ,_vctcKey       :: KeySignature
+                    ,_vctcScale     :: Scale
+                    ,_vctcTime      :: TimeSignature
+                    ,_vctcMPitIntss :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int))
+                    ,_vctcDurss     :: NE.NonEmpty (NE.NonEmpty Duration)
+                    ,_vctcAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
+                    ,_vctcRegister  :: (Pitch,Octave)
+                    ,_vctcDurVal    :: Int
+                    ,_vctcRotVal    :: Int
                  }
 
 tup2VoiceConfigTupXPose :: String -> Driver VoiceConfigTup
@@ -112,8 +111,7 @@ tup2VoiceConfigTupCanon pre =
         <*> searchConfigParam  (pre <> ".key")
         <*> searchConfigParam  (pre <> ".scale")
         <*> searchConfigParam  (pre <> ".time")
-        <*> searchConfigParam  (pre <> ".mpitss")
-        <*> searchConfigParam  (pre <> ".octss")
+        <*> searchConfigParam  (pre <> ".mpitOctss")
         <*> searchConfigParam  (pre <> ".durss")
         <*> searchConfigParam  (pre <> ".accentss")
         <*> searchConfigParam  (pre <> ".register")
@@ -207,13 +205,12 @@ genStatic durss acctss mIntss scale start maxDurVal= do
   let allDurs  = unfoldr (unfoldDurs maxDurVal) (0,manyDurs)
   pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts & annFirstNote "static"
 
-genCanon :: [[Duration]] -> [[Accent]] -> [[Maybe Pitch]] -> [[Octave]] -> Scale -> (Pitch,Octave) -> Int -> Int -> Driver [NoteOrRest]
-genCanon durss acctss mPitss octss scale (startPit,_) maxDurVal rotVal = do
-  manyMIntss <- randomElements mPitss <&> fmap (mInts2IntDiffs . fmap (mPitch2MScaleDegree scale) . rotN rotVal)
-  manyOcts   <- randomElements octss  <&> concat
+genCanon :: [[Duration]] -> [[Accent]] -> [[(Maybe Pitch,Int)]] -> Scale -> (Pitch,Octave) -> Int -> Int -> Driver [NoteOrRest]
+genCanon durss acctss mPitIntss scale register maxDurVal rotVal = do
+  manyMIntss <- randomElements mPitIntss <&> fmap (mInts2IntDiffs . fmap (mPitchInt2MScaleDegree scale) . rotN rotVal)
   manyDurs   <- randomElements durss  <&> concat
   manyAccts  <- randomElements acctss <&> concat
-  let manyPOs    = (,) startPit <$> manyOcts
+  let manyPOs    = repeat register
       manyMPOs   = concat $ zipWith (mtranspose scale) manyPOs manyMIntss
       allDurs  = unfoldr (unfoldDurs maxDurVal) (0,manyDurs)
   pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts & annFirstNote "canon"
@@ -237,10 +234,10 @@ rotN cnt as
   | cnt >= length as = error $ "rotN cnt: " <> show cnt <> " >= length as " <> show (length as)
   | otherwise = drop cnt as <> take cnt as
 
-mPitch2MScaleDegree :: Scale -> Maybe Pitch -> Maybe Int
-mPitch2MScaleDegree _ Nothing = Nothing
-mPitch2MScaleDegree Scale{..} (Just pitch) =
-  elemIndex pitch pitches <|> err
+mPitchInt2MScaleDegree :: Scale -> (Maybe Pitch,Int) -> Maybe Int
+mPitchInt2MScaleDegree _ (Nothing,_) = Nothing
+mPitchInt2MScaleDegree Scale{..} (Just pitch,octOff) =
+  ((+) (NE.length _scPitches * octOff) <$> elemIndex pitch pitches) <|> err
   where
     pitches = NE.toList _scPitches
     err = error $ "mPitch2ScaleDegree no pitch: " <> show pitch <> " in pitches for scale: " <> show pitches
@@ -261,7 +258,7 @@ voiceConfigTup2NoteOrRests VoiceConfigTupXPose{..} =
 voiceConfigTup2NoteOrRests VoiceConfigTupRepeat{..} =
   genStatic (nes2arrs _vctrDurss) (nes2arrs _vctrAcctss) (nes2arrs _vctrMIntss) _vctrScale _vctrRegister _vctrDurVal
 voiceConfigTup2NoteOrRests VoiceConfigTupCanon{..} =
-  genCanon (nes2arrs _vctcDurss) (nes2arrs _vctcAcctss) (nes2arrs _vctcMPitss) (nes2arrs _vctcOctss) _vctcScale _vctcRegister _vctcDurVal _vctcRotVal
+  genCanon (nes2arrs _vctcDurss) (nes2arrs _vctcAcctss) (nes2arrs _vctcMPitIntss)_vctcScale _vctcRegister _vctcDurVal _vctcRotVal
 
 voiceConfigTup2Rests :: VoiceConfigTup -> Driver [NoteOrRest]
 voiceConfigTup2Rests voiceConfigTup = voiceConfigTup2NoteOrRests voiceConfigTup <&> notes2Rests
