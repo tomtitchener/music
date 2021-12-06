@@ -20,6 +20,9 @@ instance FromConfig Int where
 
 instance FromConfig String where
   parseConfig = mkParseConfig identifier
+  
+instance FromConfig (NE.NonEmpty String) where
+  parseConfig = mkParseConfig (mkPs identifier)
 
 instance FromConfig Instrument where
   parseConfig = mkParseConfig parseInstrument
@@ -103,10 +106,10 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty Duration)) where
   parseConfig = mkParseConfig (mkPss parseDuration)
 
 instance FromConfig (NE.NonEmpty Int) where
-  parseConfig = mkParseConfig (mkPs parseInt)
+  parseConfig = mkParseConfig (mkPs int)
 
 instance FromConfig (NE.NonEmpty (NE.NonEmpty Int)) where
-  parseConfig = mkParseConfig (mkPss parseInt)
+  parseConfig = mkParseConfig (mkPss int)
 
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe Int))) where
   parseConfig = mkParseConfig (mkPss pMInt)
@@ -189,10 +192,10 @@ pTimeSignatureGrouping :: Parser TimeSignature
 pTimeSignatureGrouping = pIntsIntDurPr <&> \(groups,(num,denom)) -> TimeSignatureGrouping groups num denom
 
 pIntsIntDurPr :: Parser (NE.NonEmpty Int,(Int,Duration))
-pIntsIntDurPr = between (char '(') (char ')') ((,) <$> mkPs parseInt <*> (char ',' *> pIntDurPr))
+pIntsIntDurPr = between (char '(') (char ')') ((,) <$> mkPs int <*> (char ',' *> pIntDurPr))
 
 pIntPitOctPrs :: Parser (Int,NE.NonEmpty (Pitch,Octave))
-pIntPitOctPrs = between (char '(') (char ')') ((,) <$> parseInt <*> mkPs pPitOctPr)
+pIntPitOctPrs = between (char '(') (char ')') ((,) <$> int <*> mkPs pPitOctPr)
 
 pTimeSig :: Parser TimeSignature
 pTimeSig = pIntDurPr <&> uncurry TimeSignatureSimple
@@ -201,10 +204,10 @@ pTimeSignature :: Parser TimeSignature
 pTimeSignature = try pTimeSignatureGrouping <|> pTimeSig
 
 pIntDurPr :: Parser (Int,Duration)
-pIntDurPr = between (char '(') (char ')') ((,) <$> parseInt <*> (char ',' *> parseDuration))
+pIntDurPr = between (char '(') (char ')') ((,) <$> parseNat <*> (char ',' *> parseDuration))
 
 pIntPr :: Parser (Int,Int)
-pIntPr = between (char '(') (char ')') ((,) <$> parseInt <*> (char ',' *> parseInt))
+pIntPr = between (char '(') (char ')') ((,) <$> parseNat <*> (char ',' *> parseNat))
 
 octaveInts :: [String]
 octaveInts = ["-4","-3","-2","-1","0","1","2","3"]
@@ -219,7 +222,7 @@ pPitOctsPr :: Parser ((Pitch,Octave),(Pitch,Octave))
 pPitOctsPr = between (char '(') (char ')') ((,) <$> pPitOctPr <*> (char ',' *> pPitOctPr))
 
 pMPitOctPr :: Parser (Maybe Pitch,Int)
-pMPitOctPr = between (char '(') (char ')') ((,) <$> pMPitch <*> (char ',' *> parseInt))
+pMPitOctPr = between (char '(') (char ')') ((,) <$> pMPitch <*> (char ',' *> int))
 
 clefStrs :: [String]
 clefStrs = ["bass_8", "bass", "tenor", "alto", "treble", "treble^8"]

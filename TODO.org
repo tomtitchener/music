@@ -301,10 +301,10 @@ Add rests to voices that drop out.
 ** TODO FadeIn/FadeOut Dynamics
 After first segment, voices should drop down a dynamic level
 so new voice predominates for a bit.
-** TODO Text for Note
+** DONE Text for Note
 Add a text field for annotions for a note.  Default rendering
 can be above, e.g. a8^"pizz" (see Notation, 1.8.1 "Writing Text").
-** TODO Annotate sections with Note text
+** DONE Annotate sections with Note text
 Use text in voice textures to indicate start of a new rendering,
 so e.g. during repeats for a neutral section you can see where 
 voices repeat, same for a canon.  Just need a way to tag first
@@ -321,6 +321,19 @@ highs and lows and effect tended toward mush, losing the
 jazzy rhythms of the combined voices in the same range.
 Repetition problem ptends to go away with shorter fadein/fadeout 
 sections, less of one voice playing over and over same thing.
+** TODO Progression:  pick N notes to randomly send up or down one octave
+Programming this in gives a nice variation to texture for canon1 config.
+But again you start hearing those outer notes getting repeated.  So it'd
+be nice to have a way to progressively add more/remove more notes in the
+registers above and below.
+What does this look like?  In this case there'd be a section comprising
+multiple voices and multiple segments.  So that'd include the neutral 
+section with repeats and it'd include fade in and fade out sections.
+And as part of the section desciption, there'd be the name of one or 
+more routines to modify each voice for each segment.  Input to the 
+routine would be the count of voices, the number of the voice, the count
+of segments, the number of the segment, and the config tuple for the
+voice.  Output would be a modified config tuple.
 ** TODO Tuple notation for rhythms in config files
 Rhythmic configurations look like this:
   durss:   ((1,2,4.),(8,16),(8,8,8,4))

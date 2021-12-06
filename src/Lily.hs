@@ -9,7 +9,7 @@
 
 module Lily (ToLily(..)
             ,FromLily(..)
-            ,parseInt
+            ,parseNat
             ,parsePitch
             ,parseInstrument
             ,parseDuration
@@ -239,7 +239,7 @@ parseNotes :: Parser (NE.NonEmpty Note)
 parseNotes = NE.fromList <$> (parseNote `sepBy` spaces)
 
 parseTuplet :: Parser Tuplet
-parseTuplet = Tuplet <$> (string "\\tuplet " *> parseInt) <*> (string "/" *> parseInt) <*> (spaces *> parseDuration) <*> (string " {" *> parseNotes <* string "}")
+parseTuplet = Tuplet <$> (string "\\tuplet " *> parseNat) <*> (string "/" *> parseNat) <*> (spaces *> parseDuration) <*> (string " {" *> parseNotes <* string "}")
 
 instance FromLily Tuplet where
   parseLily = mkParseLily parseTuplet
@@ -335,13 +335,13 @@ splitTremolo durTot (dur:durs)
 
 parseNoteTremolo :: Parser Tremolo
 parseNoteTremolo = do
-    reps <- string "\\repeat tremolo" *> spaces *> parseInt
+    reps <- string "\\repeat tremolo" *> spaces *> parseNat
     note <- spaces *> string "{" *> parseNote <* string "}"
     pure $ NoteTremolo note { _noteDur = composedDur reps (_noteDur note) } -- lens?
 
 parseChordTremolo :: Parser Tremolo
 parseChordTremolo = do
-    reps <- string "\\repeat tremolo" *> spaces *> parseInt
+    reps <- string "\\repeat tremolo" *> spaces *> parseNat
     chordOne <- spaces *> string "{" *> parseChord
     chordTwo <- spaces *> parseChord <* string "}"
     pure $ ChordTremolo (setChordDur reps chordOne) (setChordDur reps chordTwo)
@@ -396,11 +396,11 @@ instance ToLily TimeSignature where
   toLily (TimeSignatureGrouping nums num denom) = "\\time #'(" <>  unwords (map show (NE.toList nums)) <> ")"  <> " " <> show num <> "/" <> toLily denom
 
 parseTimeSignature :: Parser TimeSignature
-parseTimeSignature = choice [try (TimeSignatureGrouping <$> (string "\\time #'" *> parseIntList) <*> parseInt  <*> (string "/" *> parseDuration))
-                            ,try (TimeSignatureSimple <$> (string "\\time " *> parseInt) <*> (string "/" *> parseDuration))]
+parseTimeSignature = choice [try (TimeSignatureGrouping <$> (string "\\time #'" *> parseNatList) <*> parseNat  <*> (string "/" *> parseDuration))
+                            ,try (TimeSignatureSimple <$> (string "\\time " *> parseNat) <*> (string "/" *> parseDuration))]
 
-parseIntList :: Parser (NE.NonEmpty Int)
-parseIntList = NE.fromList <$> between (symbol '(') (symbol ')') (parseInt `sepBy` char ' ')
+parseNatList :: Parser (NE.NonEmpty Int)
+parseNatList = NE.fromList <$> between (symbol '(') (symbol ')') (parseNat `sepBy` char ' ')
 
 instance FromLily TimeSignature where
   parseLily = mkParseLily parseTimeSignature
@@ -724,8 +724,8 @@ parseAnnotation = try (string "^\\markup { \\italic " *> manyTill anyChar (char 
 mkParser :: String -> a -> Parser a
 mkParser s d = try (string s >> pure d)
 
-parseInt :: Parser Int
-parseInt = read <$> many1 digit
+parseNat :: Parser Int
+parseNat = read <$> many1 digit
 
 parseNatural :: Parser Natural
 parseNatural = read <$> many1 digit
