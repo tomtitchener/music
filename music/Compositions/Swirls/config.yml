@@ -38,6 +38,10 @@ canon1:
     instr:     acoustic grand
     time:      (4,4)
     scale:     (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
+    changeclefs: int 4
+    register:  (c,0)
+    mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
+                ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
   section1:
     stype:   fadein
     delays:  (3,0,2,1)
@@ -47,25 +51,13 @@ canon1:
       accentss:  ((>,>,~,~),(~,>,>),(>,>,>,>))
       durval:    int 512
     voice1:
-      register:  (c,0)
       rotval:    int 0
-      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
     voice2:
-      register:  (c,0)
       rotval:    int 3
-      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
     voice3:
-      register:  (c,0)
       rotval:    int 7
-      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
     voice4:
-      register:  (c,0)
       rotval:    int 10
-      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
   section2:
     stype:   neutral
     reps:    int 4
@@ -76,25 +68,13 @@ canon1:
       accentss:  ((>,>,~,~),(~,>,>),(>,>,>,>))
       durval:    int 512
     voice1:
-      register: (c,0)
       rotval:   int 0
-      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
     voice2:
-      register: (c,0)
       rotval:   int 3
-      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
     voice3:
-      register: (c,0)
       rotval:   int 7
-      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
     voice4:
-      register: (c,0)
       rotval:   int 10
-      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
   section3:
     stype:   fadeout
     drops:   (3,0,2,1)
@@ -105,25 +85,13 @@ canon1:
       accentss:  ((>,>,~,~),(~,>,>),(>,>,>,>))
       durval:    int 512
     voice1:
-      register: (c,0)
       rotval:   int 0
-      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
     voice2:
-      register: (c,0)
       rotval:   int 3
-      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
     voice3:
-      register: (c,0)
       rotval:   int 7
-      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
     voice4:
-      register: (c,0)
       rotval:   int 10
-      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
 
 canon2:
   common:

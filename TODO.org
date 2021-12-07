@@ -298,6 +298,17 @@ list processing in Compose.hs.  Points to usefulness of empty lists
 when processing lists.
 ** DONE FadeOut rests
 Add rests to voices that drop out.
+** TODO Progressively intensify/de-intensify
+With piano texture, accents tend to overwhelm dynamic.
+Have a way to tune up or tune down a parameter like accent
+or dynamic level of the course of several segments.  So to
+tune up accents you could start by suppressing them all in
+the config, then incrementally scale them up over the course
+of the count of segments.  Similarly for the dynamic marker
+for a segment, going toward the the dynamic indicated in the
+config or away from it.  Or maybe a dynamic would just be a
+once-and-done to annotate the first note at the beginning of
+a section.
 ** TODO FadeIn/FadeOut Dynamics
 After first segment, voices should drop down a dynamic level
 so new voice predominates for a bit.
@@ -321,7 +332,7 @@ highs and lows and effect tended toward mush, losing the
 jazzy rhythms of the combined voices in the same range.
 Repetition problem ptends to go away with shorter fadein/fadeout 
 sections, less of one voice playing over and over same thing.
-** TODO Progression:  pick N notes to randomly send up or down one octave
+** DONE Progression:  pick N notes to randomly send up or down one octave
 Programming this in gives a nice variation to texture for canon1 config.
 But again you start hearing those outer notes getting repeated.  So it'd
 be nice to have a way to progressively add more/remove more notes in the
