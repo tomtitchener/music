@@ -69,6 +69,7 @@ canon1:
   section2:
     stype:   neutral
     reps:    int 4
+    vocmods: (incrRandOcts)
     common:
       vtype:     canon
       durss:     ((8),(16,16),(4),(8,8),(16,16,16,16))
@@ -77,26 +78,27 @@ canon1:
     voice1:
       register: (c,0)
       rotval:   int 0
-      mpitOctss: (((b,0),(e,1),(a,0),(d,0),(r,0),(g,-1),(c,0),(f,0),(ais,-1),(cis,0),(r,0),(dis,0),(fis,0),(gis,-1)),
-                  ((b,0),(e,0),(r,0),(a,-1),(d,1),(g,0),(c,0),(f,1),(ais,0),(cis,0),(dis,0),(r,0),(fis,-1),(gis,0)))
+      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
+                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
     voice2:
       register: (c,0)
       rotval:   int 3
-      mpitOctss: (((b,-1),(e,0),(a,1),(d,0),(r,0),(g,0),(c,-1),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,0),(r,0),(a,0),(d,-1),(g,0),(c,0),(f,0),(ais,1),(cis,0),(dis,0),(r,0),(fis,0),(gis,-1)))
+      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
+                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
     voice3:
       register: (c,0)
       rotval:   int 7
-      mpitOctss: (((b,0),(e,0),(a,0),(d,1),(r,0),(g,0),(c,0),(f,-1),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,1),(e,0),(r,0),(a,0),(d,0),(g,-1),(c,0),(f,0),(ais,0),(cis,1),(dis,0),(r,0),(fis,0),(gis,0)))
+      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
+                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
     voice4:
       register: (c,0)
       rotval:   int 10
-      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,1),(c,0),(f,0),(ais,-1),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,1),(r,0),(a,0),(d,0),(g,0),(c,-1),(f,0),(ais,0),(cis,0),(dis,1),(r,0),(fis,0),(gis,0)))
+      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
+                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
   section3:
     stype:   fadeout
     drops:   (3,0,2,1)
+    vocmods: (decrRandOcts)
     common:
       vtype:     canon
       durss:     ((8),(16,16),(4),(8,8),(16,16,16,16))
@@ -105,23 +107,23 @@ canon1:
     voice1:
       register: (c,0)
       rotval:   int 0
-      mpitOctss: (((b,0),(e,1),(a,0),(d,0),(r,0),(g,-1),(c,0),(f,0),(ais,-1),(cis,0),(r,0),(dis,0),(fis,0),(gis,-1)),
-                  ((b,0),(e,0),(r,0),(a,-1),(d,1),(g,0),(c,0),(f,1),(ais,0),(cis,0),(dis,0),(r,0),(fis,-1),(gis,0)))
+      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
+                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
     voice2:
       register: (c,0)
       rotval:   int 3
-      mpitOctss: (((b,-1),(e,0),(a,1),(d,0),(r,0),(g,0),(c,-1),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,0),(r,0),(a,0),(d,-1),(g,0),(c,0),(f,0),(ais,1),(cis,0),(dis,0),(r,0),(fis,0),(gis,-1)))
+      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
+                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
     voice3:
       register: (c,0)
       rotval:   int 7
-      mpitOctss: (((b,0),(e,0),(a,0),(d,1),(r,0),(g,0),(c,0),(f,-1),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,1),(e,0),(r,0),(a,0),(d,0),(g,-1),(c,0),(f,0),(ais,0),(cis,1),(dis,0),(r,0),(fis,0),(gis,0)))
+      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
+                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
     voice4:
       register: (c,0)
       rotval:   int 10
-      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,1),(c,0),(f,0),(ais,-1),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,1),(r,0),(a,0),(d,0),(g,0),(c,-1),(f,0),(ais,0),(cis,0),(dis,1),(r,0),(fis,0),(gis,0)))
+      mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
+                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
 
 canon2:
   common:

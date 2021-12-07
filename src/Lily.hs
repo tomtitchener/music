@@ -712,10 +712,10 @@ instance FromLily Score where
 mkAnnotation :: String -> String
 mkAnnotation ann
   | null ann = ""
-  | otherwise = "^\\markup { \\italic " <> ann <> " }"
+  | otherwise = "^\\markup { \\italic \"" <> ann <> "\" }"
 
 parseAnnotation :: Parser String
-parseAnnotation = try (string "^\\markup { \\italic " *> manyTill anyChar (char ' ') <* char '}') <|> pure ""
+parseAnnotation = try (string "^\\markup { \\italic \"" *> manyTill anyChar (char '"') <* string " }") <|> pure ""
 
 -----------
 -- Utils --

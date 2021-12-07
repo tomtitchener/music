@@ -6,12 +6,13 @@ module Compositions.Swirls.Utils  where
 import Control.Applicative ((<|>))
 import Control.Lens hiding (pre,ix)
 import Control.Monad (foldM)
--- import Control.Monad.Extra (concatMapM)
+import Control.Monad.Extra (concatMapM)
 import Data.Either (isRight)
 import Data.Foldable
 import Data.Function (on)
 import Data.List (elemIndex, findIndex, groupBy, sort, unfoldr, (\\))
 import qualified Data.List.NonEmpty as NE
+import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
 import Data.Sequence (adjust, fromList)
@@ -29,21 +30,25 @@ newtype Range = Range ((Pitch,Octave),(Pitch,Octave)) deriving (Eq, Show)
 data SectionConfigTup =
   SectionConfigTupNeutral {
                        _sctnReps       :: Int
+                      ,_sctnMName      :: Maybe String
                       ,_sctnMVoiceMods :: Maybe (NE.NonEmpty String)
                       ,_sctnVoices     :: NE.NonEmpty VoiceConfigTup
                  }
   | SectionConfigTupFadeIn {
                        _sctfiOrder      :: NE.NonEmpty Int
+                      ,_sctfiMName      :: Maybe String
                       ,_sctfiMVoiceMods :: Maybe (NE.NonEmpty String)
                       ,_sctfiVoices     :: NE.NonEmpty VoiceConfigTup
                       }
   | SectionConfigTupFadeOut {
                        _sctfoOrder      :: NE.NonEmpty Int
+                      ,_sctfoMName      :: Maybe String
                       ,_sctfoMVoiceMods :: Maybe (NE.NonEmpty String)
                       ,_sctfoVoices     :: NE.NonEmpty VoiceConfigTup
                       }
   | SectionConfigTupXPosePitches { -- [(dur,[(target,xpose)])]
                        _sctxDurPOPrs   :: NE.NonEmpty (Int,NE.NonEmpty (Pitch,Octave)) -- per VoiceConfigTup
+                      ,_sctxMName      :: Maybe String
                       ,_sctxMVoiceMods :: Maybe (NE.NonEmpty String)
                       ,_sctxVoices     :: NE.NonEmpty VoiceConfigTup
                       }
@@ -126,24 +131,28 @@ tup2SectionConfigTupNeutral :: String -> NE.NonEmpty String -> Driver SectionCon
 tup2SectionConfigTupNeutral section voices =
       SectionConfigTupNeutral
       <$> searchConfigParam (section <> ".reps")
+      <*> searchMConfigParam (section <> ".sctname")
       <*> searchMConfigParam (section <> ".vocmods")
       <*> cfg2Tups cfg2VoiceConfigTup section voices
 tup2SectionConfigTupFadeIn :: String -> NE.NonEmpty String -> Driver SectionConfigTup
 tup2SectionConfigTupFadeIn section voices =
       SectionConfigTupFadeIn
       <$> searchConfigParam  (section <> ".delays")
+      <*> searchMConfigParam (section <> ".sctname")
       <*> searchMConfigParam (section <> ".vocmods")
       <*> cfg2Tups cfg2VoiceConfigTup section voices
 tup2SectionConfigTupFadeOut :: String -> NE.NonEmpty String -> Driver SectionConfigTup
 tup2SectionConfigTupFadeOut section voices =
       SectionConfigTupFadeOut
       <$> searchConfigParam  (section <> ".drops")
+      <*> searchMConfigParam (section <> ".sctname")
       <*> searchMConfigParam (section <> ".vocmods")
       <*> cfg2Tups cfg2VoiceConfigTup section voices
 tup2SectionConfigTupXPosePitches :: String -> NE.NonEmpty String -> Driver SectionConfigTup
 tup2SectionConfigTupXPosePitches section voices =
       SectionConfigTupXPosePitches
       <$> searchConfigParam (section <> ".durxps")
+      <*> searchMConfigParam (section <> ".sctname")
       <*> searchMConfigParam (section <> ".vocmods")
       <*> cfg2Tups cfg2VoiceConfigTup section voices
 
@@ -268,7 +277,11 @@ annFirstNote ann = reverse . snd . foldl' foldlf (False,[])
     foldlf (seen,ret) nor@(Right _) = (seen,nor:ret)
     foldlf (False,ret)   (Left note) = (True,Left (annNote note):ret)
     foldlf (True,ret) nor@(Left _) = (True,nor:ret)
-    annNote note@Note{..} = note { _noteAnn = _noteAnn <> ann }
+    annNote note@Note{..} = if null _noteAnn
+                            then
+                              note { _noteAnn = _noteAnn <> ann }
+                            else
+                              note { _noteAnn = ann <> ", " <>_noteAnn }
 
 unfoldDurs :: Int -> (Int, [Duration]) -> Maybe (Duration, (Int, [Duration]))
 unfoldDurs maxDurVal (durVal,durs)
@@ -328,16 +341,18 @@ applyMVoiceMod voiceModName ((cntVocs,numVoc,cntSegs,numSeg), voiceConfigTup) =
     Just f  -> f cntSegs numSeg cntVocs numVoc voiceConfigTup
 
 sectionConfigTup2NoteOrRests :: SectionConfigTup -> Driver [[NoteOrRest]]
-sectionConfigTup2NoteOrRests (SectionConfigTupNeutral cntSegs mVoiceMods voiceConfigTups) =
-  traverse (applyMVoiceMods mVoiceMods) prs >>= traverse voiceConfigTup2NoteOrRests
+sectionConfigTup2NoteOrRests (SectionConfigTupNeutral cntSegs mSctnName mVoiceMods voiceConfigTups) =
+  traverse (traverse (applyMVoiceMods mVoiceMods)) prs >>= traverse (concatMapM voiceConfigTup2NoteOrRests) <&> addSecnName scnName
   where
+    scnName = fromMaybe "neutral" mSctnName
     cntVocs = length voiceConfigTups
-    idxs = [(cntVocs,numVoc,cntSegs,numSeg) | numVoc <- take cntVocs [0..]::[Int], numSeg <- take cntSegs [0..]::[Int]]
+    idxss = chunksOf 4 [(cntVocs,numVoc,cntSegs,numSeg) | numVoc <- [0..cntVocs - 1]::[Int], numSeg <- [0..cntSegs - 1]::[Int]]
     voiceConfigTups' = NE.toList voiceConfigTups
-    prs = zip idxs (cycle voiceConfigTups')
-sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn fadeIxs mVoiceMods voiceConfigTups) =
-  foldM foldMf ([],replicate cntVocs []) fadeIxs <&> snd
+    prs = flip zip (cycle voiceConfigTups') <$> idxss
+sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn fadeIxs mSctnName mVoiceMods voiceConfigTups) =
+  foldM foldMf ([],replicate cntVocs []) fadeIxs <&> addSecnName scnName . snd
   where
+    scnName = fromMaybe "fade in" mSctnName
     cntSegs = length fadeIxs
     cntVocs = length voiceConfigTups
     foldMf (seenNumVocs,prevNOrRss) numVoc = do
@@ -355,28 +370,32 @@ sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn fadeIxs mVoiceMods voiceCon
         ix2IxNoteOrRestsPr numSeg' numVoc' =
           applyMVoiceMods mVoiceMods ((cntSegs,numSeg',cntVocs,numVoc'),voiceConfigTups NE.!! numVoc')
           >>= voiceConfigTup2NoteOrRests <&> (numVoc',)
-sectionConfigTup2NoteOrRests (SectionConfigTupFadeOut fadeIxs mVoiceMods voiceConfigTups) = do
-  nOrRss <- foldM foldMf ([],replicate cntVocs []) fadeIxs <&> snd
+sectionConfigTup2NoteOrRests (SectionConfigTupFadeOut fadeIxs mSctnName mVoiceMods voiceConfigTups) = do
+  inits  <- traverse (ix2IxNoteOrRestsPr 0) [0..cntVocs - 1]
+  nOrRss <- foldM foldMf ([],snd <$> inits) fadeIxs <&> addSecnName scnName . snd
   let nOrRsDurs = nOrRs2DurVal <$> nOrRss
   pure $ zipWith3 (mkNoRsTotDur (maximum nOrRsDurs)) nOrRsDurs timeSigs nOrRss
   where
+    scnName = fromMaybe "fade out" mSctnName
     cntSegs = length fadeIxs
     cntVocs = length voiceConfigTups
     timeSigs = NE.toList $ _vctcTime <$> voiceConfigTups
     foldMf (seenNumVocs,nOrRss) numVoc = do
       let numSeg = length seenNumVocs
-          allUnseenNumVocs   = [0..(cntVocs - 1)] \\ (numVoc:seenNumVocs)
-      unseenNumVocsNOrRss <- traverse (ix2IxNoteOrRestsPr numSeg) allUnseenNumVocs
-      let allSeenNumVocs = numVoc:seenNumVocs
-          seenNumVocsEmpties = (,[]) <$> allSeenNumVocs
+          seenNumVocs' = numVoc:seenNumVocs
+          unseenNumVocs = [0..(cntVocs - 1)] \\ seenNumVocs'
+      unseenNumVocsNOrRss <- traverse (ix2IxNoteOrRestsPr numSeg) unseenNumVocs
+      let seenNumVocsEmpties = (,[]) <$> seenNumVocs'
           newNOrRss = snd <$> sort (seenNumVocsEmpties <> unseenNumVocsNOrRss)
-      pure (allSeenNumVocs,zipWith (<>) nOrRss newNOrRss)
-      where
-        ix2IxNoteOrRestsPr numSeg' numVoc' =
-          applyMVoiceMods mVoiceMods ((cntSegs,numSeg',cntVocs,numVoc'),voiceConfigTups NE.!! numVoc')
-          >>= voiceConfigTup2NoteOrRests <&> (numVoc',)
-sectionConfigTup2NoteOrRests (SectionConfigTupXPosePitches _ _ voiceConfigTups) =
+      pure (seenNumVocs',zipWith (<>) nOrRss newNOrRss)
+    ix2IxNoteOrRestsPr numSeg' numVoc' =
+      applyMVoiceMods mVoiceMods ((cntSegs,numSeg',cntVocs,numVoc'),voiceConfigTups NE.!! numVoc')
+      >>= voiceConfigTup2NoteOrRests <&> (numVoc',)
+sectionConfigTup2NoteOrRests (SectionConfigTupXPosePitches _ _ _ voiceConfigTups) =
   traverse voiceConfigTup2NoteOrRests (NE.toList voiceConfigTups)
+
+addSecnName :: String -> [[NoteOrRest]] -> [[NoteOrRest]]
+addSecnName scnName voices = annFirstNote scnName <$> voices
 
 genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
 genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess
