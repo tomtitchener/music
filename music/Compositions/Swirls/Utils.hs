@@ -171,7 +171,7 @@ type VoiceMod = Int -> Int -> Int -> Int -> VoiceConfigTup -> Driver VoiceConfig
 
 name2VoiceConfigMod :: M.Map String VoiceMod
 name2VoiceConfigMod = M.fromList [("incrRandOcts",incrRandomizeMPitOctssOctaves)
-                                 ,("decrRandOcts",incrNormalizeMPitOctssOctaves)]
+                                 ,("decrRandOcts",decrNormalizeMPitOctssOctaves)]
 
 -- Weight, action pairs for four segment example, all voices have same weight:
 -- [[(0,-1),   (100,0),  (0,1)]      == 4,0 (((100 - (100 - (0 * (50/(4-1))))) / 2),(100 - (0 * (50/(4-1)))),((100 - (100 - (0 * (50/(4-1))))) / 2))
@@ -183,11 +183,11 @@ incrRandomizeMPitOctssOctaves :: VoiceMod
 incrRandomizeMPitOctssOctaves = incrMPitOctssOctaves mkIdWeightsIncr
 
 -- complement incrNormalizeMPitOctssOctaves should start with maximal randomness and reduce incrementally
-incrNormalizeMPitOctssOctaves :: VoiceMod
-incrNormalizeMPitOctssOctaves = incrMPitOctssOctaves mkIdWeightsDecr 
+decrNormalizeMPitOctssOctaves :: VoiceMod
+decrNormalizeMPitOctssOctaves = incrMPitOctssOctaves mkIdWeightsDecr 
 
 incrMPitOctssOctaves :: (Int -> Int -> Int ) -> Int -> Int -> Int -> Int -> VoiceConfigTup -> Driver VoiceConfigTup
-incrMPitOctssOctaves mkIdWeight cntSegs numSeg _ _ vct@VoiceConfigTupCanon{..} = do
+incrMPitOctssOctaves mkIdWeight _ _ cntSegs numSeg vct@VoiceConfigTupCanon{..} = do
   vctcMPitIntss' <- traverse randomizeMPitOctsOctaves _vctcMPitIntss
   pure vct { _vctcMPitIntss = vctcMPitIntss' }
   where
@@ -203,7 +203,7 @@ mkIdWeightsIncr :: Int -> Int -> Int
 mkIdWeightsIncr cntSegs numSeg = 100 - (numSeg * (50 `div` (cntSegs - 1))) -- TBD: magic constant 50% of results to be modified at end
 
 mkIdWeightsDecr :: Int -> Int -> Int
-mkIdWeightsDecr cntSegs numSeg = 100 - ((cntSegs - (1 + numSeg)) * (50 `div` (cntSegs - 1))) -- TBD: magic constant 50% of results to be modified at end
+mkIdWeightsDecr cntSegs numSeg = 100 - ((cntSegs - (1 + numSeg)) * (50 `div` (cntSegs - 1))) -- TBD: magic constant 50% of results to be modified at end)
 
 cfg2VoiceConfigTup :: String -> Driver VoiceConfigTup
 cfg2VoiceConfigTup section =
@@ -235,7 +235,7 @@ genXPose durss acctss mIntss scale (Range (start,stop)) = do
   manyDurs  <- randomElements durss  <&> concat
   manyAccts <- randomElements acctss <&> concat
   let mPOs = unfoldr (unfoldf compareOp) (start,mSteps)
-  pure $ zipWith3 mkNoteOrRest mPOs manyDurs manyAccts & annFirstNote "xpose"
+  pure $ zipWith3 mkNoteOrRest mPOs manyDurs manyAccts & appendAnnFirstNote "xpose"
   where
     stepOrd   = sum (fromMaybe 0 <$> concat mIntss) `compare` 0
     rangeOrd  = swap stop `compare` swap start
@@ -258,7 +258,7 @@ genStatic durss acctss mIntss scale start maxDurVal= do
   manyAccts  <- randomElements acctss <&> concat
   manyDurs   <- randomElements durss  <&> concat
   let allDurs  = unfoldr (unfoldDurs maxDurVal) (0,manyDurs)
-  pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts & annFirstNote "static"
+  pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts & appendAnnFirstNote "static"
 
 genCanon :: [[Duration]] -> [[Accent]] -> [[(Maybe Pitch,Int)]] -> Scale -> (Pitch,Octave) -> Int -> Int -> Driver [NoteOrRest]
 genCanon durss acctss mPitIntss scale register maxDurVal rotVal = do
@@ -268,10 +268,16 @@ genCanon durss acctss mPitIntss scale register maxDurVal rotVal = do
   let manyPOs    = repeat register
       manyMPOs   = concat $ zipWith (mtranspose scale) manyPOs manyMIntss
       allDurs  = unfoldr (unfoldDurs maxDurVal) (0,manyDurs)
-  pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts & annFirstNote "canon"
+  pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts & appendAnnFirstNote "canon"
 
-annFirstNote :: String -> [NoteOrRest] -> [NoteOrRest]
-annFirstNote ann = reverse . snd . foldl' foldlf (False,[])
+appendAnnFirstNote :: String -> [NoteOrRest] -> [NoteOrRest]
+appendAnnFirstNote ann = annFirstNote ann (\a b -> a <> ", " <> b)
+
+prependAnnFirstNote :: String -> [NoteOrRest] -> [NoteOrRest]
+prependAnnFirstNote ann = annFirstNote ann (\b a -> a <> ", " <> b)
+
+annFirstNote :: String -> (String -> String -> String ) -> [NoteOrRest] -> [NoteOrRest]
+annFirstNote ann append = reverse . snd . foldl' foldlf (False,[])
   where
     foldlf :: (Bool,[NoteOrRest]) -> NoteOrRest -> (Bool,[NoteOrRest])
     foldlf (seen,ret) nor@(Right _) = (seen,nor:ret)
@@ -281,7 +287,8 @@ annFirstNote ann = reverse . snd . foldl' foldlf (False,[])
                             then
                               note { _noteAnn = _noteAnn <> ann }
                             else
-                              note { _noteAnn = ann <> ", " <>_noteAnn }
+                              note { _noteAnn = append _noteAnn ann }
+                           -- note { _noteAnn = ann <> ", " <>_noteAnn }
 
 unfoldDurs :: Int -> (Int, [Duration]) -> Maybe (Duration, (Int, [Duration]))
 unfoldDurs maxDurVal (durVal,durs)
@@ -337,7 +344,7 @@ applyMVoiceMods (Just modNames) pr = foldM foldMf pr (NE.toList modNames) <&> sn
 applyMVoiceMod :: String -> ((Int,Int,Int,Int), VoiceConfigTup) -> Driver VoiceConfigTup
 applyMVoiceMod voiceModName ((cntVocs,numVoc,cntSegs,numSeg), voiceConfigTup) =
   case M.lookup voiceModName name2VoiceConfigMod of
-    Nothing -> error $ "applyMVoiceMods:  no value for name " <> voiceModName
+    Nothing -> error $ "applyMVoiceMod:  no value for name " <> voiceModName
     Just f  -> f cntSegs numSeg cntVocs numVoc voiceConfigTup
 
 sectionConfigTup2NoteOrRests :: SectionConfigTup -> Driver [[NoteOrRest]]
@@ -346,7 +353,7 @@ sectionConfigTup2NoteOrRests (SectionConfigTupNeutral cntSegs mSctnName mVoiceMo
   where
     scnName = fromMaybe "neutral" mSctnName
     cntVocs = length voiceConfigTups
-    idxss = chunksOf 4 [(cntVocs,numVoc,cntSegs,numSeg) | numVoc <- [0..cntVocs - 1]::[Int], numSeg <- [0..cntSegs - 1]::[Int]]
+    idxss = chunksOf 4 [(cntSegs,numSeg,cntVocs,numVoc) | numVoc <- [0..cntVocs - 1]::[Int], numSeg <- [0..cntSegs - 1]::[Int]]
     voiceConfigTups' = NE.toList voiceConfigTups
     prs = flip zip (cycle voiceConfigTups') <$> idxss
 sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn fadeIxs mSctnName mVoiceMods voiceConfigTups) =
@@ -381,7 +388,7 @@ sectionConfigTup2NoteOrRests (SectionConfigTupFadeOut fadeIxs mSctnName mVoiceMo
     cntVocs = length voiceConfigTups
     timeSigs = NE.toList $ _vctcTime <$> voiceConfigTups
     foldMf (seenNumVocs,nOrRss) numVoc = do
-      let numSeg = length seenNumVocs
+      let numSeg = 1 + length seenNumVocs
           seenNumVocs' = numVoc:seenNumVocs
           unseenNumVocs = [0..(cntVocs - 1)] \\ seenNumVocs'
       unseenNumVocsNOrRss <- traverse (ix2IxNoteOrRestsPr numSeg) unseenNumVocs
@@ -395,7 +402,7 @@ sectionConfigTup2NoteOrRests (SectionConfigTupXPosePitches _ _ _ voiceConfigTups
   traverse voiceConfigTup2NoteOrRests (NE.toList voiceConfigTups)
 
 addSecnName :: String -> [[NoteOrRest]] -> [[NoteOrRest]]
-addSecnName scnName voices = annFirstNote scnName <$> voices
+addSecnName scnName voices = prependAnnFirstNote scnName <$> voices
 
 genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
 genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess
