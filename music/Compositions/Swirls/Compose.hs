@@ -20,11 +20,11 @@ import Compositions.Swirls.Utils
 changeClefs :: Int
 changeClefs = 5
 
-firstAccent :: Accent
-firstAccent = Staccatissimo
+-- firstAccent :: Accent
+-- firstAccent = Staccatissimo
 
-firstDynamic :: Dynamic
-firstDynamic = PPP
+-- firstDynamic :: Dynamic
+-- firstDynamic = PPP
 
 cfg2SwirlsScore :: String -> Driver ()
 cfg2SwirlsScore title = do
@@ -33,21 +33,21 @@ cfg2SwirlsScore title = do
   timeSig   <- searchConfigParam  (title <> ".common.time")
   keySig    <- searchConfigParam  (title <> ".common.key")
   instr     <- searchConfigParam  (title <> ".common.instr")
-  fstAcc    <- searchMConfigParam (title <> ".common.initacct") <&> fromMaybe firstAccent
-  fstDyn    <- searchMConfigParam (title <> ".common.initdyn")  <&> fromMaybe firstDynamic
+--  fstAcc    <- searchMConfigParam (title <> ".common.initacct") <&> fromMaybe firstAccent
+--  fstDyn    <- searchMConfigParam (title <> ".common.initdyn")  <&> fromMaybe firstDynamic
   sections  <- cfgPath2Keys ("section" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
   secVcsPrs <- traverse (secondM (cfgPath2Keys ("voice" `isPrefixOf`)) . dupe) sections
   secTups   <- traverse (uncurry cfg2SectionConfigTup) (second NE.fromList <$> secVcsPrs)
-  nOrRsss   <- traverse (\tup -> sectionConfigTup2NoteOrRests tup <&> ZipList) secTups
-  let nOrRss    = concat <$> getZipList (sequenceA nOrRsss)
-      voices    = pipeline chgClfInt tempoInt (fstAcc,fstDyn) timeSig keySig instr nOrRss
+  nOrRszs   <- traverse (\tup -> sectionConfigTup2NoteOrRests tup <&> ZipList) secTups
+  let nOrRss    = concat <$> getZipList (sequenceA nOrRszs)
+      voices    = pipeline chgClfInt tempoInt {-- (fstAcc,fstDyn) --} timeSig keySig instr nOrRss
   writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
   where
-    pipeline :: Int -> Int -> (Accent,Dynamic) -> TimeSignature -> KeySignature -> Instrument -> [[NoteOrRest]] -> NE.NonEmpty Voice
-    pipeline chgClfs tempoInt inits timeSig keySig instr nOrRss = --
+    pipeline :: Int -> Int {-- -> (Accent,Dynamic) --} -> TimeSignature -> KeySignature -> Instrument -> [[NoteOrRest]] -> NE.NonEmpty Voice
+    pipeline chgClfs tempoInt {-- inits --} timeSig keySig instr nOrRss = --
       zipWith alignNoteOrRestsDurations timeSigs nOrRss            -- -> [[NoteOrRest]]
       & zipWith splitNoteOrRests winLens                           -- -> [([VoiceEvent],[VoiceEvent])]
-      & zipWith tagFirstNotes firstTags                            -- -> [([VoiceEvent],[VoiceEvent])]
+   -- & zipWith tagFirstNotes firstTags                            -- -> [([VoiceEvent],[VoiceEvent])]
       & zipWith3 (mkVesPrTotDur (maximum veLens)) veLens timeSigs  -- -> [([VoiceEvent],[VoiceEvent])]
       & fmap (bimap NE.fromList NE.fromList)                       -- -> [(NonEmpty VoiceEvent,NonEmpty VoiceEvent)]
       & NE.fromList . zipWith4 genPolyVocs instrs keySigs timeSigs -- -> NonEmpty Voice
@@ -60,7 +60,7 @@ cfg2SwirlsScore title = do
         keySigs    = replicate cntVoices keySig
         instrs     = replicate cntVoices instr
         winLens    = replicate cntVoices chgClfs
-        firstTags  = replicate cntVoices inits
+     -- firstTags  = replicate cntVoices inits
 
 {-
 Graveyard:

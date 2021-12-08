@@ -32,23 +32,25 @@ swirls:
       
 canon1:
   common:
-    score:     swirls
-    tempo:     int 100
-    key:       c major
-    instr:     acoustic grand
-    time:      (4,4)
-    scale:     (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
-    changeclefs: int 4
-    register:  (c,0)
-    mpitOctss: (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
+    score:       swirls
+    tempo:       int 100
+    key:         c major
+    changeclefs: int 3
+    instr:       acoustic grand
+    time:        (4,4)
+    scale:       (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
+    register:    (c,0)
+    accentss:    ((>,>,~,~),(~,>,>),(>,>,>,>))
+    durss:       ((8),(16,16),(4),(8,8),(16,16,16,16))
+    mpitOctss:   (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
+                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
   section1:
-    stype:   fadein
-    delays:  (3,0,2,1)
+    stype:      fadein
+    delays:     (3,0,2,1)
+    uniformAcc: "!" 
+    norrsmods:  (fadeInAccs,fadeInDyns)
     common:
       vtype:     canon
-      durss:     ((8),(16,16),(4),(8,8),(16,16,16,16))
-      accentss:  ((>,>,~,~),(~,>,>),(>,>,>,>))
       durval:    int 512
     voice1:
       rotval:    int 0
@@ -61,12 +63,12 @@ canon1:
   section2:
     stype:   neutral
     reps:    int 4
-    vocmods: (incrRandOcts)
+    cfgmods: (incrRandOcts)
+    uniformAcc: "!" 
+    norrsmods:  (uniformAccs)
     common:
-      vtype:     canon
-      durss:     ((8),(16,16),(4),(8,8),(16,16,16,16))
-      accentss:  ((>,>,~,~),(~,>,>),(>,>,>,>))
-      durval:    int 512
+      vtype:    canon
+      durval:   int 512
     voice1:
       rotval:   int 0
     voice2:
@@ -78,12 +80,12 @@ canon1:
   section3:
     stype:   fadeout
     drops:   (3,0,2,1)
-    vocmods: (decrRandOcts)
+    uniformAcc: "!" 
+    norrsmods:  (uniformAccs)
+    cfgmods: (decrRandOcts)
     common:
-      vtype:     canon
-      durss:     ((8),(16,16),(4),(8,8),(16,16,16,16))
-      accentss:  ((>,>,~,~),(~,>,>),(>,>,>,>))
-      durval:    int 512
+      vtype:    canon
+      durval:   int 512
     voice1:
       rotval:   int 0
     voice2:
