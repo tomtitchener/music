@@ -431,65 +431,69 @@ applyMod m configModName pr =
     Nothing -> error $ "applyMod:  no value for name " <> configModName
     Just f  -> uncurry f pr
 
--- TBD: refactor 
 sectionConfigTup2NoteOrRests :: SectionConfigTup -> Driver [[NoteOrRest]]
 sectionConfigTup2NoteOrRests (SectionConfigTupNeutral scnPath cntSegs mSctnName mConfigMods mNOrRsMods voiceConfigTups) =
-  traverse (traverse (applyMConfigMods mConfigMods)) prs
-  >>= traverse (concatMapM (\pr -> voiceConfigTup2NoteOrRests (snd pr) >>= applyMNOrRsMods mNOrRsMods . (fst pr,))) <&> addSecnName scnName
+  traverse (traverse (applyMConfigMods mConfigMods)) prs >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
   where
+    cvtAndApplyMod (rtTup,cfgTup) = voiceConfigTup2NoteOrRests cfgTup >>= applyMNOrRsMods mNOrRsMods . (rtTup,)
     scnName = fromMaybe "neutral" mSctnName
     cntVocs = length voiceConfigTups
     voiceRuntimeTupss = chunksOf 4 [VoiceRuntimeTup scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
-    voiceConfigTups' = NE.toList voiceConfigTups
-    prs = flip zip (cycle voiceConfigTups') <$> voiceRuntimeTupss
+    prs = flip zip (cycle $ NE.toList voiceConfigTups) <$> voiceRuntimeTupss
 sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn scnPath fadeIxs mSctnName mConfigMods mNOrRsMods voiceConfigTups) =
   foldM foldMf ([],replicate cntVocs []) fadeIxs <&> addSecnName scnName . snd
   where
     scnName = fromMaybe "fade in" mSctnName
     cntSegs = length fadeIxs
     cntVocs = length voiceConfigTups
+    mkVocRTT nSeg nVoc =  VoiceRuntimeTup scnPath Nothing cntVocs nVoc cntSegs nSeg
     foldMf (seenNumVocs,prevNOrRss) numVoc = do
       let numSeg = length seenNumVocs
-          voiceConfigTup  = voiceConfigTups NE.!! numVoc
-      seenNOrRs <- applyMConfigMods mConfigMods (VoiceRuntimeTup scnPath (Just numVoc) cntVocs numVoc cntSegs numSeg,voiceConfigTup)
-        >>= \pr -> voiceConfigTup2NoteOrRests (snd pr)
-        >>= applyMNOrRsMods mNOrRsMods . (fst pr,)
-      seenNumVocsNOrRss <- traverse (ix2IxNoteOrRestsPr numSeg) seenNumVocs
+          vocCfgTup = voiceConfigTups NE.!! numVoc
+          vocRTTup  = VoiceRuntimeTup scnPath (Just numVoc) cntVocs numVoc cntSegs numSeg
+      seenNOrRs <- applyMConfigMods mConfigMods (vocRTTup,vocCfgTup) >>= voiceConfigTup2NoteOrRests . snd >>= applyMNOrRsMods mNOrRsMods . (vocRTTup,)
+      let vocRunTups = mkVocRTT numSeg <$> seenNumVocs
+          vocCfgTups = (voiceConfigTups NE.!!) <$> seenNumVocs
+      seenNumVocsNOrRss <- traverse (applyMods mConfigMods mNOrRsMods) (zip vocRunTups vocCfgTups)
       let seenNumVocNOrRs    = (numVoc,seenNOrRs)
           allSeenNumVocs     = numVoc:seenNumVocs
           allUnseenNumVocs   = [0..(cntVocs - 1)] \\ allSeenNumVocs
           unseenNumVocNOrRss = (,notes2Rests seenNOrRs) <$> allUnseenNumVocs
           newNOrRss          = snd <$> sort (seenNumVocNOrRs:seenNumVocsNOrRss <> unseenNumVocNOrRss)
       pure (allSeenNumVocs,zipWith (<>) prevNOrRss newNOrRss)
-      where
-        ix2IxNoteOrRestsPr numSeg' numVoc' =
-          applyMConfigMods mConfigMods (VoiceRuntimeTup scnPath Nothing cntVocs numVoc' cntSegs numSeg',voiceConfigTups NE.!! numVoc')
-          >>= \pr -> voiceConfigTup2NoteOrRests (snd pr)
-          >>= applyMNOrRsMods mNOrRsMods . (fst pr,) <&> (numVoc',)
 sectionConfigTup2NoteOrRests (SectionConfigTupFadeOut scnPath fadeIxs mSctnName mConfigMods mNOrRsMods voiceConfigTups) = do
-  inits  <- traverse (ix2IxNoteOrRestsPr 0) [0..cntVocs - 1]
+  let initNumVocs = [0..cntVocs - 1]
+      vocRunTups = mkVocRTT 0 <$> initNumVocs
+      vocCfgTups = (voiceConfigTups NE.!!) <$> initNumVocs
+  inits <- traverse (applyMods mConfigMods mNOrRsMods) (zip vocRunTups vocCfgTups)
   nOrRss <- foldM foldMf ([],snd <$> inits) fadeIxs <&> addSecnName scnName . snd
   let nOrRsDurs = nOrRs2DurVal <$> nOrRss
   pure $ zipWith3 (mkNoRsTotDur (maximum nOrRsDurs)) nOrRsDurs timeSigs nOrRss
   where
-    scnName = fromMaybe "fade out" mSctnName
     cntSegs = length fadeIxs
     cntVocs = length voiceConfigTups
+    scnName = fromMaybe "fade out" mSctnName
     timeSigs = NE.toList $ _vctcTime <$> voiceConfigTups
+    mkVocRTT nSeg nVoc =  VoiceRuntimeTup scnPath Nothing cntVocs nVoc cntSegs nSeg
     foldMf (seenNumVocs,nOrRss) numVoc = do
       let numSeg = 1 + length seenNumVocs
           seenNumVocs' = numVoc:seenNumVocs
           unseenNumVocs = [0..(cntVocs - 1)] \\ seenNumVocs'
-      unseenNumVocsNOrRss <- traverse (ix2IxNoteOrRestsPr numSeg) unseenNumVocs
+          vocRunTups = mkVocRTT numSeg <$> unseenNumVocs
+          vocCfgTups =  (voiceConfigTups NE.!!) <$> unseenNumVocs
+      unseenNumVocsNOrRss <- traverse (applyMods mConfigMods mNOrRsMods) (zip vocRunTups vocCfgTups)
       let seenNumVocsEmpties = (,[]) <$> seenNumVocs'
           newNOrRss = snd <$> sort (seenNumVocsEmpties <> unseenNumVocsNOrRss)
       pure (seenNumVocs',zipWith (<>) nOrRss newNOrRss)
-    ix2IxNoteOrRestsPr numSeg' numVoc' =
-      applyMConfigMods mConfigMods (VoiceRuntimeTup scnPath Nothing cntVocs numVoc' cntSegs numSeg',voiceConfigTups NE.!! numVoc')
-      >>= \pr -> voiceConfigTup2NoteOrRests (snd pr)
-      >>= applyMNOrRsMods mNOrRsMods . (fst pr,) <&> (numVoc',)
 sectionConfigTup2NoteOrRests (SectionConfigTupXPosePitches _ _ _ _ _ voiceConfigTups) = -- TBD deprecate?
   traverse voiceConfigTup2NoteOrRests (NE.toList voiceConfigTups)
+
+applyMods :: Maybe (NE.NonEmpty String) -> Maybe (NE.NonEmpty String) -> (VoiceRuntimeTup,VoiceConfigTup) -> Driver (Int,[NoteOrRest])
+applyMods mConfigMods mNOrRsMods pr =
+  applyMConfigMods mConfigMods pr >>= voiceConfigTup2NoteOrRests . snd >>= applyMNOrRsMods mNOrRsMods . (vrt,) <&> (numVoc,)
+  where
+    vrt = fst pr
+    numVoc = _vrtNumVoc vrt
 
 addSecnName :: String -> [[NoteOrRest]] -> [[NoteOrRest]]
 addSecnName scnName voices = prependAnnFirstNote scnName <$> voices
