@@ -180,19 +180,29 @@ type2VoiceConfigTup = M.fromList [("xpose" ,tup2VoiceConfigTupXPose)
                                  ,("repeat",tup2VoiceConfigTupRepeat)
                                  ,("canon" ,tup2VoiceConfigTupCanon)]
 
-type ConfigMod = Int -> Int -> Int -> Int -> VoiceConfigTup -> Driver VoiceConfigTup
+data VoiceRuntimeTup = VoiceRuntimeTup {
+                                  _vrtSctnPath :: String
+                                 ,_vrtMNumVoc  :: Maybe Int
+                                 ,_vrtCntVocs  :: Int
+                                 ,_vrtNumVoc   :: Int
+                                 ,_vrtCntSegs  :: Int
+                                 ,_vrtNumSeg   :: Int
+                                 } deriving Show
+
+type ConfigMod = VoiceRuntimeTup -> VoiceConfigTup -> Driver VoiceConfigTup
 
 name2VoiceConfigMod :: M.Map String ConfigMod
 name2VoiceConfigMod = M.fromList [("incrRandOcts",incrRandomizeMPitOctssOctaves)
                                  ,("decrRandOcts",decrNormalizeMPitOctssOctaves)]
-
-type NOrRsMod = String -> Int -> Int -> Int -> Int -> [NoteOrRest] -> Driver [NoteOrRest]
+                      
+type NOrRsMod = VoiceRuntimeTup -> [NoteOrRest] -> Driver [NoteOrRest]
 
 name2VoiceNOrRsMod :: M.Map String NOrRsMod
-name2VoiceNOrRsMod = M.fromList [("fadeInAccs",fadeInAccents)
-                                ,("fadeInDyns",fadeInDynamics)
-                                ,("fadeOutDyns",fadeOutDynamics)
-                                ,("uniformAccs",uniformAccents)]
+name2VoiceNOrRsMod = M.fromList [("uniformAccs",uniformAccents)
+                                 ,("fadeInAccs",fadeInAccents)
+                                 ,("fadeInDyns",fadeInDynamics)
+                                 ,("uniformDyns",uniformDynamics)
+                                 ,("fadeOutDyns",fadeOutDynamics)]
 
 -- Weight, action pairs for four segment example, all voices have same weight:
 -- [[(0,-1),   (100,0),  (0,1)]      == 4,0 (((100 - (100 - (0 * (50/(4-1))))) / 2),(100 - (0 * (50/(4-1)))),((100 - (100 - (0 * (50/(4-1))))) / 2))
@@ -208,17 +218,17 @@ decrNormalizeMPitOctssOctaves :: ConfigMod
 decrNormalizeMPitOctssOctaves = incrMPitOctssOctaves mkIdWeightsDecr 
 
 incrMPitOctssOctaves :: (Int -> Int -> Int ) -> ConfigMod
-incrMPitOctssOctaves mkIdWeight _ _ cntSegs numSeg vct@VoiceConfigTupCanon{..} = do
+incrMPitOctssOctaves mkIdWeight VoiceRuntimeTup{..} vct@VoiceConfigTupCanon{..} = do
   vctcMPitIntss' <- traverse randomizeMPitOctsOctaves _vctcMPitIntss
   pure vct { _vctcMPitIntss = vctcMPitIntss' }
   where
-    idWeight  = mkIdWeight cntSegs numSeg
+    idWeight  = mkIdWeight _vrtCntSegs _vrtNumSeg
     modWeight = (100 - idWeight) `div` 2
     weights   = [(modWeight,pred),(idWeight,id),(modWeight,succ)]
     randomizeMPitOctsOctaves mPitInts = traverse randomizeMPitOctsOctave mPitInts
     randomizeMPitOctsOctave (Just pit,oct) = randomWeightedElement weights <&> (\weight -> (Just pit,weight oct))
     randomizeMPitOctsOctave pr = pure pr
-incrMPitOctssOctaves _ _ _ _ _ vct = pure vct
+incrMPitOctssOctaves _ _ vct = pure vct
 
 mkIdWeightsIncr :: Int -> Int -> Int
 mkIdWeightsIncr cntSegs numSeg = 100 - (numSeg * (50 `div` (cntSegs - 1))) -- TBD: magic constant 50% of results to be modified at end
@@ -226,43 +236,40 @@ mkIdWeightsIncr cntSegs numSeg = 100 - (numSeg * (50 `div` (cntSegs - 1))) -- TB
 mkIdWeightsDecr :: Int -> Int -> Int
 mkIdWeightsDecr cntSegs numSeg = 100 - ((cntSegs - (1 + numSeg)) * (50 `div` (cntSegs - 1))) -- TBD: magic constant 50% of results to be modified at end)
 
--- TBD: fade[In|Out][Accents|Dynamics] all needs to be a 
--- config mod because here we can't know which is the new voice
--- and for the control path I need a way to pass down the index for
--- a special voice (or Maybe Int for sections with no special voice),
--- sending in e.g. the indices for the new voice during fade in and
--- the dropped voice for fade out.
 fadeInAccents :: NOrRsMod
-fadeInAccents scnPath _ _ _ numSeg nOrRs = do
-  acc <- searchMConfigParam (scnPath <> ".fadeInAccent") <&> fromMaybe Staccatissimo
-  traverse (fadeInAccent numSeg acc) nOrRs
+fadeInAccents VoiceRuntimeTup{..} nOrRs = do
+  acc1 <- searchMConfigParam (_vrtSctnPath <> ".fadeInAcc1") <&> fromMaybe Staccato
+  acc2 <- searchMConfigParam (_vrtSctnPath <> ".fadeInAcc2") <&> fromMaybe Staccatissimo
+  traverse (fadeInAccent _vrtMNumVoc acc1 acc2) nOrRs
   where
-    fadeInAccent :: Int -> Accent -> NoteOrRest -> Driver NoteOrRest
-    fadeInAccent 0 _ (Left note) = pure $ Left note
-    fadeInAccent _ acc (Left note@Note{..}) = pure $ Left (note { _noteAccs = acc NE.<| _noteAccs })
-    fadeInAccent _ _ (Right rest) = pure $ Right rest
+    fadeInAccent :: Maybe Int -> Accent -> Accent -> NoteOrRest -> Driver NoteOrRest
+    fadeInAccent (Just _) acc1 _   (Left note@Note{..}) = pure $ Left (note { _noteAccs = acc1 NE.<| _noteAccs })
+    fadeInAccent Nothing  _   acc2 (Left note@Note{..}) = pure $ Left (note { _noteAccs = acc2 NE.<| _noteAccs })
+    fadeInAccent _        _   _    (Right rest)         = pure $ Right rest
 
 fadeInDynamics :: NOrRsMod
-fadeInDynamics scnPath _ _ _ numSeg nOrRs = do
-  dyn1 <- searchMConfigParam (scnPath <> ".fadeInDyn1") <&> fromMaybe Forte
-  dyn2 <- searchMConfigParam (scnPath <> ".fadeInDyn2") <&> fromMaybe PPP
-  pure $ tagFirstNoteDynamic numSeg dyn1 dyn2 nOrRs
+fadeInDynamics VoiceRuntimeTup{..} nOrRs = do
+  dyn1 <- searchMConfigParam (_vrtSctnPath <> ".fadeInDyn1") <&> fromMaybe Forte
+  dyn2 <- searchMConfigParam (_vrtSctnPath <> ".fadeInDyn2") <&> fromMaybe PPP
+  pure $ maybe (tagFirstNoteDynamic dyn2 nOrRs) (const $ tagFirstNoteDynamic dyn1 nOrRs) _vrtMNumVoc
+
+uniformDynamics :: NOrRsMod
+uniformDynamics VoiceRuntimeTup{..} nOrRs = 
+  searchMConfigParam (_vrtSctnPath <> ".uniformDyn") <&> fromMaybe PPP <&> flip tagFirstNoteDynamic nOrRs
+
+tagFirstNoteDynamic :: Dynamic -> [NoteOrRest] -> [NoteOrRest]
+tagFirstNoteDynamic dyn nOrRs = maybe nOrRs (`tagDynForIdx` nOrRs) (findIndex isLeft nOrRs)
   where
-    tagFirstNoteDynamic :: Int -> Dynamic -> Dynamic -> [NoteOrRest] -> [NoteOrRest]
-    tagFirstNoteDynamic 0 dyn1 _  = tagFirstNote dyn1
-    tagFirstNoteDynamic _ _ dyn2  = tagFirstNote dyn2
-    tagFirstNote :: Dynamic -> [NoteOrRest] -> [NoteOrRest]
-    tagFirstNote dyn nOrRs' = maybe nOrRs' (\idx -> tagDynForIdx idx dyn nOrRs') (findIndex isLeft nOrRs')
-    tagDynForIdx idx dyn = toList . adjust (tagDyn dyn) idx . fromList
+    tagDynForIdx idx = toList . adjust (tagDyn dyn) idx . fromList
     tagDyn dyn' (Left note) = Left $ note { _noteDyn = dyn' }
     tagDyn _    (Right oops) = error $ "tagDyn unexpected rest: " <> show oops
     
 fadeOutDynamics :: NOrRsMod
-fadeOutDynamics _ _ _ _ _ = pure
+fadeOutDynamics _ = pure 
 
 uniformAccents :: NOrRsMod
-uniformAccents scnPath _ _ _ _ nOrRs = do
-  acc <- searchMConfigParam (scnPath <> ".uniformAccent") <&> fromMaybe Staccatissimo
+uniformAccents VoiceRuntimeTup{..} nOrRs = do
+  acc <- searchMConfigParam (_vrtSctnPath <> ".uniformAccent") <&> fromMaybe Staccatissimo
   traverse (uniformAccent acc) nOrRs
   where
     uniformAccent :: Accent -> NoteOrRest -> Driver NoteOrRest
@@ -398,44 +405,43 @@ notes2Rests = fmap (either note2Rest Right)
   where
     note2Rest Note{..} = Right (Rest _noteDur NoDynamic)
 
-applyMConfigMods :: Maybe (NE.NonEmpty String) -> ((Int,Int,Int,Int), VoiceConfigTup) -> Driver ((Int,Int,Int,Int),VoiceConfigTup)
+applyMConfigMods :: Maybe (NE.NonEmpty String) -> (VoiceRuntimeTup, VoiceConfigTup) -> Driver (VoiceRuntimeTup,VoiceConfigTup)
 applyMConfigMods Nothing pr = pure pr
 applyMConfigMods (Just modNames) pr = foldM foldMf pr (NE.toList modNames)
   where
-    foldMf :: ((Int,Int,Int,Int), VoiceConfigTup) -> String -> Driver ((Int,Int,Int,Int), VoiceConfigTup)
-    foldMf pr' modName = applyConfigMod modName pr' <&> (fst pr',) -- ? was "applyConfigMod modName pr" ?
+    foldMf :: (VoiceRuntimeTup, VoiceConfigTup) -> String -> Driver (VoiceRuntimeTup, VoiceConfigTup)
+    foldMf pr' modName = applyConfigMod modName pr' <&> (fst pr',)
 
-applyConfigMod :: String -> ((Int,Int,Int,Int), VoiceConfigTup) -> Driver VoiceConfigTup
-applyConfigMod configModName ((cntVocs,numVoc,cntSegs,numSeg), voiceConfigTup) =
-  case M.lookup configModName name2VoiceConfigMod of
-    Nothing -> error $ "applyConfigMod:  no value for name " <> configModName
-    Just f  -> f cntSegs numSeg cntVocs numVoc voiceConfigTup
+applyConfigMod :: String -> (VoiceRuntimeTup, VoiceConfigTup) -> Driver VoiceConfigTup
+applyConfigMod = applyMod name2VoiceConfigMod
 
-applyMNOrRsMods :: Maybe (NE.NonEmpty String) -> String -> (Int,Int,Int,Int) -> [NoteOrRest] -> Driver [NoteOrRest]
-applyMNOrRsMods Nothing _ _ nOrRs = pure nOrRs
-applyMNOrRsMods (Just modNames) sectionPath idxs nOrRs = foldM foldMf (idxs,nOrRs) (NE.toList modNames) <&> snd
+applyMNOrRsMods :: Maybe (NE.NonEmpty String) -> (VoiceRuntimeTup,[NoteOrRest]) -> Driver [NoteOrRest]
+applyMNOrRsMods Nothing (_,nOrRs) = pure nOrRs
+applyMNOrRsMods (Just modNames) pr = foldM foldMf pr (NE.toList modNames) <&> snd
   where
-    foldMf :: ((Int,Int,Int,Int), [NoteOrRest]) -> String -> Driver ((Int,Int,Int,Int), [NoteOrRest])
-    foldMf pr' modName = applyNOrRsMod modName sectionPath pr' <&> (fst pr',)
+    foldMf :: (VoiceRuntimeTup,[NoteOrRest]) -> String -> Driver (VoiceRuntimeTup, [NoteOrRest])
+    foldMf pr' modName = applyNOrRsMod modName pr' <&> (fst pr',)
 
-applyNOrRsMod :: String -> String -> ((Int,Int,Int,Int),[NoteOrRest]) -> Driver [NoteOrRest]
-applyNOrRsMod configModName sectionPath ((cntVocs,numVoc,cntSegs,numSeg),nOrRs) = 
-  case M.lookup configModName name2VoiceNOrRsMod of
-    Nothing -> error $ "applyNOrRsModMod:  no value for name " <> configModName
-    Just f  -> f sectionPath cntSegs numSeg cntVocs numVoc nOrRs
+applyNOrRsMod :: String -> (VoiceRuntimeTup,[NoteOrRest]) -> Driver [NoteOrRest]
+applyNOrRsMod = applyMod name2VoiceNOrRsMod
+
+applyMod :: M.Map String (VoiceRuntimeTup -> a -> Driver a) -> String -> (VoiceRuntimeTup,a) -> Driver a
+applyMod m configModName pr =
+  case M.lookup configModName m of
+    Nothing -> error $ "applyMod:  no value for name " <> configModName
+    Just f  -> uncurry f pr
 
 -- TBD: refactor 
 sectionConfigTup2NoteOrRests :: SectionConfigTup -> Driver [[NoteOrRest]]
 sectionConfigTup2NoteOrRests (SectionConfigTupNeutral scnPath cntSegs mSctnName mConfigMods mNOrRsMods voiceConfigTups) =
   traverse (traverse (applyMConfigMods mConfigMods)) prs
-  >>= traverse (concatMapM (\pr -> voiceConfigTup2NoteOrRests (snd pr)
-                             >>= applyMNOrRsMods mNOrRsMods scnPath (fst pr))) <&> addSecnName scnName
+  >>= traverse (concatMapM (\pr -> voiceConfigTup2NoteOrRests (snd pr) >>= applyMNOrRsMods mNOrRsMods . (fst pr,))) <&> addSecnName scnName
   where
     scnName = fromMaybe "neutral" mSctnName
     cntVocs = length voiceConfigTups
-    idxss = chunksOf 4 [(cntSegs,numSeg,cntVocs,numVoc) | numVoc <- [0..cntVocs - 1]::[Int], numSeg <- [0..cntSegs - 1]::[Int]]
+    voiceRuntimeTupss = chunksOf 4 [VoiceRuntimeTup scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
     voiceConfigTups' = NE.toList voiceConfigTups
-    prs = flip zip (cycle voiceConfigTups') <$> idxss
+    prs = flip zip (cycle voiceConfigTups') <$> voiceRuntimeTupss
 sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn scnPath fadeIxs mSctnName mConfigMods mNOrRsMods voiceConfigTups) =
   foldM foldMf ([],replicate cntVocs []) fadeIxs <&> addSecnName scnName . snd
   where
@@ -445,8 +451,9 @@ sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn scnPath fadeIxs mSctnName m
     foldMf (seenNumVocs,prevNOrRss) numVoc = do
       let numSeg = length seenNumVocs
           voiceConfigTup  = voiceConfigTups NE.!! numVoc
-      seenNOrRs <- applyMConfigMods mConfigMods ((cntSegs,numSeg,cntVocs,numVoc),voiceConfigTup) >>= (\pr -> voiceConfigTup2NoteOrRests (snd pr)
-                                                                                                     >>= applyMNOrRsMods mNOrRsMods scnPath (fst pr))
+      seenNOrRs <- applyMConfigMods mConfigMods (VoiceRuntimeTup scnPath (Just numVoc) cntVocs numVoc cntSegs numSeg,voiceConfigTup)
+        >>= \pr -> voiceConfigTup2NoteOrRests (snd pr)
+        >>= applyMNOrRsMods mNOrRsMods . (fst pr,)
       seenNumVocsNOrRss <- traverse (ix2IxNoteOrRestsPr numSeg) seenNumVocs
       let seenNumVocNOrRs    = (numVoc,seenNOrRs)
           allSeenNumVocs     = numVoc:seenNumVocs
@@ -456,9 +463,9 @@ sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn scnPath fadeIxs mSctnName m
       pure (allSeenNumVocs,zipWith (<>) prevNOrRss newNOrRss)
       where
         ix2IxNoteOrRestsPr numSeg' numVoc' =
-          applyMConfigMods mConfigMods ((cntSegs,numSeg',cntVocs,numVoc'),voiceConfigTups NE.!! numVoc')
-          >>= (\pr -> voiceConfigTup2NoteOrRests (snd pr)
-                >>= applyMNOrRsMods mNOrRsMods scnPath (fst pr)) <&> (numVoc',)
+          applyMConfigMods mConfigMods (VoiceRuntimeTup scnPath Nothing cntVocs numVoc' cntSegs numSeg',voiceConfigTups NE.!! numVoc')
+          >>= \pr -> voiceConfigTup2NoteOrRests (snd pr)
+          >>= applyMNOrRsMods mNOrRsMods . (fst pr,) <&> (numVoc',)
 sectionConfigTup2NoteOrRests (SectionConfigTupFadeOut scnPath fadeIxs mSctnName mConfigMods mNOrRsMods voiceConfigTups) = do
   inits  <- traverse (ix2IxNoteOrRestsPr 0) [0..cntVocs - 1]
   nOrRss <- foldM foldMf ([],snd <$> inits) fadeIxs <&> addSecnName scnName . snd
@@ -478,9 +485,9 @@ sectionConfigTup2NoteOrRests (SectionConfigTupFadeOut scnPath fadeIxs mSctnName 
           newNOrRss = snd <$> sort (seenNumVocsEmpties <> unseenNumVocsNOrRss)
       pure (seenNumVocs',zipWith (<>) nOrRss newNOrRss)
     ix2IxNoteOrRestsPr numSeg' numVoc' =
-      applyMConfigMods mConfigMods ((cntSegs,numSeg',cntVocs,numVoc'),voiceConfigTups NE.!! numVoc')
-      >>= (\pr -> voiceConfigTup2NoteOrRests (snd pr)
-            >>= applyMNOrRsMods mNOrRsMods scnPath (fst pr)) <&> (numVoc',)
+      applyMConfigMods mConfigMods (VoiceRuntimeTup scnPath Nothing cntVocs numVoc' cntSegs numSeg',voiceConfigTups NE.!! numVoc')
+      >>= \pr -> voiceConfigTup2NoteOrRests (snd pr)
+      >>= applyMNOrRsMods mNOrRsMods . (fst pr,) <&> (numVoc',)
 sectionConfigTup2NoteOrRests (SectionConfigTupXPosePitches _ _ _ _ _ voiceConfigTups) = -- TBD deprecate?
   traverse voiceConfigTup2NoteOrRests (NE.toList voiceConfigTups)
 

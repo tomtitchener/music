@@ -45,10 +45,13 @@ canon1:
     mpitOctss:   (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
                   ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
   section1:
-    stype:      fadein
-    delays:     (3,0,2,1)
-    uniformAcc: "!" 
-    norrsmods:  (fadeInAccs,fadeInDyns)
+    stype:        fadein
+    delays:       (3,0,2,1)
+    fadeInAcc1:   .
+    fadeInAcc2:   !
+    fadeInDyn1:   p
+    fadeInDyn2:   ppp
+    norrsmods:    (fadeInAccs,fadeInDyns)
     common:
       vtype:     canon
       durval:    int 512
@@ -61,11 +64,12 @@ canon1:
     voice4:
       rotval:    int 10
   section2:
-    stype:   neutral
-    reps:    int 4
-    cfgmods: (incrRandOcts)
-    uniformAcc: "!" 
-    norrsmods:  (uniformAccs)
+    stype:      neutral
+    reps:       int 4
+    cfgmods:    (incrRandOcts)
+    uniformAcc: !
+    uniformDyn: ppp
+    norrsmods:  (uniformAccs,uniformDyns)
     common:
       vtype:    canon
       durval:   int 512
@@ -78,11 +82,12 @@ canon1:
     voice4:
       rotval:   int 10
   section3:
-    stype:   fadeout
-    drops:   (3,0,2,1)
-    uniformAcc: "!" 
-    norrsmods:  (uniformAccs)
-    cfgmods: (decrRandOcts)
+    stype:      fadeout
+    drops:      (3,0,2,1)
+    cfgmods:    (decrRandOcts)
+    uniformAcc: ! 
+    uniformDyn: ppp
+    norrsmods:  (uniformAccs,uniformDyns)
     common:
       vtype:    canon
       durval:   int 512
