@@ -708,6 +708,16 @@ genOrder mkA mkB is as = snd $ foldl' foldlf (initMap,initRet) is
 {--
 Graveyard II:
 
+From Compose.hs:
+
+      -- ghost voices
+      -- manyIntPrss = cycle <$> nes2arrs (_stGhosts <$> tups)
+      -- gWinLens    = replicate cntVoices 1 -- tbd: magic constant
+      -- gVoices     = zipWith3 squashNoteOrRests manyIntPrss timeSigs noteOrRestss
+      --               &  pipeline tempo s1tups gWinLens
+
+From Utils.hs:
+
 genLNotes :: Int -> Int -> TimeSignature -> Note -> [Either Note Rest]
 genLNotes addLen curLen timeSig note =
   (dur2LeftNote True <$> init durs) <> [dur2LeftNote False (last durs)]
