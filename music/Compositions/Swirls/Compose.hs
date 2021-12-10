@@ -1,9 +1,8 @@
 module Compositions.Swirls.Compose (cfg2SwirlsScore) where
 
 
-import Control.Applicative
 import Control.Lens (Bifunctor(bimap), (&), (<&>))
-import Data.List (isPrefixOf, zipWith4)
+import Data.List (isPrefixOf, zipWith4, transpose)
 import Data.Maybe (fromMaybe)
 import qualified Data.List.NonEmpty as NE
 import Data.Tuple.Extra (dupe, second, secondM)
@@ -30,8 +29,8 @@ cfg2SwirlsScore title = do
   sections  <- cfgPath2Keys ("section" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
   secVcsPrs <- traverse (secondM (cfgPath2Keys ("voice" `isPrefixOf`)) . dupe) sections
   secTups   <- traverse (uncurry cfg2SectionConfigTup) (second NE.fromList <$> secVcsPrs)
-  nOrRszs   <- traverse (\tup -> sectionConfigTup2NoteOrRests tup <&> ZipList) secTups
-  let nOrRss    = concat <$> getZipList (sequenceA nOrRszs)
+  nOrRsss   <- traverse sectionConfigTup2NoteOrRests secTups
+  let nOrRss    = concat <$> transpose nOrRsss
       voices    = pipeline chgClfInt tempoInt timeSig keySig instr nOrRss
   writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
   where

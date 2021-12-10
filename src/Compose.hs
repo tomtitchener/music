@@ -22,6 +22,7 @@ import Driver
        , randomElements
        , randomizeList
        , writeScore
+       , printIt
        )
 import Types
 import Utils
@@ -99,10 +100,15 @@ normalizeVoiceMottos VoiceMottos{..} =
 
 genMaxRandVoc :: Int -> VoiceMottos -> MottoVoiceTup -> GenVoiceMottos -> Driver Voice
 genMaxRandVoc reps VoiceMottos{..} MottoVoiceTup{..} _ = do
+  printIt "GenMaxRandVoc: start"
   mots <- concatMap (mtranspose _vtScale _vtStart) . take reps <$> randomElements _vmMIntss
+  printIt $ "GenMaxRandVoc: mots " <> show mots
   durs <- concat . take reps <$> randomElements _vmDurss
+  printIt $ "GenMaxRandVoc: durs " <> show durs
   accs <- concat . take reps <$> randomElements _vmAcctss
+  printIt $ "GenMaxRandVoc: accs " <> show accs
   dyns <- concat . take reps <$> randomElements _vmDynss
+  printIt $ "GenMaxRandVoc: dyns " <> show dyns
   pure $ PitchedVoice _vtInstr (NE.fromList (VeKeySignature _vtKey:VeClef _vtClef:genNotes mots durs accs dyns))
 
 genVoc :: Int -> VoiceMottos -> MottoVoiceTup -> GenVoiceMottos -> Driver Voice
@@ -133,7 +139,8 @@ newtype GenVoiceM = GenVoiceM { _genRandVocM :: Int -> VoiceMottos -> MottoVoice
 newtype GenVoiceMottosM = GenVoiceMottosM { _genVoiceMottosM :: VoiceMottos -> Driver VoiceMottos }
 
 genVoices :: GenVoice -> Int -> VoiceMottos -> [MottoVoiceTup] -> [GenVoiceMottos] -> Driver (NE.NonEmpty Voice)
-genVoices GenVoice{..} reps vocmots tups mottos = NE.fromList <$> zipWithM (_genRandVoc reps vocmots) tups mottos
+genVoices GenVoice{..} reps vocmots tups mottos = 
+  printIt "genVoices start" >> NE.fromList <$> zipWithM (_genRandVoc reps vocmots) tups mottos
 
 genVoicesM :: GenVoiceM -> Int -> VoiceMottos -> [MottoVoiceTup] -> [GenVoiceMottosM] -> Driver (NE.NonEmpty Voice)
 genVoicesM GenVoiceM{..} reps vocmots tups mots = NE.fromList <$> zipWithM (_genRandVocM reps vocmots) tups mots
@@ -152,7 +159,10 @@ cfg2MottoConfigTup title =
 cfg2MaxRandScore :: String -> Driver ()
 cfg2MaxRandScore title = do
   (reps, voctups, vocmots) <- cfg2MottoConfigTup title
-  voices  <- genVoices (GenVoice genMaxRandVoc) reps vocmots voctups []
+  printIt $ "cfg2MaxRandScore 1: " <> show (reps, voctups, vocmots)
+  let genVocMots = replicate (length voctups) $ GenVoiceMottos id
+  voices  <- genVoices (GenVoice genMaxRandVoc) reps vocmots voctups genVocMots
+  printIt $ "cfg2MaxRandScore 2: " <> show (length voices)
   writeScore title $ Score title voices
 
 -- reps repetitions of the mottos all in the same order, no randomization, just repeats

@@ -298,13 +298,13 @@ list processing in Compose.hs.  Points to usefulness of empty lists
 when processing lists.
 ** DONE FadeOut rests
 Add rests to voices that drop out.
-** TODO NoteOrRest mods:  accents per section (including const per note)
+** DONE NoteOrRest mods:  accents per section (including const per note)
 Lilypond doesn't recognize and apply "sempre" annotations.
 With piano, staccatissimo, staccato, etc. really make a difference as
 the default touch is pretty legato.  But they have to be repeated with 
 each note--they aren't sticky.  Replace Utils.hs:mkNoteOrRest where I 
 just slap default Staccatissimo in and make it configurable.
-** TODO NoteOrRest mods:  dynamics per section
+** DONE NoteOrRest mods:  dynamics per section
 Replaces global initialization in tagNote.
 ** TODO Progressively intensify/de-intensify
 With piano texture, accents tend to overwhelm dynamic.
@@ -317,17 +317,21 @@ for a segment, going toward the the dynamic indicated in the
 config or away from it.  Or maybe a dynamic would just be a
 once-and-done to annotate the first note at the beginning of
 a section.
-** TODO FadeIn/FadeOut Dynamics
+** DONE FadeIn/FadeOut Dynamics
 After first segment, voices should drop down a dynamic level
 so new voice predominates for a bit.
 ** DONE Text for Note
 Add a text field for annotions for a note.  Default rendering
 can be above, e.g. a8^"pizz" (see Notation, 1.8.1 "Writing Text").
-** DONE Annotate sections with Note text
+** DONE Annotate sections with section and voice type text
 Use text in voice textures to indicate start of a new rendering,
 so e.g. during repeats for a neutral section you can see where 
 voices repeat, same for a canon.  Just need a way to tag first
 Note in [NoteOrRest].  
+** TODO Deprecate initial config file and utility routines
+Newest config file is much more sophisticated, will be updated 
+to add transition sections.  Repeat of names "Compose.hs" and
+"Utils.hs" is confusing.  
 ** TODO Retrograde, Inversion, and Retrograde Inversion
 Same row over and over winds up hammering in repetition.
 Could add another item to the configuration which is a list of

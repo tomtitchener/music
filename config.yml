@@ -13,7 +13,7 @@ example_param:
   pitocts: ((c,0),(g,-1),(d,-2))
   instrument: acoustic grand
 
-maxrand_texture:
+example_maxrand:
   reps: int 10
   common:
     score: example_maxrand
