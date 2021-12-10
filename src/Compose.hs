@@ -2,7 +2,7 @@
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 
-module Compositions.Swirls.Utils  where
+module Compose where
 
 import Control.Applicative ((<|>))
 import Control.Lens hiding (pre,ix)

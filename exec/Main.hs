@@ -6,20 +6,21 @@ module Main where
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
+import Data.Tuple.Extra (dupe, second, secondM)
+import Data.List (zipWith3, zipWith4)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Yaml as Y
-import Data.List
 import Options.Applicative
 import Prelude (String, error, show)
-import Protolude hiding (option, print, show, to)
+import Protolude hiding (option, print, show, to, second)
 import System.Directory (doesFileExist)
 import System.Random
 import System.Random.Internal
 import System.Random.SplitMix
 
-import Compose
 import Driver
-
-import Compositions.Swirls.Compose (cfg2SwirlsScore)
+import Types
+import Compose
 
 -- _optRandomSeed via command-line argument  -s "<string>"
 -- to recreate pseudo-random number generator by copying
@@ -69,17 +70,38 @@ main =  do
   gen <- getStdGen
   void . liftIO $ runReaderT (runDriver (cfg2Score _optTarget)) (initEnv config (show gen))
 
+changeClefs :: Int
+changeClefs = 5
+
 cfg2Score :: String -> Driver ()
 cfg2Score title = do
-  scoreType <- searchConfigParam (title <> ".common.score")
-  maybe (error $ "cfg2Score: no fun for title " <> title) ($ title) $ lookup scoreType driverFuns
+  chgClfInt <- searchMConfigParam (title <> ".common.changeclefs") <&> fromMaybe changeClefs
+  tempoInt  <- searchConfigParam  (title <> ".common.tempo")
+  timeSig   <- searchConfigParam  (title <> ".common.time")
+  keySig    <- searchConfigParam  (title <> ".common.key")
+  instr     <- searchConfigParam  (title <> ".common.instr")
+  sections  <- cfgPath2Keys ("section" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
+  secVcsPrs <- traverse (secondM (cfgPath2Keys ("voice" `isPrefixOf`)) . dupe) sections
+  secTups   <- traverse (uncurry cfg2SectionConfigTup) (second NE.fromList <$> secVcsPrs)
+  nOrRsss   <- traverse sectionConfigTup2NoteOrRests secTups
+  let nOrRss    = concat <$> transpose nOrRsss
+      voices    = pipeline chgClfInt tempoInt timeSig keySig instr nOrRss
+  writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
+  where
+    pipeline :: Int -> Int -> TimeSignature -> KeySignature -> Instrument -> [[NoteOrRest]] -> NE.NonEmpty Voice
+    pipeline chgClfs tempoInt timeSig keySig instr nOrRss = --
+      zipWith alignNoteOrRestsDurations timeSigs nOrRss            -- -> [[NoteOrRest]]
+      & zipWith splitNoteOrRests winLens                           -- -> [([VoiceEvent],[VoiceEvent])]
+      & zipWith3 (mkVesPrTotDur (maximum veLens)) veLens timeSigs  -- -> [([VoiceEvent],[VoiceEvent])]
+      & fmap (bimap NE.fromList NE.fromList)                       -- -> [(NonEmpty VoiceEvent,NonEmpty VoiceEvent)]
+      & NE.fromList . zipWith4 genPolyVocs instrs keySigs timeSigs -- -> NonEmpty Voice
+      & tagTempo tempo                                             -- -> NonEmpty Voice
+      where
+        tempo      = TempoDur QDur (fromIntegral tempoInt)
+        cntVoices  = length nOrRss
+        veLens     = nOrRs2DurVal <$> nOrRss
+        timeSigs   = replicate cntVoices timeSig
+        keySigs    = replicate cntVoices keySig
+        instrs     = replicate cntVoices instr
+        winLens    = replicate cntVoices chgClfs
   
-driverFuns :: [(String,String -> Driver ())]
-driverFuns =
-  [("example_maxrand",   cfg2MaxRandScore)   -- to be deprecated
-  ,("example_homophon",  cfg2HomoPhonScore)  -- to be deprecated
-  ,("example_canon",     cfg2CanonScore)     -- to be deprecated
-  ,("example_randmot",   cfg2RandMotScore)   -- to be deprecated
-  ,("example_arpeggios", cfg2ArpeggiosScore) -- to be deprecated
-  ,("swirls",            cfg2SwirlsScore)]
-

@@ -32,7 +32,6 @@ swirls:
       
 canon1:
   common:
-    score:       swirls
     tempo:       int 100
     key:         c major
     changeclefs: int 3
