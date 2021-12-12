@@ -306,17 +306,6 @@ each note--they aren't sticky.  Replace Utils.hs:mkNoteOrRest where I
 just slap default Staccatissimo in and make it configurable.
 ** DONE NoteOrRest mods:  dynamics per section
 Replaces global initialization in tagNote.
-** TODO Progressively intensify/de-intensify
-With piano texture, accents tend to overwhelm dynamic.
-Have a way to tune up or tune down a parameter like accent
-or dynamic level of the course of several segments.  So to
-tune up accents you could start by suppressing them all in
-the config, then incrementally scale them up over the course
-of the count of segments.  Similarly for the dynamic marker
-for a segment, going toward the the dynamic indicated in the
-config or away from it.  Or maybe a dynamic would just be a
-once-and-done to annotate the first note at the beginning of
-a section.
 ** DONE FadeIn/FadeOut Dynamics
 After first segment, voices should drop down a dynamic level
 so new voice predominates for a bit.
@@ -328,22 +317,10 @@ Use text in voice textures to indicate start of a new rendering,
 so e.g. during repeats for a neutral section you can see where 
 voices repeat, same for a canon.  Just need a way to tag first
 Note in [NoteOrRest].  
-** TODO Deprecate initial config file and utility routines
+** DONE Deprecate initial config file and utility routines
 Newest config file is much more sophisticated, will be updated 
 to add transition sections.  Repeat of names "Compose.hs" and
 "Utils.hs" is confusing.  
-** TODO Retrograde, Inversion, and Retrograde Inversion
-Same row over and over winds up hammering in repetition.
-Could add another item to the configuration which is a list of
-orderings (n,r,i,ri) for normal, retrorade, inverted, and 
-retrograde inverted, then add those to the random soup.
-Note the octave banding is going to naturally call out the 
-highes and lows.
-Experimented with different ranges to avoid hammering on same
-highs and lows and effect tended toward mush, losing the 
-jazzy rhythms of the combined voices in the same range.
-Repetition problem ptends to go away with shorter fadein/fadeout 
-sections, less of one voice playing over and over same thing.
 ** DONE Progression:  pick N notes to randomly send up or down one octave
 Programming this in gives a nice variation to texture for canon1 config.
 But again you start hearing those outer notes getting repeated.  So it'd
@@ -357,6 +334,29 @@ more routines to modify each voice for each segment.  Input to the
 routine would be the count of voices, the number of the voice, the count
 of segments, the number of the segment, and the config tuple for the
 voice.  Output would be a modified config tuple.
+** TODO Retrograde, Inversion, and Retrograde Inversion
+Same row over and over winds up hammering in repetition.
+Could add another item to the configuration which is a list of
+orderings (n,r,i,ri) for normal, retrorade, inverted, and 
+retrograde inverted, then add those to the random soup.
+Note the octave banding is going to naturally call out the 
+highes and lows.
+Experimented with different ranges to avoid hammering on same
+highs and lows and effect tended toward mush, losing the 
+jazzy rhythms of the combined voices in the same range.
+Repetition problem ptends to go away with shorter fadein/fadeout 
+sections, less of one voice playing over and over same thing.
+** TODO Progressively intensify/de-intensify
+With piano texture, accents tend to overwhelm dynamic.
+Have a way to tune up or tune down a parameter like accent
+or dynamic level of the course of several segments.  So to
+tune up accents you could start by suppressing them all in
+the config, then incrementally scale them up over the course
+of the count of segments.  Similarly for the dynamic marker
+for a segment, going toward the the dynamic indicated in the
+config or away from it.  Or maybe a dynamic would just be a
+once-and-done to annotate the first note at the beginning of
+a section.
 ** TODO Tuple notation for rhythms in config files
 Rhythmic configurations look like this:
   durss:   ((1,2,4.),(8,16),(8,8,8,4))

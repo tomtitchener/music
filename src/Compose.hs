@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Compose where
 
@@ -191,14 +191,14 @@ data VoiceRuntimeTup = VoiceRuntimeTup {
 
 type ConfigMod = VoiceRuntimeTup -> VoiceConfigTup -> Driver VoiceConfigTup
 
-name2VoiceConfigMod :: M.Map String ConfigMod
-name2VoiceConfigMod = M.fromList [("incrRandOcts",incrRandomizeMPitOctssOctaves)
+name2VoiceConfigMods :: M.Map String ConfigMod
+name2VoiceConfigMods = M.fromList [("incrRandOcts",incrRandomizeMPitOctssOctaves)
                                  ,("decrRandOcts",decrNormalizeMPitOctssOctaves)]
                       
 type NOrRsMod = VoiceRuntimeTup -> [NoteOrRest] -> Driver [NoteOrRest]
 
-name2VoiceNOrRsMod :: M.Map String NOrRsMod
-name2VoiceNOrRsMod = M.fromList [("uniformAccs",uniformAccents)
+name2VoiceNOrRsMods :: M.Map String NOrRsMod
+name2VoiceNOrRsMods = M.fromList [("uniformAccs",uniformAccents)
                                  ,("fadeInAccs",fadeInAccents)
                                  ,("fadeInDyns",fadeInDynamics)
                                  ,("uniformDyns",uniformDynamics)
@@ -385,8 +385,7 @@ mInts2IntDiffs = snd . foldl foldlf (0,[])
     foldlf (prev,ret) (Just i) = (i,ret <> [Just (i - prev)])
 
 mkNoteOrRest :: Maybe (Pitch, Octave) -> Duration -> Accent -> Either Note Rest
-mkNoteOrRest (Just (p,o)) d a = Left $ Note p o d (singleton a) NoDynamic  NoSwell "" False -- tbd: magic constant Staccatissimo
--- mkNoteOrRest (Just (p,o)) d a = Left $ Note p o d (Staccatissimo NE.:| [a]) NoDynamic  NoSwell "" False -- tbd: magic constant Staccatissimo
+mkNoteOrRest (Just (p,o)) d a = Left $ Note p o d (singleton a) NoDynamic  NoSwell "" False
 mkNoteOrRest Nothing d _ = Right $ Rest d  NoDynamic
 
 voiceConfigTup2NoteOrRests :: VoiceConfigTup -> Driver [NoteOrRest]
@@ -406,29 +405,22 @@ notes2Rests = fmap (either note2Rest Right)
     note2Rest Note{..} = Right (Rest _noteDur NoDynamic)
 
 applyMConfigMods :: Maybe (NE.NonEmpty String) -> (VoiceRuntimeTup, VoiceConfigTup) -> Driver (VoiceRuntimeTup,VoiceConfigTup)
-applyMConfigMods Nothing pr = pure pr
-applyMConfigMods (Just modNames) pr = foldM foldMf pr (NE.toList modNames)
-  where
-    foldMf :: (VoiceRuntimeTup, VoiceConfigTup) -> String -> Driver (VoiceRuntimeTup, VoiceConfigTup)
-    foldMf pr' modName = applyConfigMod modName pr' <&> (fst pr',)
-
-applyConfigMod :: String -> (VoiceRuntimeTup, VoiceConfigTup) -> Driver VoiceConfigTup
-applyConfigMod = applyMod name2VoiceConfigMod
+applyMConfigMods mNames pr = applyMMods mNames pr (applyMod name2VoiceConfigMods) <&> (fst pr,)
 
 applyMNOrRsMods :: Maybe (NE.NonEmpty String) -> (VoiceRuntimeTup,[NoteOrRest]) -> Driver [NoteOrRest]
-applyMNOrRsMods Nothing (_,nOrRs) = pure nOrRs
-applyMNOrRsMods (Just modNames) pr = foldM foldMf pr (NE.toList modNames) <&> snd
-  where
-    foldMf :: (VoiceRuntimeTup,[NoteOrRest]) -> String -> Driver (VoiceRuntimeTup, [NoteOrRest])
-    foldMf pr' modName = applyNOrRsMod modName pr' <&> (fst pr',)
+applyMNOrRsMods mNames pr = applyMMods mNames pr (applyMod name2VoiceNOrRsMods)
 
-applyNOrRsMod :: String -> (VoiceRuntimeTup,[NoteOrRest]) -> Driver [NoteOrRest]
-applyNOrRsMod = applyMod name2VoiceNOrRsMod
+applyMMods :: forall a. Maybe (NE.NonEmpty String) -> (VoiceRuntimeTup,a) -> (String -> (VoiceRuntimeTup,a) -> Driver a) -> Driver a
+applyMMods Nothing (_,as) _ = pure as
+applyMMods (Just modNames) pr applyAsMods = foldM foldMf pr (NE.toList modNames) <&> snd
+  where
+    foldMf :: (VoiceRuntimeTup,a) -> String -> Driver (VoiceRuntimeTup,a)
+    foldMf pr' modName = applyAsMods modName pr' <&> (fst pr',)
 
 applyMod :: M.Map String (VoiceRuntimeTup -> a -> Driver a) -> String -> (VoiceRuntimeTup,a) -> Driver a
-applyMod m configModName pr =
-  case M.lookup configModName m of
-    Nothing -> error $ "applyMod:  no value for name " <> configModName
+applyMod m modName pr =
+  case M.lookup modName m of
+    Nothing -> error $ "applyMod:  no value for name " <> modName
     Just f  -> uncurry f pr
 
 sectionConfigTup2NoteOrRests :: SectionConfigTup -> Driver [[NoteOrRest]]
@@ -554,10 +546,15 @@ tagTempo tempo (v1 NE.:| rest) = tagVoice v1 NE.:| rest
     tagVoice (PolyVoice instr (ves NE.:| vess)) = PolyVoice instr ((VeTempo tempo NE.<| ves) NE.:| vess)
     tagVoice (VoiceGroup (v1' NE.:| r)) = VoiceGroup (tagVoice v1' NE.:| r)
 
--- tied notes have no accent, no dynamic
-stripNoteOrRest :: Bool -> NoteOrRest -> NoteOrRest
-stripNoteOrRest tie (Left Note{..}) = Left $ Note _notePit _noteOct _noteDur (singleton NoAccent) NoDynamic NoSwell _noteAnn tie
-stripNoteOrRest _ (Right rest) = Right rest
+-- first bool is True for first element in list, second bool is True for last element in list
+-- for first note, want tie and annotations, for middle notes,
+-- for middle notes, want tie and no annotations
+-- for last note, want no tie and no annotations
+fixNoteOrRestTie :: Bool -> Bool -> NoteOrRest -> NoteOrRest
+fixNoteOrRestTie True False (Left note)     = Left note { _noteTie = True }
+fixNoteOrRestTie False tie  (Left Note{..}) = Left $ Note _notePit _noteOct _noteDur (singleton NoAccent) NoDynamic NoSwell _noteAnn (not tie)
+fixNoteOrRestTie True True  _               = error "stripAccentAndDynamic unexpected True for both first and last flags"
+fixNoteOrRestTie _    _     (Right rest)    = Right rest
 
 -- tied-to notes have no annotation
 stripAnnotation :: NoteOrRest -> NoteOrRest
@@ -594,14 +591,19 @@ alignNoteOrRestsDurations timeSig =
       foldl' foldlf' (curLen,ret) allNotes
       where
         foldlf' (curLen',ret') (Left note@Note{..}) =
-          (curLen' + addLen,ret' <> (stripAnnotations . stripAccents $ newNotes))
+          (curLen' + addLen,ret' <> (stripAnnotations . fixTies $ newNotes))
           where
             addLen = dur2DurVal _noteDur
             durs = addEndDurs timeSig curLen' addLen
             newNotes = Left . (\dur -> note {_noteDur = dur}) <$> durs
-            stripAccents nOrRs
+            fixTies nOrRs
               | length nOrRs < 2 = nOrRs
-              | otherwise        = (stripNoteOrRest True <$> init nOrRs) <> [stripNoteOrRest False (last nOrRs)]
+              | length nOrRs == 2 = [firstNOrR,lastNOrR]
+              | otherwise = [firstNOrR] <> midNOrRs <> [lastNOrR]
+              where
+                firstNOrR = fixNoteOrRestTie True False (head nOrRs)
+                lastNOrR  = fixNoteOrRestTie False True (last nOrRs)
+                midNOrRs  = fixNoteOrRestTie False False <$> drop 1 (init nOrRs)
             stripAnnotations nOrRs
               | length nOrRs < 2 = nOrRs
               | otherwise        = head nOrRs:(stripAnnotation <$> tail nOrRs)
