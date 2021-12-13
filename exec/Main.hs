@@ -26,7 +26,7 @@ import Compose
 -- to recreate pseudo-random number generator by copying
 -- from LilyPond comment, e.g.:
 --
--- % "no comment StdGen {unStdGen = SMGen 11888972784562141867 7849352481482538343}"
+-- % "StdGen {unStdGen = SMGen 11888972784562141867 7849352481482538343}"
 --
 -- e.g.:
 -- $ stack exec music -- -s "SMGen 11888972784562141867 7849352481482538343"
@@ -68,13 +68,13 @@ main =  do
         let stdGen = StdGen { unStdGen = smGen }
         setStdGen stdGen
   gen <- getStdGen
-  void . liftIO $ runReaderT (runDriver (cfg2Score _optTarget)) (initEnv config (show gen))
+  void . liftIO $ runReaderT (runDriver (cfg2Score _optTarget (show gen))) (initEnv config (show gen))
 
 changeClefs :: Int
 changeClefs = 5
 
-cfg2Score :: String -> Driver ()
-cfg2Score title = do
+cfg2Score :: String -> String -> Driver ()
+cfg2Score title gen = do
   chgClfInt <- searchMConfigParam (title <> ".common.changeclefs") <&> fromMaybe changeClefs
   tempoInt  <- searchConfigParam  (title <> ".common.tempo")
   timeSig   <- searchConfigParam  (title <> ".common.time")
@@ -86,7 +86,7 @@ cfg2Score title = do
   nOrRsss   <- traverse sectionConfigTup2NoteOrRests secTups
   let nOrRss    = concat <$> transpose nOrRsss
       voices    = pipeline chgClfInt tempoInt timeSig keySig instr nOrRss
-  writeScore ("./" <> title <> ".ly") $ Score "no comment" voices
+  writeScore ("./" <> title <> ".ly") $ Score title gen voices
   where
     pipeline :: Int -> Int -> TimeSignature -> KeySignature -> Instrument -> [[NoteOrRest]] -> NE.NonEmpty Voice
     pipeline chgClfs tempoInt timeSig keySig instr nOrRss = --

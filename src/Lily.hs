@@ -677,10 +677,10 @@ and remove teh two "\context" annotations above from the \score blob, below.
 --}
 
 instance ToLily Score where
-  toLily (Score comment voices) =
-    [str|% "$comment$"
-        \include "articulate.ly"
-        \version "2.18.2"
+  toLily (Score title seed voices) =
+    [str|\include "articulate.ly"
+        \version "2.20.0"
+        \header { title = "$title$" copyright = "$seed$" }
         structure = {
         <<
         $mconcat (map toLily (NE.toList voices))$>>
@@ -690,10 +690,14 @@ instance ToLily Score where
         |]
 
 parseScore :: Parser Score
-parseScore = Score <$> (string "% " *> parseQuotedString
-                         <* string [str|
-                                       \include "articulate.ly"
-                                       \version "2.18.2"
+parseScore = Score <$> (string [str|
+                                  \include "articulate.ly"
+                                  \version "2.20.0"
+                                  \header { title = |]
+                         *> parseQuotedString)
+                       <*> (string "copyright = "
+                           *> parseQuotedString
+                           <* string [str|}
                                        structure = {
                                        <<
                                        |])
@@ -706,7 +710,6 @@ parseScore = Score <$> (string "% " *> parseQuotedString
 
 instance FromLily Score where
   parseLily = mkParseLily parseScore
-
 
 -- TBD: always italicized, always above note.
 mkAnnotation :: String -> String
@@ -757,7 +760,7 @@ identifier = lexeme ((:) <$> firstChar <*> many nonFirstChar)
     nonFirstChar = digit <|> firstChar
 
 parseOnlyQuotedString :: Parser String
-parseOnlyQuotedString = char '\"' *> manyTill anyChar (char '\"')
+parseOnlyQuotedString = char '"' *> manyTill anyChar (char '"')
 
 parseQuotedString :: Parser String
 parseQuotedString = lexeme parseOnlyQuotedString

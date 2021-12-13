@@ -222,16 +222,16 @@ voiceGroup :: Voice
 voiceGroup = VoiceGroup (pitchedVoice NE.:| [pitchedVoice, polyVoice])
 
 minScore :: Score
-minScore = Score "comment" (pitchedVoice NE.:| [])
+minScore = Score "min" "comment" (pitchedVoice NE.:| [])
 
 multiScore :: Score
-multiScore = Score "comment" (pitchedVoice NE.:| [pitchedVoice])
+multiScore = Score "multi" "comment" (pitchedVoice NE.:| [pitchedVoice])
 
 polyScore :: Score
-polyScore = Score "comment" (polyVoice NE.:| [])
+polyScore = Score "poly" "comment" (polyVoice NE.:| [])
 
 groupScore :: Score
-groupScore = Score "comment" (voiceGroup NE.:| [voiceGroup])
+groupScore = Score "group" "comment" (voiceGroup NE.:| [voiceGroup])
 
 --
 -- test routines

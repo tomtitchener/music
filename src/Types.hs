@@ -183,5 +183,5 @@ data Voice =
   | VoiceGroup      { _vgVoices :: NonEmpty Voice }
   deriving (Eq, Ord, Show)
 
-data Score = Score { _scoreComment :: String, _scoreVoices :: NonEmpty Voice }
+data Score = Score { _scoreTitle :: String, _scoreSeed :: String,  _scoreVoices :: NonEmpty Voice }
   deriving (Eq, Ord, Show)

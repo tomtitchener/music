@@ -83,10 +83,14 @@ runDriver (Free (DoActionThen act k)) =
     GetConfigSubKeys path -> asks (lookupConfigKeys path . _config) >>= runDriver . k
 runDriver (Free (DoAction act k)) =
   case act of
-    WriteScore fileName (Score c vs) -> asks _seed >>= (\s -> liftIO (writeFile fileName (toLily (Score (c <> " " <> s) vs))) *> runDriver k)
+    WriteScore fileName (Score t _ vs) -> asks _seed >>= (\s -> liftIO (writeFile fileName (toLily (Score t (showSeed s) vs))) *> runDriver k)
     PrintLily l -> liftIO (putStrLn (toLily l)) *> runDriver k
     Print t -> liftIO (putStrLn t) *> runDriver k
 runDriver (Pure k) = pure k
+
+-- from: "StdGen {unStdGen = SMGen 16160098205052642697 16833526763116284519}" to: "SMGen 16160098205052642697 16833526763116284519"
+showSeed :: String -> String
+showSeed = init . drop (length "StdGen {unStdGen = SMGen ")
 
 lookupConfig :: FromConfig a => String -> Value -> a
 lookupConfig path config =
