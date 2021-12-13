@@ -48,12 +48,13 @@ canon1:
     delays:       (3,0,2,1)
     fadeInAcc1:   .
     fadeInAcc2:   !
-    fadeInDyn1:   p
-    fadeInDyn2:   ppp
+    fadeInDyn1:   mf
+    fadeInDyn2:   p
     norrsmods:    (fadeInAccs,fadeInDyns)
     common:
       vtype:     canon
       durval:    int 512
+      accentss:  ((~,~,~))
     voice1:
       rotval:    int 0
     voice2:
@@ -67,8 +68,9 @@ canon1:
     reps:       int 4
     cfgmods:    (incrRandOcts)
     uniformAcc: !
-    uniformDyn: ppp
-    norrsmods:  (uniformAccs,uniformDyns)
+    uniformDyn: f
+    sectionDyns: (mf,f,ff,f)
+    norrsmods:  (uniformAccs,sectionDyns)
     common:
       vtype:    canon
       durval:   int 512
@@ -81,12 +83,12 @@ canon1:
     voice4:
       rotval:   int 10
   section3:
-    stype:      fadeout
-    drops:      (3,0,2,1)
-    cfgmods:    (decrRandOcts)
-    uniformAcc: ! 
-    uniformDyn: ppp
-    norrsmods:  (uniformAccs,uniformDyns)
+    stype:       fadeout
+    drops:       (3,0,2,1)
+    cfgmods:     (decrRandOcts)
+    uniformAcc:  ! 
+    sectionDyns: (mf,mp,p,ppp)
+    norrsmods:   (uniformAccs,sectionDyns)
     common:
       vtype:    canon
       durval:   int 512

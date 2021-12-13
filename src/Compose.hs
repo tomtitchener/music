@@ -202,6 +202,7 @@ name2VoiceNOrRsMods = M.fromList [("uniformAccs",uniformAccents)
                                  ,("fadeInAccs",fadeInAccents)
                                  ,("fadeInDyns",fadeInDynamics)
                                  ,("uniformDyns",uniformDynamics)
+                                 ,("sectionDyns",sectionDynamics)
                                  ,("fadeOutDyns",fadeOutDynamics)]
 
 -- Weight, action pairs for four segment example, all voices have same weight:
@@ -264,6 +265,10 @@ tagFirstNoteDynamic dyn nOrRs = maybe nOrRs (`tagDynForIdx` nOrRs) (findIndex is
     tagDyn dyn' (Left note) = Left $ note { _noteDyn = dyn' }
     tagDyn _    (Right oops) = error $ "tagDyn unexpected rest: " <> show oops
     
+sectionDynamics :: NOrRsMod
+sectionDynamics VoiceRuntimeTup{..} nOrRs = 
+  searchConfigParam (_vrtSctnPath <> ".sectionDyns") <&> flip tagFirstNoteDynamic nOrRs . (NE.!! _vrtNumSeg)
+
 fadeOutDynamics :: NOrRsMod
 fadeOutDynamics _ = pure 
 
