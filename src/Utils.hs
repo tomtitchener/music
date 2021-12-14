@@ -31,6 +31,11 @@ durVals = [1,      2,     2 + 1,  4,     4 + 2,  8,    8 + 4, 16,   16 + 8, 32, 
 durVal2Duration :: M.Map Int Duration
 durVal2Duration = M.fromList (zip durVals [HTEDur .. DWDur])
 
+durVal2Dur :: Int -> Duration
+durVal2Dur durVal = fromMaybe err $ M.lookup durVal durVal2Duration 
+  where
+    err = error $ "durVal2Dur: could not convert durVal: " <> show durVal <> " to integral Duration"
+
 dur2DurVal :: Duration -> Int
 dur2DurVal d = durVals !! fromEnum d
 

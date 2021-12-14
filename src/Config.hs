@@ -4,11 +4,24 @@ module Config (FromConfig(..)) where
 
 import Data.Functor ((<&>))
 import Text.Parsec
-import Text.Parsec.Number
-import Text.Parsec.String
+    ( letter,
+      many,
+      parse,
+      digit,
+      between,
+      try,
+      string,
+      spaces,
+      char,
+      (<|>),
+      choice,
+      sepBy1 )
+import Text.Parsec.Number ( int )
+import Text.Parsec.String ( Parser )
 
 import qualified Data.List.NonEmpty as NE
 import Lily
+    ( parseDuration, parseInstrument, parsePitch, parseNat )
 import Types
 
 class FromConfig a where

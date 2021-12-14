@@ -24,12 +24,13 @@ module Driver (initEnv
               ,Driver
               ) where
 
-import Control.Lens
+import Control.Lens ( preview )
 import Control.Monad.Free (Free(..), liftF)
 import Control.Monad.Random.Class (MonadRandom(getRandomR, getRandomRs))
 import Control.Monad.Reader (MonadIO(..), MonadReader, asks)
 import Data.Aeson (Value)
 import Data.Aeson.Lens
+    ( key, AsPrimitive(_String), AsValue(_Object) )
 import Data.HashMap.Strict (keys)
 import Data.List (intercalate, sort)
 import qualified Data.List.NonEmpty as NE

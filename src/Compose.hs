@@ -24,6 +24,7 @@ import Driver
        (Driver, cfg2Tups, randomElements, randomWeightedElement, searchConfigParam, searchMConfigParam)
 import Types
 import Utils
+
 type NoteOrRest = Either Note Rest
 
 newtype Range = Range ((Pitch,Octave),(Pitch,Octave)) deriving (Eq, Show)
@@ -53,7 +54,7 @@ data SectionConfigTup =
                       ,_sctfoMNOrRsMods  :: Maybe (NE.NonEmpty String)
                       ,_sctfoVoices      :: NE.NonEmpty VoiceConfigTup
                       }
-  | SectionConfigTupXPosePitches { -- [(dur,[(target,xpose)])]
+  | SectionConfigTupXPosePitches {
                        _sctxPath        :: String
                       ,_sctxDurPOPrs    :: NE.NonEmpty (Int,NE.NonEmpty (Pitch,Octave)) -- per VoiceConfigTup
                       ,_sctxMName       :: Maybe String
@@ -328,9 +329,11 @@ genXPose durss acctss mIntss scale (Range (start,stop)) = do
 
 -- static means each [Maybe Int] is interpreted with respect to (Pitch,Octave)
 -- instead of continuing to transpose from the end of one [Maybe Int] to the next
+-- TBD: why would this be any different from calling genCanon with 0 for rotVal,
+-- that is assuming I change [[Maybe Int]] to be [[(Maybe Pitch,Int)]]?
 genStatic :: [[Duration]] -> [[Accent]] -> [[Maybe Int]] -> Scale -> (Pitch,Octave) -> Int -> Driver [NoteOrRest]
-genStatic durss acctss mIntss scale start maxDurVal= do
-  manyMPOs   <- randomElements mIntss <&> concatMap (mtranspose scale start)
+genStatic durss acctss mIntss scale register maxDurVal= do
+  manyMPOs   <- randomElements mIntss <&> concatMap (mtranspose scale register)
   manyAccts  <- randomElements acctss <&> concat
   manyDurs   <- randomElements durss  <&> concat
   let allDurs  = unfoldr (unfoldDurs maxDurVal) (0,manyDurs)
@@ -346,6 +349,16 @@ genCanon durss acctss mPitIntss scale register maxDurVal rotVal = do
       allDurs  = unfoldr (unfoldDurs maxDurVal) (0,manyDurs)
   pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts & appendAnnFirstNote "canon"
 
+unfoldDurs :: Int -> (Int, [Duration]) -> Maybe (Duration, (Int, [Duration]))
+unfoldDurs maxDurVal (totDurVal,durs)
+  | totDurVal > maxDurVal = error $ "unfoldDurs totDurVal: " <> show totDurVal <> " exceeds max: " <> show maxDurVal
+  | totDurVal == maxDurVal = Nothing
+  | otherwise = Just (adjNextDur,(totDurVal + adjNextDurVal,tail durs))
+    where
+      nextDurVal = dur2DurVal (head durs)
+      adjNextDurVal = if totDurVal + nextDurVal <= maxDurVal then nextDurVal else nextDurVal - ((totDurVal + nextDurVal) - maxDurVal)
+      adjNextDur = durVal2Dur adjNextDurVal
+  
 appendAnnFirstNote :: String -> [NoteOrRest] -> [NoteOrRest]
 appendAnnFirstNote ann = annFirstNote ann (\a b -> a <> ", " <> b)
 
@@ -364,11 +377,6 @@ annFirstNote ann append = reverse . snd . foldl' foldlf (False,[])
                               note { _noteAnn = _noteAnn <> ann }
                             else
                               note { _noteAnn = append _noteAnn ann }
-
-unfoldDurs :: Int -> (Int, [Duration]) -> Maybe (Duration, (Int, [Duration]))
-unfoldDurs maxDurVal (durVal,durs)
-  | durVal >= maxDurVal = Nothing
-  | otherwise = Just (head durs,(durVal + dur2DurVal (head durs),tail durs))
 
 rotN :: Int -> [a] -> [a]
 rotN cnt as
