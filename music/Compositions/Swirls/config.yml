@@ -9,27 +9,28 @@ swirls:
     time:    (4,4)
     scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
   section1:
-    stype: neutral
     common:
-      range:    ((c,-3),(c,3))
+      range:    ((c,3),(c,-3))
+    stype:   neutral
+    reps:    int 1
     voice1:
       vtype:    xpose
       mintss:   ((3),(1))
       durss:    ((8))
       accentss: ((>,~),(~,>))
     voice2:
-      vtype:     pose
+      vtype:    xpose
       mintss:   ((1,10,-6,r),(3,1,9,-7),(r))
       durss:    ((8,16,16),(8.,16),(8,8,8))
       accentss: ((>,~,~))
     voice3:
-      vtype:    repeat
-      mintss:   ((12,-10),(3,3),(4,-4))
-      durss:    ((16,8.))
-      accentss: ((~,>,>),(>,>,~,~,~))
-      register: (g,0)
-      durval:   int 1024
-      
+      vtype:     repeat
+      mintss:    ((12,-10),(3,3),(4,-4))
+      durss:     ((16,8.))
+      accentss:  ((~,>,>),(>,>,~,~,~))
+      register:  (g,0)
+      durval:    int 512
+
 canon1:
   common:
     tempo:       int 100
