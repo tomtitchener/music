@@ -29,6 +29,27 @@ type NoteOrRest = Either Note Rest
 
 newtype Range = Range ((Pitch,Octave),(Pitch,Octave)) deriving (Eq, Show)
 
+-- What do I want to configure a homophonic voice?
+-- What do I want to configure a homophonic section?
+-- Is it enough to use SectionConfigNeutral with a bunch
+--   of repeats and have a VoiceConfigTupRepeat configured
+--   with explicit durations?
+-- Most basic homophonic texture is just a pulse, with all
+--   voices repeating the same duration, need that as a start.
+-- Transition I've already played with is then to repeatedly
+--   stagger voice sub-groups, for choirs in competition.
+-- Might be interesting process to proceed in stages from 
+--   polyphonic to homophonic, as voices line up, could be
+--   a section-by-section transition similar to fade-out but
+--   with a new config (or something) for the fade-out voices.
+-- In this case, we'd have a new transition section FadeOver
+--   with two sets of voices of of the same length or maybe
+--   one list of VoiceConfigTup pairs.
+-- And there'd be a new VoiceConfigTup for the homophonic
+--   texture.  
+
+-- TBD: put these in Config.hs?
+
 data SectionConfigTup =
   SectionConfigTupNeutral {
                        _sctnPath        :: String
@@ -73,18 +94,18 @@ data VoiceConfigTup =
                  ,_vctxDurss   :: NE.NonEmpty (NE.NonEmpty Duration)
                  ,_vctxAcctss  :: NE.NonEmpty (NE.NonEmpty Accent)
                  ,_vctxRange   :: ((Pitch,Octave),(Pitch,Octave))
-                 }
+                 } 
   | VoiceConfigTupRepeat {
-                    _vctrInstr     :: Instrument
-                    ,_vctrKey      :: KeySignature
-                    ,_vctrScale    :: Scale
-                    ,_vctrTime     :: TimeSignature
-                    ,_vctrMIntss   :: NE.NonEmpty (NE.NonEmpty (Maybe Int)) -- TBD: change to (Maybe Pitch,Int)
-                    ,_vctrDurss    :: NE.NonEmpty (NE.NonEmpty Duration)
-                    ,_vctrAcctss   :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vctrRegister :: (Pitch,Octave)
-                    ,_vctrDurVal   :: Int
-                 }
+                    _vctrInstr      :: Instrument
+                    ,_vctrKey       :: KeySignature
+                    ,_vctrScale     :: Scale
+                    ,_vctrTime      :: TimeSignature
+                    ,_vctrMPitIntss :: NE.NonEmpty (NE.NonEmpty (Maybe Int))
+                    ,_vctrDurss     :: NE.NonEmpty (NE.NonEmpty Duration)
+                    ,_vctrAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
+                    ,_vctrRegister  :: (Pitch,Octave)
+                    ,_vctrDurVal    :: Int
+                 } 
   | VoiceConfigTupCanon {
                     _vctcInstr      :: Instrument
                     ,_vctcKey       :: KeySignature
@@ -96,7 +117,7 @@ data VoiceConfigTup =
                     ,_vctcRegister  :: (Pitch,Octave)
                     ,_vctcDurVal    :: Int
                     ,_vctcRotVal    :: Int
-                 }
+                 } deriving Show
 
 tup2VoiceConfigTupXPose :: String -> Driver VoiceConfigTup
 tup2VoiceConfigTupXPose pre =
@@ -170,17 +191,35 @@ tup2SectionConfigTupXPosePitches section voices =
       <*> searchMConfigParam (section <> ".norrsmods")
       <*> cfg2Tups cfg2VoiceConfigTup section voices
 
-type2SectionConfigTup :: M.Map String (String -> NE.NonEmpty String -> Driver SectionConfigTup)
-type2SectionConfigTup = M.fromList [("neutral",tup2SectionConfigTupNeutral)
+name2SectionConfigTup :: M.Map String (String -> NE.NonEmpty String -> Driver SectionConfigTup)
+name2SectionConfigTup = M.fromList [("neutral",tup2SectionConfigTupNeutral)
                                    ,("fadein" ,tup2SectionConfigTupFadeIn)
                                    ,("fadeout",tup2SectionConfigTupFadeOut)
                                    ,("xpose"  ,tup2SectionConfigTupXPosePitches)]
 
-type2VoiceConfigTup :: M.Map String (String -> Driver VoiceConfigTup)
-type2VoiceConfigTup = M.fromList [("xpose" ,tup2VoiceConfigTupXPose)
+cfg2SectionConfigTup :: String -> NE.NonEmpty String -> Driver SectionConfigTup
+cfg2SectionConfigTup section voices =
+  searchConfigParam (section <> ".stype") >>= runConfigType
+  where
+    runConfigType cfgType =
+      case M.lookup cfgType name2SectionConfigTup of
+        Nothing -> error $ "cfg2SectionConfigTup no converter for \"stype:\" " <> cfgType
+        Just tup2SectionConfigTup -> tup2SectionConfigTup section voices
+
+name2VoiceConfigTup :: M.Map String (String -> Driver VoiceConfigTup)
+name2VoiceConfigTup = M.fromList [("xpose" ,tup2VoiceConfigTupXPose)
                                  ,("repeat",tup2VoiceConfigTupRepeat)
                                  ,("canon" ,tup2VoiceConfigTupCanon)]
 
+cfg2VoiceConfigTup :: String -> Driver VoiceConfigTup
+cfg2VoiceConfigTup section =
+  searchConfigParam (section <> ".vtype") >>= runConfigType
+  where
+    runConfigType cfgType =
+      case M.lookup cfgType name2VoiceConfigTup of
+        Nothing -> error $ "cfg2VoiceConfigTup no converter for \"vtype:\" " <> cfgType
+        Just tup2VoiceConfigTup -> tup2VoiceConfigTup section
+        
 data VoiceRuntimeTup = VoiceRuntimeTup {
                                   _vrtSctnPath :: String
                                  ,_vrtMNumVoc  :: Maybe Int
@@ -233,9 +272,11 @@ incrMPitOctssOctaves mkIdWeight VoiceRuntimeTup{..} vct@VoiceConfigTupCanon{..} 
 incrMPitOctssOctaves _ _ vct = pure vct
 
 mkIdWeightsIncr :: Int -> Int -> Int
+mkIdWeightsIncr       1      _ = 50
 mkIdWeightsIncr cntSegs numSeg = 100 - (numSeg * (50 `div` (cntSegs - 1))) -- TBD: magic constant 50% of results to be modified at end
 
 mkIdWeightsDecr :: Int -> Int -> Int
+mkIdWeightsDecr       1      _ = 0
 mkIdWeightsDecr cntSegs numSeg = 100 - ((cntSegs - (1 + numSeg)) * (50 `div` (cntSegs - 1))) -- TBD: magic constant 50% of results to be modified at end)
 
 fadeInAccents :: NOrRsMod
@@ -282,28 +323,6 @@ uniformAccents VoiceRuntimeTup{..} nOrRs = do
     uniformAccent acc (Left note@Note{..}) = pure $ Left (note { _noteAccs = acc NE.<| _noteAccs })
     uniformAccent _ (Right rest) = pure $ Right rest
 
-cfg2VoiceConfigTup :: String -> Driver VoiceConfigTup
-cfg2VoiceConfigTup section =
-  searchConfigParam (section <> ".vtype") >>= runConfigType
-  where
-    runConfigType cfgType =
-      case M.lookup cfgType type2VoiceConfigTup of
-        Nothing -> error $ "cfg2VoiceConfigTup no converter for \"vtype:\" " <> cfgType
-        Just tup2VoiceConfigTup -> tup2VoiceConfigTup section
-
-cfg2SectionConfigTup :: String -> NE.NonEmpty String -> Driver SectionConfigTup
-cfg2SectionConfigTup section voices =
-  searchConfigParam (section <> ".stype") >>= runConfigType
-  where
-    runConfigType cfgType =
-      case M.lookup cfgType type2SectionConfigTup of
-        Nothing -> error $ "cfg2VoiceConfigTup no converter for \"stype:\" " <> cfgType
-        Just tup2SectionConfigTup -> tup2SectionConfigTup section voices
-
--- args are path to section, voices per section: "test.section1" ["voice1","voice2","voice3","voice4"]
-cfg2VoiceConfigTups :: String -> NE.NonEmpty String -> Driver [VoiceConfigTup]
-cfg2VoiceConfigTups section voices = cfg2Tups cfg2VoiceConfigTup section voices <&> NE.toList
-
 -- Unfold repeated transpositions of [[Maybe Pitch]] across Range
 -- matching up with repetitions of [[Duration]] and [[Accent] to generate NoteOrRest.
 genXPose :: [[Duration]] -> [[Accent]] -> [[Maybe Int]] -> Scale -> Range -> Driver [NoteOrRest]
@@ -339,6 +358,9 @@ genStatic durss acctss mIntss scale register maxDurVal= do
   let allDurs  = unfoldr (unfoldDurs maxDurVal) (0,manyDurs)
   pure $ zipWith3 mkNoteOrRest manyMPOs allDurs manyAccts & appendAnnFirstNote "static"
 
+-- genStatic :: [[Duration]] -> [[Accent]] -> [[(Maybe Pitch,Int)]] -> Scale -> (Pitch,Octave) -> Int -> Driver [NoteOrRest]
+-- genStatic durss acctss mIntss scale register maxDurVal = genCanon durss acctss mIntss scale register maxDurVal 0 <&> replaceAnnFirstNote "static"
+
 genCanon :: [[Duration]] -> [[Accent]] -> [[(Maybe Pitch,Int)]] -> Scale -> (Pitch,Octave) -> Int -> Int -> Driver [NoteOrRest]
 genCanon durss acctss mPitIntss scale register maxDurVal rotVal = do
   manyMIntss <- randomElements mPitIntss <&> fmap (mInts2IntDiffs . fmap (mPitchInt2MScaleDegree scale) . rotN rotVal)
@@ -365,6 +387,9 @@ appendAnnFirstNote ann = annFirstNote ann (\a b -> a <> ", " <> b)
 prependAnnFirstNote :: String -> [NoteOrRest] -> [NoteOrRest]
 prependAnnFirstNote ann = annFirstNote ann (\b a -> a <> ", " <> b)
 
+replaceAnnFirstNote :: String -> [NoteOrRest] -> [NoteOrRest]
+replaceAnnFirstNote ann = annFirstNote ann (flip const)
+
 annFirstNote :: String -> (String -> String -> String ) -> [NoteOrRest] -> [NoteOrRest]
 annFirstNote ann append = reverse . snd . foldl' foldlf (False,[])
   where
@@ -374,7 +399,7 @@ annFirstNote ann append = reverse . snd . foldl' foldlf (False,[])
     foldlf (True,ret) nor@(Left _) = (True,nor:ret)
     annNote note@Note{..} = if null _noteAnn
                             then
-                              note { _noteAnn = _noteAnn <> ann }
+                              note { _noteAnn = ann }
                             else
                               note { _noteAnn = append _noteAnn ann }
 
@@ -405,7 +430,7 @@ voiceConfigTup2NoteOrRests :: VoiceConfigTup -> Driver [NoteOrRest]
 voiceConfigTup2NoteOrRests VoiceConfigTupXPose{..} =
   genXPose (nes2arrs _vctxDurss) (nes2arrs _vctxAcctss) (nes2arrs _vctxMIntss) _vctxScale (Range _vctxRange)
 voiceConfigTup2NoteOrRests VoiceConfigTupRepeat{..} =
-  genStatic (nes2arrs _vctrDurss) (nes2arrs _vctrAcctss) (nes2arrs _vctrMIntss) _vctrScale _vctrRegister _vctrDurVal
+  genStatic (nes2arrs _vctrDurss) (nes2arrs _vctrAcctss) (nes2arrs _vctrMPitIntss) _vctrScale _vctrRegister _vctrDurVal
 voiceConfigTup2NoteOrRests VoiceConfigTupCanon{..} =
   genCanon (nes2arrs _vctcDurss) (nes2arrs _vctcAcctss) (nes2arrs _vctcMPitIntss)_vctcScale _vctcRegister _vctcDurVal _vctcRotVal
 
@@ -437,14 +462,14 @@ applyMod m modName pr =
     Just f  -> uncurry f pr
 
 sectionConfigTup2NoteOrRests :: SectionConfigTup -> Driver [[NoteOrRest]]
-sectionConfigTup2NoteOrRests (SectionConfigTupNeutral scnPath cntSegs mSctnName mConfigMods mNOrRsMods voiceConfigTups) =
+sectionConfigTup2NoteOrRests (SectionConfigTupNeutral scnPath cntSegs mSctnName mConfigMods mNOrRsMods voiceConfigTups) = do
   traverse (traverse (applyMConfigMods mConfigMods)) prs >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
   where
     cvtAndApplyMod (rtTup,cfgTup) = voiceConfigTup2NoteOrRests cfgTup >>= applyMNOrRsMods mNOrRsMods . (rtTup,)
     scnName = fromMaybe "neutral" mSctnName
     cntVocs = length voiceConfigTups
-    voiceRuntimeTupss = chunksOf 4 [VoiceRuntimeTup scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
-    prs = flip zip (cycle $ NE.toList voiceConfigTups) <$> voiceRuntimeTupss
+    segRuntimeTupss = chunksOf cntSegs [VoiceRuntimeTup scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
+    prs = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss (NE.toList voiceConfigTups)
 sectionConfigTup2NoteOrRests (SectionConfigTupFadeIn scnPath fadeIxs mSctnName mConfigMods mNOrRsMods voiceConfigTups) =
   foldM foldMf ([],replicate cntVocs []) fadeIxs <&> addSecnName scnName . snd
   where
