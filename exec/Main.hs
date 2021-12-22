@@ -80,10 +80,10 @@ cfg2Score title gen = do
   timeSig   <- searchConfigParam  (title <> ".common.time")
   keySig    <- searchConfigParam  (title <> ".common.key")
   instr     <- searchConfigParam  (title <> ".common.instr")
-  sections  <- cfgPath2Keys ("section" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
-  secVcsPrs <- traverse (secondM (cfgPath2Keys ("voice" `isPrefixOf`)) . dupe) sections
-  secTups   <- traverse (uncurry cfg2SectionConfigTup) (second NE.fromList <$> secVcsPrs)
-  nOrRsss   <- traverse sectionConfigTup2NoteOrRests secTups
+  secNames  <- cfgPath2Keys ("section" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
+  secVcsPrs <- traverse (secondM (cfgPath2Keys ("voice" `isPrefixOf`)) . dupe) secNames
+  secCfgs   <- traverse (uncurry cfg2SectionConfig) (second NE.fromList <$> secVcsPrs)
+  nOrRsss   <- traverse sectionConfig2NoteOrRests secCfgs
   let nOrRss    = concat <$> transpose nOrRsss
       voices    = pipeline chgClfInt tempoInt timeSig keySig instr nOrRss
   writeScore ("./" <> title <> ".ly") $ Score title gen voices
