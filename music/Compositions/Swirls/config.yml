@@ -1,37 +1,39 @@
-# swirls
+# 
+# Sample configurations
+#
 
-swirls:
+voicemix:
   common:
-    score:   swirls
-    tempo:   int 120
-    key:     c major
-    instr:   acoustic grand
-    time:    (4,4)
-    scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
+    changeclefs: int 3
+    tempo:       int 120
+    key:         c major
+    instr:       acoustic grand
+    time:        (4,4)
+    scale:       (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
   section1:
-    common:
-      range:    ((c,3),(c,-3))
     stype:   neutral
     reps:    int 1
     voice1:
       vtype:    xpose
-      mintss:   ((3),(1))
-      durss:    ((8))
+      durss:    ((8),(8.,16,16))
       accentss: ((>,~),(~,>))
+      mpitOctss: (((c,0),(dis,0),(r,0),(gis,0),(d,0)),((dis,0),(r,0),(c,0),(gis,0),(d,0),(e,0)))
+      range:     ((c,-2),(c,2))
     voice2:
       vtype:    xpose
-      mintss:   ((1,10,-6,r),(3,1,9,-7),(r))
+      range:   ((c,2),(c,-2))
+      mpitOctss: (((a,0),(g,0),(dis,0),(r,0),(gis,-1)),((a,0),(g,0),(r,0),(r,0),(dis,0),(gis,-1)))
       durss:    ((8,16,16),(8.,16),(8,8,8))
       accentss: ((>,~,~))
     voice3:
       vtype:     repeat
-      mintss:    ((12,-10),(3,3),(4,-4))
+      mpitOctss: (((a,0),(g,0),(dis,0),(r,0),(gis,-1)),((a,0),(g,0),(r,0),(r,0),(dis,0),(gis,-1)))
       durss:     ((16,8.))
       accentss:  ((~,>,>),(>,>,~,~,~))
-      register:  (g,0)
-      durval:    int 512
+      register:  (g,-1)
+      durval:    int 1024
 
-canon1:
+canon:
   common:
     tempo:       int 100
     key:         c major
@@ -102,94 +104,25 @@ canon1:
     voice4:
       rotval:   int 10
 
-canon2:
+bridge:
   common:
-    score:   swirls
-    tempo:   int 120
-    key:     c major
-    instr:   acoustic grand
-    time:    (4,4)
-    scale:   (c,d,e,f,g,a,b)
-  section1:
-    stype:   fadein
-    delays:  (3,0,2,1)
-    common:
-      vtype:    canon
-      mpitss:   ((b,e,a,d,r,g,c,f,a,c,r,d,f,g),(b,e,r,a,d,g,c,f,a,c,d,r,f,g))
-      durss:    ((8),(16,16),(4),(8,8),(16,16,16,16))
-      accentss: ((>,>,~,~),(~,>,>),(>,>,>,>))
-      durval:   int 512
-    voice1:
-      register: (c,0)
-      rotval:   int 0
-    voice2:
-      register: (c,0)
-      rotval:   int 3
-    voice3:
-      register: (c,0)
-      rotval:   int 7
-    voice4:
-      register: (c,0)
-      rotval:   int 10
-  section2:
-    stype:   neutral
-    reps:    int 4
-    common:
-      vtype:    canon
-      mpitss:   ((b,e,a,d,r,g,c,f,a,c,r,d,f,g),(b,e,r,a,d,g,c,f,a,c,d,r,f,g))
-      durss:    ((8),(16,16),(4),(8,8),(16,16,16,16))
-      accentss: ((>,>,~,~),(~,>,>),(>,>,>,>))
-      durval:   int 512
-    voice1:
-      register: (c,0)
-      rotval:   int 0
-    voice2:
-      register: (c,0)
-      rotval:   int 3
-    voice3:
-      register: (c,0)
-      rotval:   int 7
-    voice4:
-      register: (c,0)
-      rotval:   int 10
-  section3:
-    stype:   fadeout
-    drops:   (3,0,2,1)
-    common:
-      vtype:    canon
-      mpitss:   ((b,e,a,d,r,g,c,f,a,c,r,d,f,g),(b,e,r,a,d,g,c,f,a,c,d,r,f,g))
-      durss:    ((8),(16,16),(4),(8,8),(16,16,16,16))
-      accentss: ((>,>,~,~),(~,>,>),(>,>,>,>))
-      durval:   int 512
-    voice1:
-      register: (c,0)
-      rotval:   int 0
-    voice2:
-      register: (c,0)
-      rotval:   int 3
-    voice3:
-      register: (c,0)
-      rotval:   int 7
-    voice4:
-      register: (c,0)
-      rotval:   int 10
-
-test:
-  common:
-    score:   swirls
-    tempo:   int 120
-    key:     c major
-    instr:   acoustic grand
-    time:    ((2,2,3),(7,8))
-    scale:   (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
-    vtype:   xpose
+    tempo:       int 120
+    key:         c major
+    changeclefs: int 3
+    instr:       acoustic grand
+    time:        ((2,2,3),(7,8))
+    scale:       (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
+    vtype:       xpose
   section1:
     stype: neutral
+    reps:  int 1
+    uniformAcc: !
+    uniformDyn: mp
+    norrsmods:  (uniformAccs,uniformDyns)
     common:
-      mintss:  ((10,-4,-3,8,-10,2,8,-4,1,2),(1,8,-6,1,8,-7,r,-2),(6,3,3,-6,2,3,-7,12,r,1,r,1))
-      range:   ((c,-2),(c,2))
+      mpitOctss: (((c,0),(dis,0),(r,0),(gis,0),(d,0)),((dis,0),(r,0),(c,0),(gis,0),(d,0),(e,0)))
+      range:     ((c,-2),(c,2))
     voice1:
-      durval:   int 1000
       durss:    ((4,8,8,4),(8,8,8),(8,16,16,8),(4,16,16,8,4))
       accentss: ((~,~,>,>),(~,~,~,~))
     voice2:
@@ -203,24 +136,24 @@ test:
       accentss: ((~,>,>),(>,>,~,~,~))
   section2:
     stype: neutral
+    reps:  int 1
+    uniformAcc: .
+    uniformDyn: f
+    norrsmods:  (uniformAccs,uniformDyns)
     common:
       range:   ((c,2),(c,-2))
-      mintss:  ((-2,-9,7,r,-9,10,-9,7,-8),
-                (-6,5,r,-7,5,-6,r,4,-6,4,-6,5),
-                (-9,8,-3,-8,r,r,2,8,-3,-8),
-                (-10,3,4,-3,-5,r,3,r,4,-3,r,-6,2,-3,-2),
-                (-5,4,r,-6,r,4,-6,4,-6,4))
+      mpitOctss: (((a,0),(g,0),(dis,0),(r,0),(gis,-1)),((a,0),(g,0),(r,0),(r,0),(dis,0),(gis,-1)))
     voice1:
-      durss:    ((4,8,8,4),(8,8,8))
+      durss:    ((8,8,16),(16,8,8))
       accentss: ((~,~,>,>),(~,~,~,~))
     voice2:
-      durss:    ((4,8,8),(8,4,8,8))
+      durss:    ((16,16,16),(8,16,16,8))
       accentss: ((~,>,~),(>,>,~))
     voice3:
-      durss:    ((4,8,4),(16,16,8,4))
+      durss:    ((16,16),(8,8))
       accentss: ((~,>,>),(>,>,~,~,~))
     voice4:
-      durss:    ((4,8,4),(16,8,16,4))
+      durss:    ((16,16,16,16))
       accentss: ((~,>,>),(>,>,~,~,~))
   
   
