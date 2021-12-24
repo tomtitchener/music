@@ -19,7 +19,6 @@ module Driver (initEnv
               ,searchConfigParam
               ,searchMConfigParam
               ,printIt
-              ,cfg2Tups
               ,cfgPath2Keys
               ,Driver
               ) where
@@ -33,7 +32,6 @@ import Data.Aeson.Lens
     ( key, AsPrimitive(_String), AsValue(_Object) )
 import Data.HashMap.Strict (keys)
 import Data.List (intercalate, sort)
-import qualified Data.List.NonEmpty as NE
 import Data.List.Split (splitOn)
 import Data.Text (pack,unpack)
 import System.Random.Shuffle (shuffleM)
@@ -151,6 +149,11 @@ getMConfigParam path = liftF $ DoActionThen (GetMConfigParam path) id
 printIt :: Show a => a -> Driver ()
 printIt s = liftF $ DoAction (Print (show s)) ()
 
+-- String in path must end with key for Value that is Object (HashMap Text Value),
+-- answers list of keys in Object matching regexp in target
+cfgPath2Keys :: (String ->  Bool) -> String -> Driver [String]
+cfgPath2Keys filtf path = liftF $ DoActionThen (GetConfigSubKeys path) (sort . filter filtf)
+
 -- If initial path doesn't contain key, repeatedly swap next higher level
 -- with "common" looking for same key, e.g.:
 --   ["title","section1","voice1","tempo"] -> ["title","section1","common","tempo"]
@@ -193,17 +196,6 @@ searchMConfigParam path = do
       | "common" `notElem` segs = take (length segs - 2) segs <> ["common"] <> [last segs]
       | length segs > 3 = take (length segs - 3) segs  <> drop (length segs - 2) segs
       | otherwise = []
-
--- Call with f as e.g. cfg2VoiceConfigTup :: String -> Driver VoiceConfigTup to build "a" in
--- Driver (NE.NonEmpty a) given path to "a" fields converted from text in config.yml
--- file via searchConfigParam or getConfigParam.
-cfg2Tups :: (String -> Driver a) -> String -> NE.NonEmpty String -> Driver (NE.NonEmpty a)
-cfg2Tups f section = traverse (f . ((section <> ".") <>))
-
--- String in path must end with key for Value that is Object (HashMap Text Value),
--- answers list of keys in Object matching regexp in target
-cfgPath2Keys :: (String ->  Bool) -> String -> Driver [String]
-cfgPath2Keys filtf path = liftF $ DoActionThen (GetConfigSubKeys path) (sort . filter filtf)
 
 -- https://www.parsonsmatt.org/2017/09/22/what_does_free_buy_us.html
 

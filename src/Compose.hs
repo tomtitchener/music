@@ -20,8 +20,9 @@ import Data.Sequence (adjust, fromList)
 import Data.Tuple (swap)
 import Safe (headMay)
 
+import ComposeData
 import Driver
-       (Driver, cfg2Tups, randomElements, randomWeightedElement, searchConfigParam, searchMConfigParam)
+       (Driver, randomElements, randomWeightedElement, searchConfigParam, searchMConfigParam)
 import Types
 import Utils
 
@@ -86,176 +87,13 @@ newtype Range = Range ((Pitch,Octave),(Pitch,Octave)) deriving (Eq, Show)
 -- generation procedure, as the types for the config data don't change
 -- from type to type.
 
--- TBD: put these in Config.hs?
-
-data SectionConfig =
-  SectionConfigNeutral {
-                       _sctnPath        :: String
-                      ,_sctnReps        :: Int
-                      ,_sctnMName       :: Maybe String
-                      ,_sctnMConfigMods :: Maybe (NE.NonEmpty String)
-                      ,_sctnMNOrRsMods  :: Maybe (NE.NonEmpty String)
-                      ,_sctnVoices      :: NE.NonEmpty VoiceConfig
-                 }
-  | SectionConfigFadeIn {
-                       _sctfiPath        :: String
-                      ,_sctfiOrder       :: NE.NonEmpty Int
-                      ,_sctfiMName       :: Maybe String
-                      ,_sctfiMConfigMods :: Maybe (NE.NonEmpty String)
-                      ,_sctfiMNOrRsMods  :: Maybe (NE.NonEmpty String)
-                      ,_sctfiVoices      :: NE.NonEmpty VoiceConfig
-                      }
-  | SectionConfigFadeOut {
-                       _sctfoPath        :: String
-                      ,_sctfoOrder       :: NE.NonEmpty Int
-                      ,_sctfoMName       :: Maybe String
-                      ,_sctfoMConfigMods :: Maybe (NE.NonEmpty String)
-                      ,_sctfoMNOrRsMods  :: Maybe (NE.NonEmpty String)
-                      ,_sctfoVoices      :: NE.NonEmpty VoiceConfig
-                      }
-data VoiceConfig =
-  VoiceConfigXPose {
-                 _vctxInstr      :: Instrument
-                 ,_vctxKey       :: KeySignature
-                 ,_vctxScale     :: Scale
-                 ,_vctxTime      :: TimeSignature
-                 ,_vctxMPitOctss :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int)) 
-                 ,_vctxDurss     :: NE.NonEmpty (NE.NonEmpty Duration)
-                 ,_vctxAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                 ,_vctxRange     :: ((Pitch,Octave),(Pitch,Octave))
-                 } 
-  | VoiceConfigRepeat {
-                    _vctrInstr      :: Instrument
-                    ,_vctrKey       :: KeySignature
-                    ,_vctrScale     :: Scale
-                    ,_vctrTime      :: TimeSignature
-                    ,_vctrMPitOctss :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int))
-                    ,_vctrDurss     :: NE.NonEmpty (NE.NonEmpty Duration)
-                    ,_vctrAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vctrRegister  :: (Pitch,Octave)
-                    ,_vctrDurVal    :: Int
-                 } 
-  | VoiceConfigCanon {
-                    _vctcInstr      :: Instrument
-                    ,_vctcKey       :: KeySignature
-                    ,_vctcScale     :: Scale
-                    ,_vctcTime      :: TimeSignature
-                    ,_vctcMPitOctss :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int))
-                    ,_vctcDurss     :: NE.NonEmpty (NE.NonEmpty Duration)
-                    ,_vctcAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vctcRegister  :: (Pitch,Octave)
-                    ,_vctcDurVal    :: Int
-                    ,_vctcRotVal    :: Int
-                 }
-
-tup2VoiceConfigXPose :: String -> Driver VoiceConfig
-tup2VoiceConfigXPose pre =
-      VoiceConfigXPose 
-        <$> searchConfigParam  (pre <> ".instr")
-        <*> searchConfigParam  (pre <> ".key")
-        <*> searchConfigParam  (pre <> ".scale")
-        <*> searchConfigParam  (pre <> ".time")
-        <*> searchConfigParam  (pre <> ".mpitOctss")
-        <*> searchConfigParam  (pre <> ".durss")
-        <*> searchConfigParam  (pre <> ".accentss")
-        <*> searchConfigParam  (pre <> ".range")
-
-tup2VoiceConfigRepeat :: String -> Driver VoiceConfig
-tup2VoiceConfigRepeat pre =
-      VoiceConfigRepeat 
-        <$> searchConfigParam  (pre <> ".instr")
-        <*> searchConfigParam  (pre <> ".key")
-        <*> searchConfigParam  (pre <> ".scale")
-        <*> searchConfigParam  (pre <> ".time")
-        <*> searchConfigParam  (pre <> ".mpitOctss")
-        <*> searchConfigParam  (pre <> ".durss")
-        <*> searchConfigParam  (pre <> ".accentss")
-        <*> searchConfigParam  (pre <> ".register")
-        <*> searchConfigParam  (pre <> ".durval")
-
-tup2VoiceConfigCanon :: String -> Driver VoiceConfig
-tup2VoiceConfigCanon pre =
-      VoiceConfigCanon 
-        <$> searchConfigParam  (pre <> ".instr")
-        <*> searchConfigParam  (pre <> ".key")
-        <*> searchConfigParam  (pre <> ".scale")
-        <*> searchConfigParam  (pre <> ".time")
-        <*> searchConfigParam  (pre <> ".mpitOctss")
-        <*> searchConfigParam  (pre <> ".durss")
-        <*> searchConfigParam  (pre <> ".accentss")
-        <*> searchConfigParam  (pre <> ".register")
-        <*> searchConfigParam  (pre <> ".durval")
-        <*> searchConfigParam  (pre <> ".rotval")
-
-tup2SectionConfigNeutral :: String -> NE.NonEmpty String -> Driver SectionConfig
-tup2SectionConfigNeutral section voices =
-      SectionConfigNeutral section
-      <$> searchConfigParam (section <> ".reps")
-      <*> searchMConfigParam (section <> ".sctname")
-      <*> searchMConfigParam (section <> ".cfgmods")
-      <*> searchMConfigParam (section <> ".norrsmods")
-      <*> cfg2Tups cfg2VoiceConfig section voices
-tup2SectionConfigFadeIn :: String -> NE.NonEmpty String -> Driver SectionConfig
-tup2SectionConfigFadeIn section voices =
-      SectionConfigFadeIn section
-      <$> searchConfigParam  (section <> ".delays")
-      <*> searchMConfigParam (section <> ".sctname")
-      <*> searchMConfigParam (section <> ".cfgmods")
-      <*> searchMConfigParam (section <> ".norrsmods")
-      <*> cfg2Tups cfg2VoiceConfig section voices
-tup2SectionConfigFadeOut :: String -> NE.NonEmpty String -> Driver SectionConfig
-tup2SectionConfigFadeOut section voices =
-      SectionConfigFadeOut section
-      <$> searchConfigParam  (section <> ".drops")
-      <*> searchMConfigParam (section <> ".sctname")
-      <*> searchMConfigParam (section <> ".cfgmods")
-      <*> searchMConfigParam (section <> ".norrsmods")
-      <*> cfg2Tups cfg2VoiceConfig section voices
-
-name2SectionConfig :: M.Map String (String -> NE.NonEmpty String -> Driver SectionConfig)
-name2SectionConfig = M.fromList [("neutral",tup2SectionConfigNeutral)
-                                   ,("fadein" ,tup2SectionConfigFadeIn)
-                                   ,("fadeout",tup2SectionConfigFadeOut)]
-
-cfg2SectionConfig :: String -> NE.NonEmpty String -> Driver SectionConfig
-cfg2SectionConfig section voices =
-  searchConfigParam (section <> ".stype") >>= runConfigType
-  where
-    runConfigType cfgType =
-      case M.lookup cfgType name2SectionConfig of
-        Nothing -> error $ "cfg2SectionConfig no converter for \"stype:\" " <> cfgType
-        Just tup2SectionConfig -> tup2SectionConfig section voices
-
-name2VoiceConfig :: M.Map String (String -> Driver VoiceConfig)
-name2VoiceConfig = M.fromList [("xpose" ,tup2VoiceConfigXPose)
-                               ,("repeat",tup2VoiceConfigRepeat)
-                               ,("canon" ,tup2VoiceConfigCanon)]
-
-cfg2VoiceConfig :: String -> Driver VoiceConfig
-cfg2VoiceConfig section =
-  searchConfigParam (section <> ".vtype") >>= runConfigType
-  where
-    runConfigType cfgType =
-      case M.lookup cfgType name2VoiceConfig of
-        Nothing -> error $ "cfg2VoiceConfig no converter for \"vtype:\" " <> cfgType
-        Just tup2VoiceConfig -> tup2VoiceConfig section
-        
-data VoiceRuntimeTup = VoiceRuntimeTup {
-                                  _vrtSctnPath :: String
-                                 ,_vrtMNumVoc  :: Maybe Int
-                                 ,_vrtCntVocs  :: Int
-                                 ,_vrtNumVoc   :: Int
-                                 ,_vrtCntSegs  :: Int
-                                 ,_vrtNumSeg   :: Int
-                                 } deriving Show
-
-type ConfigMod = VoiceRuntimeTup -> VoiceConfig -> Driver VoiceConfig
+type ConfigMod = VoiceRuntimeConfig -> VoiceConfig -> Driver VoiceConfig
 
 name2VoiceConfigMods :: M.Map String ConfigMod
 name2VoiceConfigMods = M.fromList [("incrRandOcts",incrRandomizeMPitOctssOctaves)
-                                 ,("decrRandOcts",decrNormalizeMPitOctssOctaves)]
+                                   ,("decrRandOcts",decrNormalizeMPitOctssOctaves)]
                       
-type NOrRsMod = VoiceRuntimeTup -> [NoteOrRest] -> Driver [NoteOrRest]
+type NOrRsMod = VoiceRuntimeConfig -> [NoteOrRest] -> Driver [NoteOrRest]
 
 name2VoiceNOrRsMods :: M.Map String NOrRsMod
 name2VoiceNOrRsMods = M.fromList [("uniformAccs",uniformAccents)
@@ -279,11 +117,11 @@ decrNormalizeMPitOctssOctaves :: ConfigMod
 decrNormalizeMPitOctssOctaves = incrMPitOctssOctaves mkIdWeightsDecr 
 
 incrMPitOctssOctaves :: (Int -> Int -> Int ) -> ConfigMod
-incrMPitOctssOctaves mkIdWeight VoiceRuntimeTup{..} vct@VoiceConfigCanon{..} = do
+incrMPitOctssOctaves mkIdWeight VoiceRuntimeConfig{..} vct@VoiceConfigCanon{..} = do
   vctcMPitOctss' <- traverse randomizeMPitOctsOctaves _vctcMPitOctss
   pure vct { _vctcMPitOctss = vctcMPitOctss' }
   where
-    idWeight  = mkIdWeight _vrtCntSegs _vrtNumSeg
+    idWeight  = mkIdWeight _vrcCntSegs _vrcNumSeg
     modWeight = (100 - idWeight) `div` 2
     weights   = [(modWeight,pred),(idWeight,id),(modWeight,succ)]
     randomizeMPitOctsOctaves mPitInts = traverse randomizeMPitOctsOctave mPitInts
@@ -300,10 +138,10 @@ mkIdWeightsDecr       1      _ = 0
 mkIdWeightsDecr cntSegs numSeg = 100 - ((cntSegs - (1 + numSeg)) * (50 `div` (cntSegs - 1))) -- TBD: magic constant 50% of results to be modified at end)
 
 fadeInAccents :: NOrRsMod
-fadeInAccents VoiceRuntimeTup{..} nOrRs = do
-  acc1 <- searchMConfigParam (_vrtSctnPath <> ".fadeInAcc1") <&> fromMaybe Staccato
-  acc2 <- searchMConfigParam (_vrtSctnPath <> ".fadeInAcc2") <&> fromMaybe Staccatissimo
-  traverse (fadeInAccent _vrtMNumVoc acc1 acc2) nOrRs
+fadeInAccents VoiceRuntimeConfig{..} nOrRs = do
+  acc1 <- searchMConfigParam (_vrcSctnPath <> ".fadeInAcc1") <&> fromMaybe Staccato
+  acc2 <- searchMConfigParam (_vrcSctnPath <> ".fadeInAcc2") <&> fromMaybe Staccatissimo
+  traverse (fadeInAccent _vrcMNumVoc acc1 acc2) nOrRs
   where
     fadeInAccent :: Maybe Int -> Accent -> Accent -> NoteOrRest -> Driver NoteOrRest
     fadeInAccent (Just _) acc1 _   (Left note@Note{..}) = pure $ Left (note { _noteAccs = acc1 NE.<| _noteAccs })
@@ -311,14 +149,14 @@ fadeInAccents VoiceRuntimeTup{..} nOrRs = do
     fadeInAccent _        _   _    (Right rest)         = pure $ Right rest
 
 fadeInDynamics :: NOrRsMod
-fadeInDynamics VoiceRuntimeTup{..} nOrRs = do
-  dyn1 <- searchMConfigParam (_vrtSctnPath <> ".fadeInDyn1") <&> fromMaybe Forte
-  dyn2 <- searchMConfigParam (_vrtSctnPath <> ".fadeInDyn2") <&> fromMaybe PPP
-  pure $ maybe (tagFirstNoteDynamic dyn2 nOrRs) (const $ tagFirstNoteDynamic dyn1 nOrRs) _vrtMNumVoc
+fadeInDynamics VoiceRuntimeConfig{..} nOrRs = do
+  dyn1 <- searchMConfigParam (_vrcSctnPath <> ".fadeInDyn1") <&> fromMaybe Forte
+  dyn2 <- searchMConfigParam (_vrcSctnPath <> ".fadeInDyn2") <&> fromMaybe PPP
+  pure $ maybe (tagFirstNoteDynamic dyn2 nOrRs) (const $ tagFirstNoteDynamic dyn1 nOrRs) _vrcMNumVoc
 
 uniformDynamics :: NOrRsMod
-uniformDynamics VoiceRuntimeTup{..} nOrRs = 
-  searchMConfigParam (_vrtSctnPath <> ".uniformDyn") <&> fromMaybe PPP <&> flip tagFirstNoteDynamic nOrRs
+uniformDynamics VoiceRuntimeConfig{..} nOrRs = 
+  searchMConfigParam (_vrcSctnPath <> ".uniformDyn") <&> fromMaybe PPP <&> flip tagFirstNoteDynamic nOrRs
 
 tagFirstNoteDynamic :: Dynamic -> [NoteOrRest] -> [NoteOrRest]
 tagFirstNoteDynamic dyn nOrRs = maybe nOrRs (`tagDynForIdx` nOrRs) (findIndex isLeft nOrRs)
@@ -328,15 +166,15 @@ tagFirstNoteDynamic dyn nOrRs = maybe nOrRs (`tagDynForIdx` nOrRs) (findIndex is
     tagDyn _    (Right oops) = error $ "tagDyn unexpected rest: " <> show oops
     
 sectionDynamics :: NOrRsMod
-sectionDynamics VoiceRuntimeTup{..} nOrRs = 
-  searchConfigParam (_vrtSctnPath <> ".sectionDyns") <&> flip tagFirstNoteDynamic nOrRs . (NE.!! _vrtNumSeg)
+sectionDynamics VoiceRuntimeConfig{..} nOrRs = 
+  searchConfigParam (_vrcSctnPath <> ".sectionDyns") <&> flip tagFirstNoteDynamic nOrRs . (NE.!! _vrcNumSeg)
 
 fadeOutDynamics :: NOrRsMod
 fadeOutDynamics _ = pure 
 
 uniformAccents :: NOrRsMod
-uniformAccents VoiceRuntimeTup{..} nOrRs = do
-  acc <- searchMConfigParam (_vrtSctnPath <> ".uniformAccent") <&> fromMaybe Staccatissimo
+uniformAccents VoiceRuntimeConfig{..} nOrRs = do
+  acc <- searchMConfigParam (_vrcSctnPath <> ".uniformAccent") <&> fromMaybe Staccatissimo
   traverse (uniformAccent acc) nOrRs
   where
     uniformAccent :: Accent -> NoteOrRest -> Driver NoteOrRest
@@ -367,8 +205,6 @@ genXPose durss acctss mPitOctss scale (Range (start,stop)) = do
     unfoldf _ (prev, Nothing:mSteps) = Just (Nothing,(prev, mSteps))
     unfoldf _ steps = error $ "invalid list of steps, (" <> show (fst steps) <> "," <> show (take 10 (snd steps)) <> ")"
 
--- static means each [Maybe Int] is interpreted with respect to (Pitch,Octave)
--- instead of continuing to transpose from the end of one [Maybe Int] to the next
 genStatic :: [[Duration]] -> [[Accent]] -> [[(Maybe Pitch,Int)]] -> Scale -> (Pitch,Octave) -> Int -> Driver [NoteOrRest]
 genStatic durss acctss mPitOctss scale register maxDurVal = 
   genCanon durss acctss mPitOctss scale register maxDurVal 0 <&> replaceAnnFirstNote "static"
@@ -454,20 +290,20 @@ notes2Rests = fmap (either note2Rest Right)
   where
     note2Rest Note{..} = Right (Rest _noteDur NoDynamic)
 
-applyMConfigMods :: Maybe (NE.NonEmpty String) -> (VoiceRuntimeTup, VoiceConfig) -> Driver (VoiceRuntimeTup,VoiceConfig)
+applyMConfigMods :: Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig, VoiceConfig) -> Driver (VoiceRuntimeConfig,VoiceConfig)
 applyMConfigMods mNames pr = applyMMods mNames pr (applyMod name2VoiceConfigMods) <&> (fst pr,)
 
-applyMNOrRsMods :: Maybe (NE.NonEmpty String) -> (VoiceRuntimeTup,[NoteOrRest]) -> Driver [NoteOrRest]
+applyMNOrRsMods :: Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig,[NoteOrRest]) -> Driver [NoteOrRest]
 applyMNOrRsMods mNames pr = applyMMods mNames pr (applyMod name2VoiceNOrRsMods)
 
-applyMMods :: forall a. Maybe (NE.NonEmpty String) -> (VoiceRuntimeTup,a) -> (String -> (VoiceRuntimeTup,a) -> Driver a) -> Driver a
+applyMMods :: forall a. Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig,a) -> (String -> (VoiceRuntimeConfig,a) -> Driver a) -> Driver a
 applyMMods Nothing (_,as) _ = pure as
 applyMMods (Just modNames) pr applyAsMods = foldM foldMf pr (NE.toList modNames) <&> snd
   where
-    foldMf :: (VoiceRuntimeTup,a) -> String -> Driver (VoiceRuntimeTup,a)
+    foldMf :: (VoiceRuntimeConfig,a) -> String -> Driver (VoiceRuntimeConfig,a)
     foldMf pr' modName = applyAsMods modName pr' <&> (fst pr',)
 
-applyMod :: M.Map String (VoiceRuntimeTup -> a -> Driver a) -> String -> (VoiceRuntimeTup,a) -> Driver a
+applyMod :: M.Map String (VoiceRuntimeConfig -> a -> Driver a) -> String -> (VoiceRuntimeConfig,a) -> Driver a
 applyMod m modName pr =
   case M.lookup modName m of
     Nothing -> error $ "applyMod:  no value for name " <> modName
@@ -480,7 +316,7 @@ sectionConfig2NoteOrRests (SectionConfigNeutral scnPath cntSegs mSctnName mConfi
     cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2NoteOrRests cfgTup >>= applyMNOrRsMods mNOrRsMods . (rtTup,)
     scnName = fromMaybe "neutral" mSctnName
     cntVocs = length voiceConfigs
-    segRuntimeTupss = chunksOf cntSegs [VoiceRuntimeTup scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
+    segRuntimeTupss = chunksOf cntSegs [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
     prs = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss (NE.toList voiceConfigs)
 sectionConfig2NoteOrRests (SectionConfigFadeIn scnPath fadeIxs mSctnName mConfigMods mNOrRsMods voiceConfigs) =
   foldM foldMf ([],replicate cntVocs []) fadeIxs <&> addSecnName scnName . snd
@@ -488,11 +324,11 @@ sectionConfig2NoteOrRests (SectionConfigFadeIn scnPath fadeIxs mSctnName mConfig
     scnName = fromMaybe "fade in" mSctnName
     cntSegs = length fadeIxs
     cntVocs = length voiceConfigs
-    mkVocRTT nSeg nVoc =  VoiceRuntimeTup scnPath Nothing cntVocs nVoc cntSegs nSeg
+    mkVocRTT nSeg nVoc =  VoiceRuntimeConfig scnPath Nothing cntVocs nVoc cntSegs nSeg
     foldMf (seenNumVocs,prevNOrRss) numVoc = do
       let numSeg = length seenNumVocs
           vocCfgTup = voiceConfigs NE.!! numVoc
-          vocRTTup  = VoiceRuntimeTup scnPath (Just numVoc) cntVocs numVoc cntSegs numSeg
+          vocRTTup  = VoiceRuntimeConfig scnPath (Just numVoc) cntVocs numVoc cntSegs numSeg
       seenNOrRs <- applyMConfigMods mConfigMods (vocRTTup,vocCfgTup) >>= voiceConfig2NoteOrRests . snd >>= applyMNOrRsMods mNOrRsMods . (vocRTTup,)
       let vocRunTups = mkVocRTT numSeg <$> seenNumVocs
           vocCfgTups = (voiceConfigs NE.!!) <$> seenNumVocs
@@ -516,7 +352,7 @@ sectionConfig2NoteOrRests (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfi
     cntVocs = length voiceConfigs
     scnName = fromMaybe "fade out" mSctnName
     timeSigs = NE.toList $ _vctcTime <$> voiceConfigs
-    mkVocRTT nSeg nVoc =  VoiceRuntimeTup scnPath Nothing cntVocs nVoc cntSegs nSeg
+    mkVocRTT nSeg nVoc =  VoiceRuntimeConfig scnPath Nothing cntVocs nVoc cntSegs nSeg
     foldMf (seenNumVocs,nOrRss) numVoc = do
       let numSeg = 1 + length seenNumVocs
           seenNumVocs' = numVoc:seenNumVocs
@@ -528,12 +364,12 @@ sectionConfig2NoteOrRests (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfi
           newNOrRss = snd <$> sort (seenNumVocsEmpties <> unseenNumVocsNOrRss)
       pure (seenNumVocs',zipWith (<>) nOrRss newNOrRss)
 
-applyMods :: Maybe (NE.NonEmpty String) -> Maybe (NE.NonEmpty String) -> (VoiceRuntimeTup,VoiceConfig) -> Driver (Int,[NoteOrRest])
+applyMods :: Maybe (NE.NonEmpty String) -> Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig,VoiceConfig) -> Driver (Int,[NoteOrRest])
 applyMods mConfigMods mNOrRsMods pr =
   applyMConfigMods mConfigMods pr >>= voiceConfig2NoteOrRests . snd >>= applyMNOrRsMods mNOrRsMods . (vrt,) <&> (numVoc,)
   where
     vrt = fst pr
-    numVoc = _vrtNumVoc vrt
+    numVoc = _vrcNumVoc vrt
 
 addSecnName :: String -> [[NoteOrRest]] -> [[NoteOrRest]]
 addSecnName scnName voices = prependAnnFirstNote scnName <$> voices

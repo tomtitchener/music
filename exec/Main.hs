@@ -21,6 +21,7 @@ import System.Random.SplitMix
 import Driver
 import Types
 import Compose
+import ComposeData
 
 -- _optRandomSeed via command-line argument  -s "<string>"
 -- to recreate pseudo-random number generator by copying

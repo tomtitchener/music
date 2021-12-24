@@ -334,6 +334,10 @@ more routines to modify each voice for each segment.  Input to the
 routine would be the count of voices, the number of the voice, the count
 of segments, the number of the segment, and the config tuple for the
 voice.  Output would be a modified config tuple.
+** TODO NOrR mods 
+*** Trim or pad all voices in a section to a particular length
+Variation might be to dynamically back up from the end to the last point 
+before first voice becomes all rests.
 ** TODO Retrograde, Inversion, and Retrograde Inversion
 Same row over and over winds up hammering in repetition.
 Could add another item to the configuration which is a list of
