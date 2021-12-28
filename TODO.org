@@ -334,6 +334,23 @@ more routines to modify each voice for each segment.  Input to the
 routine would be the count of voices, the number of the voice, the count
 of segments, the number of the segment, and the config tuple for the
 voice.  Output would be a modified config tuple.
+** TODO autochange
+Swap out my code to split a single note or rest stream between clefs in favor
+of the Lilypond autochange keyword.
+Create a new voice type:  PianoVoice and revert PolyVoice.
+For PianoVoice, use \new Staff = "up" and \new Staff = "down" for treble and bass.
+Then when emitting markup for tempo, key, and time, also include "\autochange {" with
+a terminating "}" before the concluding \bar "|."
+Note: this generates a handful of warnings:
+Interpreting music...
+warning: no music found in score
+Drawing systems...
+canon.ly:41:3352: warning: no viable initial configuration found: may not find good beam slope
+... and etc. for each voice.
+These seem to be benign.
+Or, create a special voice, SplitStaffVoice, as this seems like a very special case.
+Render it as a single PianoStaff with the autochange keyword to distribute the VoiceEvents.
+** TODO Homophonic configuration as config mod
 ** TODO NOrR mods 
 *** Trim or pad all voices in a section to a particular length
 Variation might be to dynamically back up from the end to the last point 

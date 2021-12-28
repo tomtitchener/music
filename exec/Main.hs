@@ -1,5 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE TupleSections       #-}
 
 module Main where
 
@@ -76,7 +77,6 @@ changeClefs = 5
 
 cfg2Score :: String -> String -> Driver ()
 cfg2Score title gen = do
-  chgClfInt <- searchMConfigParam (title <> ".common.changeclefs") <&> fromMaybe changeClefs
   tempoInt  <- searchConfigParam  (title <> ".common.tempo")
   timeSig   <- searchConfigParam  (title <> ".common.time")
   keySig    <- searchConfigParam  (title <> ".common.key")
@@ -86,17 +86,16 @@ cfg2Score title gen = do
   secCfgs   <- traverse (uncurry cfg2SectionConfig) (second NE.fromList <$> secVcsPrs)
   nOrRsss   <- traverse sectionConfig2NoteOrRests secCfgs
   let nOrRss    = concat <$> transpose nOrRsss
-      voices    = pipeline chgClfInt tempoInt timeSig keySig instr nOrRss
-  writeScore ("./" <> title <> ".ly") $ Score title gen voices
+      voices    = pipeline tempoInt timeSig keySig instr nOrRss
+  writeScore ("./" <> title <> ".ly") $ Score title gen (NE.fromList voices)
   where
-    pipeline :: Int -> Int -> TimeSignature -> KeySignature -> Instrument -> [[NoteOrRest]] -> NE.NonEmpty Voice
-    pipeline chgClfs tempoInt timeSig keySig instr nOrRss = --
+    pipeline :: Int -> TimeSignature -> KeySignature -> Instrument -> [[NoteOrRest]] -> [Voice]
+    pipeline tempoInt timeSig keySig instr nOrRss = --
       zipWith alignNoteOrRestsDurations timeSigs nOrRss            -- -> [[NoteOrRest]]
-      & zipWith splitNoteOrRests winLens                           -- -> [([VoiceEvent],[VoiceEvent])]
+      & fmap splitNoteOrRests                                      -- -> [([VoiceEvent],[VoiceEvent])]
       & zipWith3 (mkVesPrTotDur (maximum veLens)) veLens timeSigs  -- -> [([VoiceEvent],[VoiceEvent])]
-      & fmap (bimap NE.fromList NE.fromList)                       -- -> [(NonEmpty VoiceEvent,NonEmpty VoiceEvent)]
-      & NE.fromList . zipWith4 genPolyVocs instrs keySigs timeSigs -- -> NonEmpty Voice
-      & tagTempo tempo                                             -- -> NonEmpty Voice
+      & zipWith4 genPolyVocs instrs keySigs timeSigs               -- -> [Voice]
+      & tagTempo tempo                                             -- -> [Voice]
       where
         tempo      = TempoDur QDur (fromIntegral tempoInt)
         cntVoices  = length nOrRss
@@ -104,5 +103,4 @@ cfg2Score title gen = do
         timeSigs   = replicate cntVoices timeSig
         keySigs    = replicate cntVoices keySig
         instrs     = replicate cntVoices instr
-        winLens    = replicate cntVoices chgClfs
   

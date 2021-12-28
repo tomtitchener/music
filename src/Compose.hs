@@ -18,74 +18,16 @@ import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
 import Data.Sequence (adjust, fromList)
 import Data.Tuple (swap)
-import Safe (headMay)
 
 import ComposeData
 import Driver
-       (Driver, randomElements, randomWeightedElement, searchConfigParam, searchMConfigParam)
+       (Driver, randomElements, randomizeList, randomWeightedElement, searchConfigParam, searchMConfigParam)
 import Types
 import Utils
 
 type NoteOrRest = Either Note Rest
 
 newtype Range = Range ((Pitch,Octave),(Pitch,Octave)) deriving (Eq, Show)
-
--- What do I want to configure a homophonic voice?
--- What do I want to configure a homophonic section?
--- Is it enough to use SectionConfigNeutral with a bunch
---   of repeats and have a VoiceConfigRepeat configured
---   with explicit durations?
--- Most basic homophonic texture is just a pulse, with all
---   voices repeating the same duration, need that as a start.
--- Transition I've already played with is then to repeatedly
---   stagger voice sub-groups, for choirs in competition.
--- Might be interesting process to proceed in stages from 
---   polyphonic to homophonic, as voices line up, could be
---   a section-by-section transition similar to fade-out but
---   with a new config (or something) for the fade-out voices.
--- In this case, we'd have a new transition section FadeOver
---   with two sets of voices of of the same length or maybe
---   one list of VoiceConfig pairs.
--- And there'd be a new VoiceConfig for the homophonic
---   texture.  '
---
--- Could make a new section with a single list of voices and
--- a list of list of voice indexes where each list would have
--- same length and number of items in list would be number of
--- voices.  The meaning of an index would be a fixed instance
--- of durations list from that voice for this voice's
--- generator.  So e.g. for a list of three voices with three
--- sections, to fix all voices with repetitions of their individual
--- durations would look like this:
---   ((0,0,0)
---   ,(1,1,1)
---   ,(2,2,2))
--- But to have all voices follow the rhythms of the voices
--- in sequence:
---   ((0,1,2)
---   ,(0,1,2)
---   ,(0,1,2))
--- Or this could entirely be done by a config mod, where e.g.
--- there'd be one for fixing each of the three inputs, and a
--- unique name for the config.yml param, and for a sequence,
--- you'd use the neutral config.  The trick there would be 
--- to make sure the count of items in the list matched the
--- _sctnReps input.
--- 
--- Note issue: what if I wanted to manipulate different inputs
--- at the same time, e.g. one list for fixing durations, one for
--- fixing accents, one for fixing pitch/octave pairs?  And what
--- about pitch/octave pairs?  Note the VoiceConfig<foo> inputs
--- vary, though maybe XPose and Repeat could be brought in line
--- with Canon e.g. NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int))
--- instead of NE.NonEmpty (NE.NonEmpty (Maybe Int))?  Note these
--- are all list of list which is what I need to flatten consistently.
--- Also note the flattening technique wouuld be uniform as it would
--- be to replace a list of list where the inner list contains multiple
--- items, into a list of list where the inner list is a single item
--- only, which means this could all be a pre-processor to the standard
--- generation procedure, as the types for the config data don't change
--- from type to type.
 
 type ConfigMod = VoiceRuntimeConfig -> VoiceConfig -> Driver VoiceConfig
 
@@ -110,32 +52,91 @@ name2VoiceNOrRsMods = M.fromList [("uniformAccs",uniformAccents)
 -- ,[(25,-1),  (50,0),   (25,1)]     == 4,3 (((100 - (100 - (3 * (50/(4-1))))) / 2),(100 - (3 * (50/(4-1)))),((100 - (100 - (1 * (50/(4-1))))) / 2))
 -- Randomly tosses octave up, down, or leaves alone.
 incrRandomizeMPitOctssOctaves :: ConfigMod
-incrRandomizeMPitOctssOctaves = incrMPitOctssOctaves mkIdWeightsIncr
+incrRandomizeMPitOctssOctaves = modMPitOctssOctaves mkIdWeightsIncr
 
 -- complement incrNormalizeMPitOctssOctaves should start with maximal randomness and reduce incrementally
 decrNormalizeMPitOctssOctaves :: ConfigMod
-decrNormalizeMPitOctssOctaves = incrMPitOctssOctaves mkIdWeightsDecr 
+decrNormalizeMPitOctssOctaves = modMPitOctssOctaves mkIdWeightsDecr 
 
-incrMPitOctssOctaves :: (Int -> Int -> Int ) -> ConfigMod
-incrMPitOctssOctaves mkIdWeight VoiceRuntimeConfig{..} vct@VoiceConfigCanon{..} = do
-  vctcMPitOctss' <- traverse randomizeMPitOctsOctaves _vctcMPitOctss
-  pure vct { _vctcMPitOctss = vctcMPitOctss' }
+modMPitOctssOctaves :: (Int -> Int -> Int ) -> ConfigMod
+modMPitOctssOctaves mkIdWeight vrtCfg vcx@VoiceConfigXPose{..}  = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcxMPitOctss <&> \mPitOctss -> vcx { _vcxMPitOctss =  mPitOctss}
+modMPitOctssOctaves mkIdWeight vrtCfg vcr@VoiceConfigRepeat{..} = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcrMPitOctss <&> \mPitOctss -> vcr { _vcrMPitOctss =  mPitOctss}
+modMPitOctssOctaves mkIdWeight vrtCfg vcc@VoiceConfigCanon{..}  = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vccMPitOctss <&> \mPitOctss -> vcc { _vccMPitOctss =  mPitOctss}
+
+modAnyMPitOctssOctaves :: (Int -> Int -> Int ) -> VoiceRuntimeConfig -> NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int)) -> Driver (NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int)))
+modAnyMPitOctssOctaves mkIdWeight VoiceRuntimeConfig{..} = 
+  traverse (traverse randomizeMPitOctsOctave)
   where
     idWeight  = mkIdWeight _vrcCntSegs _vrcNumSeg
     modWeight = (100 - idWeight) `div` 2
     weights   = [(modWeight,pred),(idWeight,id),(modWeight,succ)]
-    randomizeMPitOctsOctaves mPitInts = traverse randomizeMPitOctsOctave mPitInts
     randomizeMPitOctsOctave (Just pit,oct) = randomWeightedElement weights <&> (\weight -> (Just pit,weight oct))
     randomizeMPitOctsOctave pr = pure pr
-incrMPitOctssOctaves _ _ vct = pure vct
 
 mkIdWeightsIncr :: Int -> Int -> Int
-mkIdWeightsIncr       1      _ = 50
+mkIdWeightsIncr      1      _  = 50
 mkIdWeightsIncr cntSegs numSeg = 100 - (numSeg * (50 `div` (cntSegs - 1))) -- TBD: magic constant 50% of results to be modified at end
 
 mkIdWeightsDecr :: Int -> Int -> Int
-mkIdWeightsDecr       1      _ = 0
+mkIdWeightsDecr      1      _  = 0
 mkIdWeightsDecr cntSegs numSeg = 100 - ((cntSegs - (1 + numSeg)) * (50 `div` (cntSegs - 1))) -- TBD: magic constant 50% of results to be modified at end)
+
+-- Prototype:  config mod for homophony, generalized to be fixing any of list of list params (MPitOctss, Durss, Acctss) 
+-- Removes randomization from runtime of voice, though not between pieces:
+--   a) take a single randomization of list of  list from config
+--   b) concatenate
+--   c) answer as a single-element list
+-- That means successive uses of that config element post-mod will have one or more of three
+-- input params repeating over and over during generation of notes for that voice.
+-- But note that's not sufficient:  no homophony without sharing of parameters *between voices*,
+-- so outer driver has to look for some kind of config param to say what to do when.
+-- And given the generic way these mods get applied, each low-level routine has to interpret
+-- the context for itself.
+-- So if context is yet another config param specific to the (pitch/octave, duration, accent)
+-- focus, then it has to say for each voice for each section to use the existing config or to
+-- clone the config for another voice.
+-- This is where doing a generic enumeration of sections and voices gets in trouble, because
+-- I want to share e.g. a unique config between voices, and where do I find it?
+-- To fit this design, it'd probably be easiest to execute the Driver in the context of a
+-- State type with a list of Accent, (Maybe Pitch, Octave) pair, or Duration where the empty
+-- list can designate "haven't initialized it yet".
+-- So when the section config includes a homAccent flag, the code below changes to
+--   a) capture a config variable that shows a list of list of voice indexes that tells
+--      for that param which voice to "follow" (if any) for each segment
+--   b) the inner list is in voice order and the outer list is in section order,
+--      so this code finds the index in the list of list given the input voice and
+--      section indexes and, if the index in the config param is different, then
+--      it looks for the config in the state
+--   c) if there's no config yet, it makes one and saves it in the state somewhere
+--      uh oh, except of course it can't make one from the target index because it
+--      operates only from within the context of a single voice --
+--      and in fact if I have multiple voices pairing, say 1+3 and 2+4, then I need
+--      a way to capture a pinned config for multiple voices --
+--
+-- Would it be possible for all config mods to have an initial (and maybe a post) pass
+-- where all voice configs would be visible so I could e.g. prepare the static config
+-- in the context ahead of time?
+-- Now consider a score-board where different voices pair at different sections.  Now
+-- I need a per-section list of prepared configurations in the state.  Ugh.
+--
+-- Feels like the wrong angle, trying to cram the behavior into the config mod process.
+-- What about a new section type instead?  Note that it would be possible to explicitly
+-- code by way of copying configurations, section-by-section.  Unless that just repeats
+-- the config mod mentality.
+--
+-- 
+homAccents :: ConfigMod
+homAccents vrtCfg vcx@VoiceConfigXPose{..}  = homAnyAccents vrtCfg _vcxAcctss <&> \accss -> vcx { _vcxAcctss = accss }
+homAccents vrtCfg vcr@VoiceConfigRepeat{..} = homAnyAccents vrtCfg _vcrAcctss <&> \accss -> vcr { _vcrAcctss = accss }
+homAccents vrtCfg vcc@VoiceConfigCanon{..}  = homAnyAccents vrtCfg _vccAcctss <&> \accss -> vcc { _vccAcctss = accss }
+
+-- pick one randomization of entire list
+-- flatten list
+-- answer list that with one element is flattened list
+--
+-- ok easy enough, but what about runtime context -- this is going to do it unilaterally 
+homAnyAccents :: VoiceRuntimeConfig -> NE.NonEmpty (NE.NonEmpty Accent) -> Driver (NE.NonEmpty (NE.NonEmpty Accent))
+homAnyAccents _ acctss = randomizeList (NE.toList (NE.toList <$> acctss)) <&> singleton . NE.fromList . concat
 
 fadeInAccents :: NOrRsMod
 fadeInAccents VoiceRuntimeConfig{..} nOrRs = do
@@ -276,11 +277,11 @@ mkNoteOrRest Nothing d _ = Right $ Rest d  NoDynamic
 
 voiceConfig2NoteOrRests :: VoiceConfig -> Driver [NoteOrRest]
 voiceConfig2NoteOrRests VoiceConfigXPose{..} =
-  genXPose (nes2arrs _vctxDurss) (nes2arrs _vctxAcctss) (nes2arrs _vctxMPitOctss) _vctxScale (Range _vctxRange)
+  genXPose (nes2arrs _vcxDurss) (nes2arrs _vcxAcctss) (nes2arrs _vcxMPitOctss) _vcxScale (Range _vcxRange)
 voiceConfig2NoteOrRests VoiceConfigRepeat{..} =
-  genStatic (nes2arrs _vctrDurss) (nes2arrs _vctrAcctss) (nes2arrs _vctrMPitOctss) _vctrScale _vctrRegister _vctrDurVal
+  genStatic (nes2arrs _vcrDurss) (nes2arrs _vcrAcctss) (nes2arrs _vcrMPitOctss) _vcrScale _vcrRegister _vcrDurVal
 voiceConfig2NoteOrRests VoiceConfigCanon{..} =
-  genCanon (nes2arrs _vctcDurss) (nes2arrs _vctcAcctss) (nes2arrs _vctcMPitOctss)_vctcScale _vctcRegister _vctcDurVal _vctcRotVal
+  genCanon (nes2arrs _vccDurss) (nes2arrs _vccAcctss) (nes2arrs _vccMPitOctss)_vccScale _vccRegister _vccDurVal _vccRotVal
 
 voiceConfig2Rests :: VoiceConfig -> Driver [NoteOrRest]
 voiceConfig2Rests voiceConfig = voiceConfig2NoteOrRests voiceConfig <&> notes2Rests
@@ -351,7 +352,7 @@ sectionConfig2NoteOrRests (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfi
     cntSegs = length fadeIxs
     cntVocs = length voiceConfigs
     scnName = fromMaybe "fade out" mSctnName
-    timeSigs = NE.toList $ _vctcTime <$> voiceConfigs
+    timeSigs = NE.toList $ _vccTime <$> voiceConfigs
     mkVocRTT nSeg nVoc =  VoiceRuntimeConfig scnPath Nothing cntVocs nVoc cntSegs nSeg
     foldMf (seenNumVocs,nOrRss) numVoc = do
       let numSeg = 1 + length seenNumVocs
@@ -374,10 +375,10 @@ applyMods mConfigMods mNOrRsMods pr =
 addSecnName :: String -> [[NoteOrRest]] -> [[NoteOrRest]]
 addSecnName scnName voices = prependAnnFirstNote scnName <$> voices
 
-genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> Voice
+genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> ([VoiceEvent],[VoiceEvent]) -> Voice
 genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess
   where
-    vess = NE.fromList [veKeySig NE.<| veTimeSig NE.<| treble, veKeySig NE.<| veTimeSig NE.<| bass]
+    vess = NE.fromList [veKeySig:veTimeSig:treble,veKeySig:veTimeSig:bass]
     veKeySig = VeKeySignature keySig
     veTimeSig = VeTimeSignature timeSig
 
@@ -421,14 +422,16 @@ mkNoRsTotDur maxLen nOrRsLen timeSig =
     addLen  = if maxLen > nOrRsLen then (maxLen - nOrRsLen) + remBar else remBar
     addLenToNoRs = flip (<>) (Right . flip Rest NoDynamic <$> addEndDurs timeSig nOrRsLen addLen)
 
-tagTempo :: Tempo -> NE.NonEmpty Voice -> NE.NonEmpty Voice
-tagTempo tempo (v1 NE.:| rest) = tagVoice v1 NE.:| rest
+tagTempo :: Tempo -> [Voice] -> [Voice]
+tagTempo tempo (v1:rest) = tagVoice v1:rest
   where
     tagVoice ::  Voice -> Voice
     tagVoice PitchedVoice{..} = PitchedVoice _ptvInstrument (VeTempo tempo NE.<| _ptvVoiceEvents)
     tagVoice PercussionVoice{..} = PercussionVoice _pcvInstrument (VeTempo tempo NE.<| _pcvVoiceEvents)
-    tagVoice (PolyVoice instr (ves NE.:| vess)) = PolyVoice instr ((VeTempo tempo NE.<| ves) NE.:| vess)
+    tagVoice (PolyVoice instr (ves NE.:| vess)) = PolyVoice instr ((VeTempo tempo:ves) NE.:| vess)
+--  tagVoice (PolyVoice instr (ves NE.:| vess)) = PolyVoice instr ((VeTempo tempo NE.<| ves) NE.:| vess)
     tagVoice (VoiceGroup (v1' NE.:| r)) = VoiceGroup (tagVoice v1' NE.:| r)
+tagTempo _ vs = vs
 
 -- first bool is True for first element in list, second bool is True for last element in list
 -- for first note, want tie and annotations, for middle notes,
@@ -494,13 +497,17 @@ alignNoteOrRestsDurations timeSig =
         foldlf' (_,_) (Right rest) = error $ "alignNoteOrRestsDurations foldlf' unexpected Rest: " <> show rest
     foldlf (_,_) l = error $ "alignNoteOrRestsDurations unexpected list: " <> show l
 
+splitNoteOrRests :: [NoteOrRest] -> ([VoiceEvent],[VoiceEvent])
+splitNoteOrRests nOrRs = (either VeNote VeRest <$> nOrRs,[])
+
+{--
 -- for given debounce length, split [NoteOrRest] into ([VoiceEvent],[VoiceEvent]) to be rendered as piano staff
 -- *where* debounce length tells how many contiguous Treble or Bass notes determine a change in staff,
 -- *allowing for* [Right Rest] instances to ride along carrying current clef
 -- note: for inactive clef, need to generate spacer events to maintain synchronization between Treble and Bass
 -- 5 for winLen to wait for row of 5 Note with same clef to determine treble vs. bass, 1 for winLen for squashed notes.
-splitNoteOrRests :: Int -> [NoteOrRest] -> ([VoiceEvent],[VoiceEvent])
-splitNoteOrRests winLen =
+splitNoteOrRests' :: Int -> [NoteOrRest] -> ([VoiceEvent],[VoiceEvent])
+splitNoteOrRests' winLen =
   -- 1) chunk [NoteOrRest] into [[NoteOrRest]] where each inner [] is [Left Note] or [Right Rest]
   -- 2) fold over [[NoteOrRest]] pending [Right Rest] until next [Left Note] determines Clef
   -- 3) flush any pending [Right Rest] at end
@@ -543,7 +550,23 @@ splitNoteOrRests winLen =
     pickNoteClef Note{..}
       | (_noteOct,_notePit) <= (COct,E) = Bass
       | otherwise = Treble
+-}
 
+-- for input pair of (Treble,Bass) where sequence of Duration for VoiceEvents is identical,
+-- scan for VeNote in either Treble or Bass that exceeds max ledger count for clef, e.g. 4,
+-- and swap VeNote and corresponding VeSpacer between two clefs
+-- tried inserting as last stage in pipeline for spitNoteOrRests, but jump across cleffs
+-- breaks beaming which destroys rhythmic grouping and makes score actaully harder to read
+adjustClefByLedgerLineCounts :: ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
+adjustClefByLedgerLineCounts (treble,bass)
+  | length treble == length bass =  unzip $ testAndSwapClefs <$> zip treble bass
+  | otherwise = error $ "adjustClefByLedgerLineCounts, length of Treble events: " <> show (length treble) <> " differs from length of Bass events: " <> show (length bass)
+  where
+    testAndSwapClefs (t,b) = if tooLowForTreble t || tooHighForBass b then (b,t) else (t,b)
+    tooLowForTreble (VeNote Note{..}) = (_noteOct,_notePit) <= (EightVBOct,F)
+    tooLowForTreble _ = False
+    tooHighForBass (VeNote Note{..}) = (_noteOct,_notePit) >= (COct,G)
+    tooHighForBass _ = False
 
 {-- Graveyard I:
 

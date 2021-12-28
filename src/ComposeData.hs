@@ -34,37 +34,37 @@ data SectionConfig =
                       }
 data VoiceConfig =
   VoiceConfigXPose {
-                 _vctxInstr      :: Instrument
-                 ,_vctxKey       :: KeySignature
-                 ,_vctxScale     :: Scale
-                 ,_vctxTime      :: TimeSignature
-                 ,_vctxMPitOctss :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int)) 
-                 ,_vctxDurss     :: NE.NonEmpty (NE.NonEmpty Duration)
-                 ,_vctxAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                 ,_vctxRange     :: ((Pitch,Octave),(Pitch,Octave))
+                 _vcxInstr      :: Instrument
+                 ,_vcxKey       :: KeySignature
+                 ,_vcxScale     :: Scale
+                 ,_vcxTime      :: TimeSignature
+                 ,_vcxMPitOctss :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int)) 
+                 ,_vcxDurss     :: NE.NonEmpty (NE.NonEmpty Duration)
+                 ,_vcxAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
+                 ,_vcxRange     :: ((Pitch,Octave),(Pitch,Octave))
                  } 
   | VoiceConfigRepeat {
-                    _vctrInstr      :: Instrument
-                    ,_vctrKey       :: KeySignature
-                    ,_vctrScale     :: Scale
-                    ,_vctrTime      :: TimeSignature
-                    ,_vctrMPitOctss :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int))
-                    ,_vctrDurss     :: NE.NonEmpty (NE.NonEmpty Duration)
-                    ,_vctrAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vctrRegister  :: (Pitch,Octave)
-                    ,_vctrDurVal    :: Int
+                    _vcrInstr      :: Instrument
+                    ,_vcrKey       :: KeySignature
+                    ,_vcrScale     :: Scale
+                    ,_vcrTime      :: TimeSignature
+                    ,_vcrMPitOctss :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int))
+                    ,_vcrDurss     :: NE.NonEmpty (NE.NonEmpty Duration)
+                    ,_vcrAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
+                    ,_vcrRegister  :: (Pitch,Octave)
+                    ,_vcrDurVal    :: Int
                  } 
   | VoiceConfigCanon {
-                    _vctcInstr      :: Instrument
-                    ,_vctcKey       :: KeySignature
-                    ,_vctcScale     :: Scale
-                    ,_vctcTime      :: TimeSignature
-                    ,_vctcMPitOctss :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int))
-                    ,_vctcDurss     :: NE.NonEmpty (NE.NonEmpty Duration)
-                    ,_vctcAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vctcRegister  :: (Pitch,Octave)
-                    ,_vctcDurVal    :: Int
-                    ,_vctcRotVal    :: Int
+                    _vccInstr      :: Instrument
+                    ,_vccKey       :: KeySignature
+                    ,_vccScale     :: Scale
+                    ,_vccTime      :: TimeSignature
+                    ,_vccMPitOctss :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int))
+                    ,_vccDurss     :: NE.NonEmpty (NE.NonEmpty Duration)
+                    ,_vccAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
+                    ,_vccRegister  :: (Pitch,Octave)
+                    ,_vccDurVal    :: Int
+                    ,_vccRotVal    :: Int
                  }
 
 data VoiceRuntimeConfig =
