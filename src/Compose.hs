@@ -378,7 +378,7 @@ addSecnName scnName voices = prependAnnFirstNote scnName <$> voices
 genPolyVocs :: Instrument -> KeySignature -> TimeSignature -> ([VoiceEvent],[VoiceEvent]) -> Voice
 genPolyVocs instr keySig timeSig (treble,bass) = PolyVoice instr vess
   where
-    vess = NE.fromList [veKeySig:veTimeSig:treble,veKeySig:veTimeSig:bass]
+    vess = NE.fromList [veKeySig NE.<| veTimeSig NE.<| NE.fromList treble, veKeySig NE.<| veTimeSig NE.<| NE.fromList bass]
     veKeySig = VeKeySignature keySig
     veTimeSig = VeTimeSignature timeSig
 
@@ -428,8 +428,7 @@ tagTempo tempo (v1:rest) = tagVoice v1:rest
     tagVoice ::  Voice -> Voice
     tagVoice PitchedVoice{..} = PitchedVoice _ptvInstrument (VeTempo tempo NE.<| _ptvVoiceEvents)
     tagVoice PercussionVoice{..} = PercussionVoice _pcvInstrument (VeTempo tempo NE.<| _pcvVoiceEvents)
-    tagVoice (PolyVoice instr (ves NE.:| vess)) = PolyVoice instr ((VeTempo tempo:ves) NE.:| vess)
---  tagVoice (PolyVoice instr (ves NE.:| vess)) = PolyVoice instr ((VeTempo tempo NE.<| ves) NE.:| vess)
+    tagVoice (PolyVoice instr (ves NE.:| vess)) = PolyVoice instr ((VeTempo tempo NE.<| ves) NE.:| vess)
     tagVoice (VoiceGroup (v1' NE.:| r)) = VoiceGroup (tagVoice v1' NE.:| r)
 tagTempo _ vs = vs
 
@@ -499,74 +498,6 @@ alignNoteOrRestsDurations timeSig =
 
 splitNoteOrRests :: [NoteOrRest] -> ([VoiceEvent],[VoiceEvent])
 splitNoteOrRests nOrRs = (either VeNote VeRest <$> nOrRs,[])
-
-{--
--- for given debounce length, split [NoteOrRest] into ([VoiceEvent],[VoiceEvent]) to be rendered as piano staff
--- *where* debounce length tells how many contiguous Treble or Bass notes determine a change in staff,
--- *allowing for* [Right Rest] instances to ride along carrying current clef
--- note: for inactive clef, need to generate spacer events to maintain synchronization between Treble and Bass
--- 5 for winLen to wait for row of 5 Note with same clef to determine treble vs. bass, 1 for winLen for squashed notes.
-splitNoteOrRests' :: Int -> [NoteOrRest] -> ([VoiceEvent],[VoiceEvent])
-splitNoteOrRests' winLen =
-  -- 1) chunk [NoteOrRest] into [[NoteOrRest]] where each inner [] is [Left Note] or [Right Rest]
-  -- 2) fold over [[NoteOrRest]] pending [Right Rest] until next [Left Note] determines Clef
-  -- 3) flush any pending [Right Rest] at end
-  flush . foldl' foldlf ((Nothing,[]),([VeClef Treble],[VeClef Bass])) . groupBy equalClefs
-  where
-    flush :: ((Maybe Clef,[NoteOrRest]),([VoiceEvent],[VoiceEvent])) -> ([VoiceEvent],[VoiceEvent])
-    flush ((Just _,[]),vesPr) = vesPr
-    flush ((Nothing,pending),vesPr) -- never hit winLen Left Note in a row, try again decrementing winLen by one
-      | winLen == 0 = error $ "splitNoteOrRests flush but no clef for pending " <> show pending
-      | otherwise   = vesPr <> splitNoteOrRests (winLen - 1) pending
-    flush ((Just clef,pending),vesPr) = vesPr <> genVesPr clef pending
-    foldlf :: ((Maybe Clef,[NoteOrRest]),([VoiceEvent],[VoiceEvent])) -> [NoteOrRest] -> ((Maybe Clef,[NoteOrRest]),([VoiceEvent],[VoiceEvent]))
-    foldlf ((mCl,pending),vesPr) nOrRs
-      | allRests || cntNotes nOrRs < winLen = ((mCl,pending <> nOrRs),vesPr)
-      | otherwise = case mCl of
-                      Nothing -> ((Just nextCl,[]),vesPr <> genVesPr nextCl (pending <> nOrRs))
-                      Just cl -> ((Just nextCl,[]),vesPr <> genVesPr cl pending <> genVesPr nextCl nOrRs)
-      where
-        allRests = all isRest nOrRs
-        isRest (Right _) = True
-        isRest (Left _)  = False
-        cntNotes = length . filter (not . isTiedNote)
-        isTiedNote (Left Note {..}) = _noteTie
-        isTiedNote (Right r)        = error $ "isTiedNote unexpected rest: " <> show r
-        nextCl  = case headMay (filter (not . isRest) nOrRs) of
-                    Just (Left note) -> pickNoteClef note
-                    Just (Right _)   -> error $ "splitNoteOrRests unexpected Rest in nOrRs " <> show nOrRs
-                    Nothing          -> error "splitNoteOrRests unexpected empty list for nOrRs"
-    genVesPr :: Clef -> [NoteOrRest] -> ([VoiceEvent],[VoiceEvent])
-    genVesPr cl pending
-      | cl == Treble = (either VeNote VeRest <$> pending,either note2Spacer rest2Spacer <$> pending)
-      | otherwise    = (either note2Spacer rest2Spacer <$> pending,either VeNote VeRest <$> pending)
-      where
-        note2Spacer Note{..} = VeSpacer (Spacer _noteDur NoDynamic)
-        rest2Spacer Rest{..} = VeSpacer (Spacer _restDur NoDynamic)
-    equalClefs (Left n1) (Left n2) = pickNoteClef n1 == pickNoteClef n2
-    equalClefs (Right _) (Right _) = True
-    equalClefs _          _        = False
-    pickNoteClef :: Note -> Clef
-    pickNoteClef Note{..}
-      | (_noteOct,_notePit) <= (COct,E) = Bass
-      | otherwise = Treble
--}
-
--- for input pair of (Treble,Bass) where sequence of Duration for VoiceEvents is identical,
--- scan for VeNote in either Treble or Bass that exceeds max ledger count for clef, e.g. 4,
--- and swap VeNote and corresponding VeSpacer between two clefs
--- tried inserting as last stage in pipeline for spitNoteOrRests, but jump across cleffs
--- breaks beaming which destroys rhythmic grouping and makes score actaully harder to read
-adjustClefByLedgerLineCounts :: ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
-adjustClefByLedgerLineCounts (treble,bass)
-  | length treble == length bass =  unzip $ testAndSwapClefs <$> zip treble bass
-  | otherwise = error $ "adjustClefByLedgerLineCounts, length of Treble events: " <> show (length treble) <> " differs from length of Bass events: " <> show (length bass)
-  where
-    testAndSwapClefs (t,b) = if tooLowForTreble t || tooHighForBass b then (b,t) else (t,b)
-    tooLowForTreble (VeNote Note{..}) = (_noteOct,_notePit) <= (EightVBOct,F)
-    tooLowForTreble _ = False
-    tooHighForBass (VeNote Note{..}) = (_noteOct,_notePit) >= (COct,G)
-    tooHighForBass _ = False
 
 {-- Graveyard I:
 
@@ -672,3 +603,75 @@ squashNoteOrRests prs timeSig =
     mFirstNote _             = Nothing
 --}
 
+{--Graveyard III:
+-- Deprecated:  use \autochange keyword with SplitStaff voice to do this instead.
+-- Lilypond implementation preserves beaming across clef breaks and avoids high
+-- counts of ledger lines in this implementation.
+--
+-- for given debounce length, split [NoteOrRest] into ([VoiceEvent],[VoiceEvent]) to be rendered as piano staff
+-- *where* debounce length tells how many contiguous Treble or Bass notes determine a change in staff,
+-- *allowing for* [Right Rest] instances to ride along carrying current clef
+-- note: for inactive clef, need to generate spacer events to maintain synchronization between Treble and Bass
+-- 5 for winLen to wait for row of 5 Note with same clef to determine treble vs. bass, 1 for winLen for squashed notes.
+splitNoteOrRests' :: Int -> [NoteOrRest] -> ([VoiceEvent],[VoiceEvent])
+splitNoteOrRests' winLen =
+  -- 1) chunk [NoteOrRest] into [[NoteOrRest]] where each inner [] is [Left Note] or [Right Rest]
+  -- 2) fold over [[NoteOrRest]] pending [Right Rest] until next [Left Note] determines Clef
+  -- 3) flush any pending [Right Rest] at end
+  flush . foldl' foldlf ((Nothing,[]),([VeClef Treble],[VeClef Bass])) . groupBy equalClefs
+  where
+    flush :: ((Maybe Clef,[NoteOrRest]),([VoiceEvent],[VoiceEvent])) -> ([VoiceEvent],[VoiceEvent])
+    flush ((Just _,[]),vesPr) = vesPr
+    flush ((Nothing,pending),vesPr) -- never hit winLen Left Note in a row, try again decrementing winLen by one
+      | winLen == 0 = error $ "splitNoteOrRests flush but no clef for pending " <> show pending
+      | otherwise   = vesPr <> splitNoteOrRests (winLen - 1) pending
+    flush ((Just clef,pending),vesPr) = vesPr <> genVesPr clef pending
+    foldlf :: ((Maybe Clef,[NoteOrRest]),([VoiceEvent],[VoiceEvent])) -> [NoteOrRest] -> ((Maybe Clef,[NoteOrRest]),([VoiceEvent],[VoiceEvent]))
+    foldlf ((mCl,pending),vesPr) nOrRs
+      | allRests || cntNotes nOrRs < winLen = ((mCl,pending <> nOrRs),vesPr)
+      | otherwise = case mCl of
+                      Nothing -> ((Just nextCl,[]),vesPr <> genVesPr nextCl (pending <> nOrRs))
+                      Just cl -> ((Just nextCl,[]),vesPr <> genVesPr cl pending <> genVesPr nextCl nOrRs)
+      where
+        allRests = all isRest nOrRs
+        isRest (Right _) = True
+        isRest (Left _)  = False
+        cntNotes = length . filter (not . isTiedNote)
+        isTiedNote (Left Note {..}) = _noteTie
+        isTiedNote (Right r)        = error $ "isTiedNote unexpected rest: " <> show r
+        nextCl  = case headMay (filter (not . isRest) nOrRs) of
+                    Just (Left note) -> pickNoteClef note
+                    Just (Right _)   -> error $ "splitNoteOrRests unexpected Rest in nOrRs " <> show nOrRs
+                    Nothing          -> error "splitNoteOrRests unexpected empty list for nOrRs"
+    genVesPr :: Clef -> [NoteOrRest] -> ([VoiceEvent],[VoiceEvent])
+    genVesPr cl pending
+      | cl == Treble = (either VeNote VeRest <$> pending,either note2Spacer rest2Spacer <$> pending)
+      | otherwise    = (either note2Spacer rest2Spacer <$> pending,either VeNote VeRest <$> pending)
+      where
+        note2Spacer Note{..} = VeSpacer (Spacer _noteDur NoDynamic)
+        rest2Spacer Rest{..} = VeSpacer (Spacer _restDur NoDynamic)
+    equalClefs (Left n1) (Left n2) = pickNoteClef n1 == pickNoteClef n2
+    equalClefs (Right _) (Right _) = True
+    equalClefs _          _        = False
+    pickNoteClef :: Note -> Clef
+    pickNoteClef Note{..}
+      | (_noteOct,_notePit) <= (COct,E) = Bass
+      | otherwise = Treble
+
+-- for input pair of (Treble,Bass) where sequence of Duration for VoiceEvents is identical,
+-- scan for VeNote in either Treble or Bass that exceeds max ledger count for clef, e.g. 4,
+-- and swap VeNote and corresponding VeSpacer between two clefs
+-- tried inserting as last stage in pipeline for spitNoteOrRests, but jump across cleffs
+-- breaks beaming which destroys rhythmic grouping and makes score actaully harder to read
+adjustClefByLedgerLineCounts :: ([VoiceEvent],[VoiceEvent]) -> ([VoiceEvent],[VoiceEvent])
+adjustClefByLedgerLineCounts (treble,bass)
+  | length treble == length bass =  unzip $ testAndSwapClefs <$> zip treble bass
+  | otherwise = error $ "adjustClefByLedgerLineCounts, length of Treble events: " <> show (length treble) <> " differs from length of Bass events: " <> show (length bass)
+  where
+    testAndSwapClefs (t,b) = if tooLowForTreble t || tooHighForBass b then (b,t) else (t,b)
+    tooLowForTreble (VeNote Note{..}) = (_noteOct,_notePit) <= (EightVBOct,F)
+    tooLowForTreble _ = False
+    tooHighForBass (VeNote Note{..}) = (_noteOct,_notePit) >= (COct,G)
+    tooHighForBass _ = False
+
+-}

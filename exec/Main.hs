@@ -1,6 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE TupleSections       #-}
 
 module Main where
 

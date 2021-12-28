@@ -212,20 +212,11 @@ minVEvents = VeClef Treble NE.:|
              ,VeNote (Note C COct QDur (NE.fromList [NoAccent]) NoDynamic NoSwell "C!" False)
              ,VeTremolo (NoteTremolo (Note C COct QDur (NE.fromList [NoAccent]) NoDynamic NoSwell "" False))]
 
-minVEvents' :: [VoiceEvent]
-minVEvents' = [VeClef Treble
-              ,VeTempo (TempoDur QDur 120)
-              ,VeTimeSignature (TimeSignatureSimple 4 QDur)
-              ,VeNote (Note C COct QDur (NE.fromList [Marcato,Staccato]) NoDynamic NoSwell "a" False)
-              ,VeNote (Note G COct QDur (NE.fromList [NoAccent]) Forte NoSwell "b." False)
-              ,VeNote (Note C COct QDur (NE.fromList [NoAccent]) NoDynamic NoSwell "C!" False)
-              ,VeTremolo (NoteTremolo (Note C COct QDur (NE.fromList [NoAccent]) NoDynamic NoSwell "" False))]
-
 pitchedVoice :: Voice
 pitchedVoice = PitchedVoice AcousticGrand minVEvents
 
 polyVoice :: Voice
-polyVoice = PolyVoice AcousticGrand (NE.fromList [minVEvents',minVEvents'])
+polyVoice = PolyVoice AcousticGrand (minVEvents NE.:| [minVEvents])
 
 voiceGroup :: Voice
 voiceGroup = VoiceGroup (pitchedVoice NE.:| [pitchedVoice, polyVoice])

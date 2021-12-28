@@ -586,16 +586,16 @@ toVoiceGroup voices = [str|\new StaffGroup
                           $mconcat (map toLily (NE.toList voices))$>>
                           |]
 
-eventsToPolyVoice :: [VoiceEvent] -> String
+eventsToPolyVoice :: NE.NonEmpty VoiceEvent -> String
 eventsToPolyVoice events  =
   [str|\new Staff {
       \new Voice {
-      $unwords (map toLily events)$ \bar "|."
+      $unwords (map toLily (NE.toList events))$ \bar "|."
       }
       }
       |]
 
-toPolyVoice :: Instrument -> NE.NonEmpty [VoiceEvent] -> String
+toPolyVoice :: Instrument -> NE.NonEmpty (NE.NonEmpty VoiceEvent) -> String
 toPolyVoice instr eventss =
   [str|\new PianoStaff {
       <<
@@ -604,7 +604,7 @@ toPolyVoice instr eventss =
       }
       |]
 
-parsePolyVoiceEvents :: Parser [VoiceEvent]
+{--
 parsePolyVoiceEvents = string [str|\new Staff {
                               \new Voice {
                               |]
@@ -612,7 +612,9 @@ parsePolyVoiceEvents = string [str|\new Staff {
                       <* string [str|\bar "|."
                         }
                         }|]
-{--
+--}
+
+parsePolyVoiceEvents :: Parser (NE.NonEmpty VoiceEvent)
 parsePolyVoiceEvents = NE.fromList <$> (string [str|\new Staff {
                                                \new Voice {
                                               |]
@@ -620,7 +622,6 @@ parsePolyVoiceEvents = NE.fromList <$> (string [str|\new Staff {
                                        <* string [str|\bar "|."
                                          }
                                          }|])
---}
 parseVoice :: Parser Voice
 parseVoice = choice [
   try (PitchedVoice <$> (string [str|\new Voice
