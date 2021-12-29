@@ -334,7 +334,7 @@ more routines to modify each voice for each segment.  Input to the
 routine would be the count of voices, the number of the voice, the count
 of segments, the number of the segment, and the config tuple for the
 voice.  Output would be a modified config tuple.
-** TODO autochange
+** DONE autochange
 Swap out my code to split a single note or rest stream between clefs in favor
 of the Lilypond autochange keyword.
 Create a new voice type:  PianoVoice and revert PolyVoice.
@@ -377,7 +377,24 @@ concat <$> transpose [[[1,2,3],[10,20,30],[40,50,60]],[[101,102,103],[110,120,13
 
 Need a configuration to capture juxtaposition of multiple choirs each with different counts of voices.
 
-** TODO Homophonic configuration as config mod
+** TODO Homophonic configuration
+I've changed my mind about doing this as a config mod due to the need to 
+process all voices at once.  Instead, there should be a new section type,
+homphonic, with its own list of voices.  Which should be of what type?
+Note that this will probably obsolete VoiceConfigRepeat, as it just makes
+the whole thing vastly configurable as a frozen version of something like
+VoiceConfigCanon.  In fact, VoiceConfigCanon could be simplified as well,
+as there's a fairly arbitrary design to the current implementation, which
+rotates "canon" so it's always a full voice, and which only rotates the
+pitch/octave list picked randomly from the list-of-list in the config, 
+and doesn't rotate e.g. the list-of-list of durations or accents.  In 
+fact, when you consider the larger scope, rotating a random element in a
+list of (Maybe Pitch, Octave) pairs is a pretty minor tweak in the context
+of the randomization of those elements in the first place.  I wonder how
+audible it'd be to compare with fade-in of non-canonical voices, if at all.
+The biggest effect is to avoid each voice starting with the exact same 
+pitch, given that the two sub-elements of the list-of-list of pairs is 
+identical.  
 ** TODO NOrR mods 
 *** Trim or pad all voices in a section to a particular length
 Variation might be to dynamically back up from the end to the last point 

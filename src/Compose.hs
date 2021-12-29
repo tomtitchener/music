@@ -81,62 +81,8 @@ mkIdWeightsDecr :: Int -> Int -> Int
 mkIdWeightsDecr      1      _  = 0
 mkIdWeightsDecr cntSegs numSeg = 100 - ((cntSegs - (1 + numSeg)) * (50 `div` (cntSegs - 1))) -- TBD: magic constant 50% of results to be modified at end)
 
--- Prototype:  config mod for homophony, generalized to be fixing any of list of list params (MPitOctss, Durss, Acctss) 
--- Removes randomization from runtime of voice, though not between pieces:
---   a) take a single randomization of list of  list from config
---   b) concatenate
---   c) answer as a single-element list
--- That means successive uses of that config element post-mod will have one or more of three
--- input params repeating over and over during generation of notes for that voice.
--- But note that's not sufficient:  no homophony without sharing of parameters *between voices*,
--- so outer driver has to look for some kind of config param to say what to do when.
--- And given the generic way these mods get applied, each low-level routine has to interpret
--- the context for itself.
--- So if context is yet another config param specific to the (pitch/octave, duration, accent)
--- focus, then it has to say for each voice for each section to use the existing config or to
--- clone the config for another voice.
--- This is where doing a generic enumeration of sections and voices gets in trouble, because
--- I want to share e.g. a unique config between voices, and where do I find it?
--- To fit this design, it'd probably be easiest to execute the Driver in the context of a
--- State type with a list of Accent, (Maybe Pitch, Octave) pair, or Duration where the empty
--- list can designate "haven't initialized it yet".
--- So when the section config includes a homAccent flag, the code below changes to
---   a) capture a config variable that shows a list of list of voice indexes that tells
---      for that param which voice to "follow" (if any) for each segment
---   b) the inner list is in voice order and the outer list is in section order,
---      so this code finds the index in the list of list given the input voice and
---      section indexes and, if the index in the config param is different, then
---      it looks for the config in the state
---   c) if there's no config yet, it makes one and saves it in the state somewhere
---      uh oh, except of course it can't make one from the target index because it
---      operates only from within the context of a single voice --
---      and in fact if I have multiple voices pairing, say 1+3 and 2+4, then I need
---      a way to capture a pinned config for multiple voices --
---
--- Would it be possible for all config mods to have an initial (and maybe a post) pass
--- where all voice configs would be visible so I could e.g. prepare the static config
--- in the context ahead of time?
--- Now consider a score-board where different voices pair at different sections.  Now
--- I need a per-section list of prepared configurations in the state.  Ugh.
---
--- Feels like the wrong angle, trying to cram the behavior into the config mod process.
--- What about a new section type instead?  Note that it would be possible to explicitly
--- code by way of copying configurations, section-by-section.  Unless that just repeats
--- the config mod mentality.
---
--- 
-homAccents :: ConfigMod
-homAccents vrtCfg vcx@VoiceConfigXPose{..}  = homAnyAccents vrtCfg _vcxAcctss <&> \accss -> vcx { _vcxAcctss = accss }
-homAccents vrtCfg vcr@VoiceConfigRepeat{..} = homAnyAccents vrtCfg _vcrAcctss <&> \accss -> vcr { _vcrAcctss = accss }
-homAccents vrtCfg vcc@VoiceConfigCanon{..}  = homAnyAccents vrtCfg _vccAcctss <&> \accss -> vcc { _vccAcctss = accss }
-
--- pick one randomization of entire list
--- flatten list
--- answer list that with one element is flattened list
---
--- ok easy enough, but what about runtime context -- this is going to do it unilaterally 
-homAnyAccents :: VoiceRuntimeConfig -> NE.NonEmpty (NE.NonEmpty Accent) -> Driver (NE.NonEmpty (NE.NonEmpty Accent))
-homAnyAccents _ acctss = randomizeList (NE.toList (NE.toList <$> acctss)) <&> singleton . NE.fromList . concat
+--homAnyListOfList :: NE.NonEmpty (NE.NonEmpty a) -> Driver (NE.NonEmpty (NE.NonEmpty a))
+--homAnyListOfList xss = randomizeList (NE.toList (NE.toList <$> xss)) <&> singleton . NE.fromList . concat
 
 fadeInAccents :: NOrRsMod
 fadeInAccents VoiceRuntimeConfig{..} nOrRs = do
@@ -207,8 +153,11 @@ genXPose durss acctss mPitOctss scale (Range (start,stop)) = do
     unfoldf _ steps = error $ "invalid list of steps, (" <> show (fst steps) <> "," <> show (take 10 (snd steps)) <> ")"
 
 genStatic :: [[Duration]] -> [[Accent]] -> [[(Maybe Pitch,Int)]] -> Scale -> (Pitch,Octave) -> Int -> Driver [NoteOrRest]
-genStatic durss acctss mPitOctss scale register maxDurVal = 
-  genCanon durss acctss mPitOctss scale register maxDurVal 0 <&> replaceAnnFirstNote "static"
+genStatic durss acctss mPitOctss scale register maxDurVal = do
+  durs <- randomizeList durss <&> concat
+  accts <- randomizeList acctss <&> concat
+  mPitOcts <- randomizeList mPitOctss <&> concat
+  genCanon [durs] [accts] [mPitOcts] scale register maxDurVal 0 <&> replaceAnnFirstNote "static"
 
 genCanon :: [[Duration]] -> [[Accent]] -> [[(Maybe Pitch,Int)]] -> Scale -> (Pitch,Octave) -> Int -> Int -> Driver [NoteOrRest]
 genCanon durss acctss mPitOctss scale register maxDurVal rotVal = do

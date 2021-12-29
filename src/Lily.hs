@@ -604,7 +604,7 @@ isVEMeta _                  = False
 -- toSplitStaffVoice instr events =
 --   [str|\new PianoStaff {
 --       \set PianoStaff.instrumentName = ##"$shortInstrName instr$"\set PianoStaff.midiInstrument = ##"$midiName instr$"
---       \autochange { $unwords (fmap toLily (NE.toList events))$ } \bar "|."
+--       \autoChange { $unwords (fmap toLily (NE.toList events))$ } \bar "|."
 --       }
 --       |]
   
@@ -615,12 +615,12 @@ toSplitStaffVoice instr events =
       \set PianoStaff.instrumentName = ##"$shortInstrName instr$"\set PianoStaff.midiInstrument = ##"$midiName instr$"
       \new Staff = "up" {
       \new Voice {
-      $unwords (map toLily (takeWhile isVEMeta (NE.toList events)))$ \autochange { \clef treble $unwords (map toLily (dropWhile isVEMeta (NE.toList events)))$ } \bar "|."
+      $unwords (map toLily (takeWhile isVEMeta (NE.toList events)))$ \autoChange { \clef treble $unwords (map toLily (dropWhile isVEMeta (NE.toList events)))$ } \bar "|."
       }
       }
       \new Staff = "down" {
       \new Voice {
-      $unwords (map toLily (takeWhile isVEMeta (NE.toList events)))$ \autochange { \clef bass } \bar "|."
+      $unwords (map toLily (takeWhile isVEMeta (NE.toList events)))$ \autoChange { \clef bass } \bar "|."
       }
       }
       >>
@@ -629,11 +629,11 @@ toSplitStaffVoice instr events =
 
 -- TBD:  deprecate, see above
 --parseSplitStaffVoiceEvents :: Parser (NE.NonEmpty VoiceEvent)
---parseSplitStaffVoiceEvents = NE.fromList <$> (string [str|\autochange { |] *> parseVoiceEvent `endBy` space <* string [str|} \bar "|."
+--parseSplitStaffVoiceEvents = NE.fromList <$> (string [str|\autoChange { |] *> parseVoiceEvent `endBy` space <* string [str|} \bar "|."
 --                                                                                                                          }|])
 
 parseVoiceEventOrAutochange :: Parser (Maybe VoiceEvent)
-parseVoiceEventOrAutochange = Just <$> parseVoiceEvent <|> Nothing <$ string "\\autochange { \\clef treble"
+parseVoiceEventOrAutochange = Just <$> parseVoiceEvent <|> Nothing <$ string "\\autoChange { \\clef treble"
 
 parseSplitStaffVoiceEvents :: Parser (NE.NonEmpty VoiceEvent)
 parseSplitStaffVoiceEvents = NE.fromList . catMaybes <$> (string [str|\new Staff = "up" {
@@ -647,7 +647,7 @@ parseSplitStaffVoiceEvents = NE.fromList . catMaybes <$> (string [str|\new Staff
                                                                        \new Voice {
                                                                        |]
                                                         <* parseVoiceEvent `endBy` space
-                                                        <* string [str|\autochange { \clef bass } \bar "|."
+                                                        <* string [str|\autoChange { \clef bass } \bar "|."
                                                                       }
                                                                       }
                                                                       |])
