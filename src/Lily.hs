@@ -1,4 +1,4 @@
-{-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE QuasiQuotes  #-}
 
 {- | Lilypond encoding and decoding.
      TBD:  String is inefficient datatype, though UTF-8, which is LilyPond char set:
@@ -21,7 +21,7 @@ module Lily (ToLily(..)
 import Control.Monad (void)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as M
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, catMaybes)
 import Data.Natural (Natural)
 import Data.String.Interpolation (endline, str)
 import Text.Parsec
@@ -427,6 +427,7 @@ parseVoiceEvent = choice [try (VeClef <$> parseClef)
                          ,try (VeNote <$> parseNote)
                          ,try (VeRhythm <$> parseRhythm)
                          ,try (VeRest <$> parseRest)
+                         ,try (VeSpacer <$> parseSpacer)
                          ,try (VeChord <$> parseChord)
                          ,try (VeTempo <$> parseTempo)
                          ,try (VeKeySignature <$> parseKeySignature)
@@ -561,6 +562,7 @@ instance ToLily Voice where
   toLily (PitchedVoice instr events) = toPitchedVoice instr events
   toLily (PercussionVoice instr events) = toPercussionVoice instr events
   toLily (VoiceGroup voices) = toVoiceGroup voices
+  toLily (SplitStaffVoice instr events) = toSplitStaffVoice instr events
   toLily (PolyVoice instr eventss) = toPolyVoice instr eventss
 
 toPitchedVoice :: Instrument -> NE.NonEmpty VoiceEvent -> String
@@ -586,6 +588,52 @@ toVoiceGroup voices = [str|\new StaffGroup
                           $mconcat (map toLily (NE.toList voices))$>>
                           |]
 
+isVEMeta :: VoiceEvent -> Bool
+isVEMeta VeClef {}          = True
+isVEMeta VeTempo {}         = True
+isVEMeta VeKeySignature {}  = True
+isVEMeta VeTimeSignature {} = True
+isVEMeta _                  = False
+  
+toSplitStaffVoice :: Instrument -> NE.NonEmpty VoiceEvent -> String
+toSplitStaffVoice instr events =
+  [str|\new PianoStaff {
+      <<
+      \set PianoStaff.instrumentName = ##"$shortInstrName instr$"\set PianoStaff.midiInstrument = ##"$midiName instr$"
+      \new Staff = "up" {
+      \new Voice {
+      $unwords (map toLily (takeWhile isVEMeta (NE.toList events)))$ \autochange { \clef treble $unwords (map toLily (dropWhile isVEMeta (NE.toList events)))$ } \bar "|."
+      }
+      }
+      \new Staff = "down" {
+      \new Voice {
+      $unwords (map toLily (takeWhile isVEMeta (NE.toList events)))$ \autochange { \clef bass } \bar "|."
+      }
+      }
+      >>
+      }
+      |]
+
+parseVoiceEventOrAutochange :: Parser (Maybe VoiceEvent)
+parseVoiceEventOrAutochange = Just <$> parseVoiceEvent <|> Nothing <$ string "\\autochange { \\clef treble"
+
+parseSplitStaffVoiceEvents :: Parser (NE.NonEmpty VoiceEvent)
+parseSplitStaffVoiceEvents = NE.fromList . catMaybes <$> (string [str|\new Staff = "up" {
+                                                                     \new Voice {
+                                                                     |]
+                                                         *> parseVoiceEventOrAutochange `endBy` space
+                                                         <* string [str|} \bar "|."
+                                                                       }
+                                                                       }
+                                                                       \new Staff = "down" {
+                                                                       \new Voice {
+                                                                       |]
+                                                        <* parseVoiceEvent `endBy` space
+                                                        <* string [str|\autochange { \clef bass } \bar "|."
+                                                                      }
+                                                                      }
+                                                                      |])
+
 eventsToPolyVoice :: NE.NonEmpty VoiceEvent -> String
 eventsToPolyVoice events  =
   [str|\new Staff {
@@ -594,7 +642,7 @@ eventsToPolyVoice events  =
       }
       }
       |]
-
+    
 toPolyVoice :: Instrument -> NE.NonEmpty (NE.NonEmpty VoiceEvent) -> String
 toPolyVoice instr eventss =
   [str|\new PianoStaff {
@@ -603,16 +651,6 @@ toPolyVoice instr eventss =
       $mconcat (map eventsToPolyVoice (NE.toList eventss))$>>
       }
       |]
-
-{--
-parsePolyVoiceEvents = string [str|\new Staff {
-                              \new Voice {
-                              |]
-                      *> parseVoiceEvent `endBy` space
-                      <* string [str|\bar "|."
-                        }
-                        }|]
---}
 
 parsePolyVoiceEvents :: Parser (NE.NonEmpty VoiceEvent)
 parsePolyVoiceEvents = NE.fromList <$> (string [str|\new Staff {
@@ -645,6 +683,16 @@ parseVoice = choice [
                                    |]
                         *> (NE.fromList <$> (parseVoice `endBy` newline
                             <* string ">>"))))
+  ,try (SplitStaffVoice <$> (string [str|\new PianoStaff {
+                                  <<
+                                  \set PianoStaff.instrumentName = ##|]
+                               *> parseQuotedIdentifier
+                               *> string [str|\set PianoStaff.midiInstrument = ##"|]
+                               *> parseInstrument
+                               <* string [str|"$endline$|])
+                             <*> parseSplitStaffVoiceEvents
+                             <* string [str|>>
+                                           }|])
   ,try (PolyVoice <$> (string [str|\new PianoStaff {
                                   <<
                                   \set PianoStaff.instrumentName = ##|]
@@ -694,7 +742,7 @@ instance ToLily Score where
         <<
         $mconcat (map toLily (NE.toList voices))$>>
         }
-        \score { \structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } \context { \Score \remove "Timing_translator" \remove "Default_bar_line_engraver" }  \context { \Staff \consists "Timing_translator" \consists "Default_bar_line_engraver" } } }
+        \score { \structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }
         \score { \unfoldRepeats \articulate \structure \midi {  } }
         |]
 
@@ -713,7 +761,7 @@ parseScore = Score <$> (string [str|
                        <*> (NE.fromList <$> parseVoice `endBy` newline)
                        <* string [str|>>
                                      }
-                                     \score { \structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } \context { \Score \remove "Timing_translator" \remove "Default_bar_line_engraver" }  \context { \Staff \consists "Timing_translator" \consists "Default_bar_line_engraver" } } }
+                                     \score { \structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }
                                      \score { \unfoldRepeats \articulate \structure \midi {  } }
                                      |]
 

@@ -62,18 +62,21 @@ tests =
   ,testProperty "parseLily . toLily Tuplet == id" (propParseLilytoLilyVal @Tuplet)
   ,testProperty "parseLily . toLily Tremolo == id" (propParseLilytoLilyVal @Tremolo)
   --
-  ,testCase     "parseLily . toLily PitchedVoice" (assertParseLilytoLilyVal pitchedVoice)
-  ,testCase     "parseLily . toLily PolyVoice"   (assertParseLilytoLilyVal polyVoice)
-  ,testCase     "parseLily . toLily VoiceGroup"  (assertParseLilytoLilyVal voiceGroup)
+  ,testCase     "parseLily . toLily PitchedVoice"    (assertParseLilytoLilyVal pitchedVoice)
+  ,testCase     "parseLily . toLily PolyVoice"       (assertParseLilytoLilyVal polyVoice)
+  ,testCase     "parseLily . toLily SplitStaffVoice" (assertParseLilytoLilyVal splitStaffVoice)
+  ,testCase     "parseLily . toLily VoiceGroup"      (assertParseLilytoLilyVal voiceGroup)
   --
-  ,testCase     "parseLily . toLily min score"   (assertParseLilytoLilyVal minScore)
-  ,testCase     "parseLily . toLily multi score" (assertParseLilytoLilyVal multiScore)
-  ,testCase     "parseLily . toLily poly score"  (assertParseLilytoLilyVal polyScore)
-  ,testCase     "parseLily . toLily group score" (assertParseLilytoLilyVal groupScore)
+  ,testCase     "parseLily . toLily min score"         (assertParseLilytoLilyVal minScore)
+  ,testCase     "parseLily . toLily multi score"       (assertParseLilytoLilyVal multiScore)
+  ,testCase     "parseLily . toLily poly score"        (assertParseLilytoLilyVal polyScore)
+  ,testCase     "parseLily . toLily split staff score" (assertParseLilytoLilyVal splitStaffScore)
+  ,testCase     "parseLily . toLily group score"       (assertParseLilytoLilyVal groupScore)
   --
   ,testCase     "single-voice score" (testLilypond "single-voice.ly" minScore)
   ,testCase     "multi-voice score"  (testLilypond "multi-voice.ly" multiScore)
   ,testCase     "poly-voice score"   (testLilypond "poly-voice.ly" polyScore)
+  ,testCase     "splist-staff score" (testLilypond "split-staff-voice.ly" splitStaffScore)
   ,testCase     "group-voice score"  (testLilypond "group-voice.ly" groupScore)
   ]
 
@@ -218,6 +221,9 @@ pitchedVoice = PitchedVoice AcousticGrand minVEvents
 polyVoice :: Voice
 polyVoice = PolyVoice AcousticGrand (minVEvents NE.:| [minVEvents])
 
+splitStaffVoice :: Voice
+splitStaffVoice = SplitStaffVoice AcousticGrand minVEvents
+
 voiceGroup :: Voice
 voiceGroup = VoiceGroup (pitchedVoice NE.:| [pitchedVoice, polyVoice])
 
@@ -229,6 +235,9 @@ multiScore = Score "multi" "comment" (pitchedVoice NE.:| [pitchedVoice])
 
 polyScore :: Score
 polyScore = Score "poly" "comment" (polyVoice NE.:| [])
+
+splitStaffScore :: Score
+splitStaffScore = Score "split staff" "comment" (splitStaffVoice NE.:| [])
 
 groupScore :: Score
 groupScore = Score "group" "comment" (voiceGroup NE.:| [voiceGroup])

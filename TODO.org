@@ -350,6 +350,26 @@ canon.ly:41:3352: warning: no viable initial configuration found: may not find g
 These seem to be benign.
 Or, create a special voice, SplitStaffVoice, as this seems like a very special case.
 Render it as a single PianoStaff with the autochange keyword to distribute the VoiceEvents.
+** TODO cfg2Score assumes all sections have equal number of Voices
+This line ...
+  let nOrRss = concat <$> transpose nOrRsss
+... won't work properly if the inner list of list of NOrRs ([ [NOrRs] ]) aren't all of the
+same length, i.e. have the same number of voices.
+
+Here's the success case:
+
+Prelude Data.List> concat <$> transpose [[[1,2,3],[10,20,30],[40,50,60]],[[101,102,103],[110,120,130],[140,150,160]],[[201,202,203],[210,220,130],[240,250,260]]]
+concat <$> transpose [[[1,2,3],[10,20,30],[40,50,60]],[[101,102,103],[110,120,130],[140,150,160]],[[201,202,203],[210,220,130],[240,250,260]]]
+[[1,2,3,101,102,103,201,202,203],[10,20,30,110,120,130,210,220,130],[40,50,60,140,150,160,240,250,260]]
+
+Here's the failure case:
+
+Prelude Data.List> concat <$> transpose [[[1,2,3],[10,20,30],[40,50,60]],[[101,102,103],[110,120,130]],[[201,202,203],[210,220,130]]]
+concat <$> transpose [[[1,2,3],[10,20,30],[40,50,60]],[[101,102,103],[110,120,130]],[[201,202,203],[210,220,130]]]
+[[1,2,3,101,102,103,201,202,203],[10,20,30,110,120,130,210,220,130],[40,50,60]]
+
+Need a configuration to capture juxtaposition of multiple choirs each with different counts of voices.
+
 ** TODO Homophonic configuration as config mod
 ** TODO NOrR mods 
 *** Trim or pad all voices in a section to a particular length

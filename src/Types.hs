@@ -180,11 +180,9 @@ data Voice =
   PitchedVoice      { _ptvInstrument :: Instrument, _ptvVoiceEvents :: NonEmpty VoiceEvent }
   | PercussionVoice { _pcvInstrument :: Instrument, _pcvVoiceEvents :: NonEmpty VoiceEvent }
   | PolyVoice       { _povInstrument :: Instrument, _povVoiceEvents :: NonEmpty (NonEmpty VoiceEvent) }
+  | SplitStaffVoice { _ssvInstrument :: Instrument, _ssvVoiceEvents :: NonEmpty VoiceEvent }
   | VoiceGroup      { _vgVoices :: NonEmpty Voice }
   deriving (Eq, Ord, Show)
-
---   | SplitStaffVoice { _ssvInstrument :: Instrument, _ssvVoiceEvents :: NonEmpty VoiceEvent }
-
 
 data Score = Score { _scoreTitle :: String, _scoreSeed :: String,  _scoreVoices :: NonEmpty Voice }
   deriving (Eq, Ord, Show)
