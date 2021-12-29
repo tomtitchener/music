@@ -79,7 +79,6 @@ bridge:
     instr:       acoustic grand
     time:        ((2,2,3),(7,8))
     scale:       (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
-    vtype:       xpose
   section1:
     stype: neutral
     reps:  int 1
@@ -91,6 +90,7 @@ bridge:
       # so that's pretty close, whole step up, then half-step up
       mpitOctss: (((c,0),(dis,0),(r,0),(gis,0),(d,0)),((dis,0),(r,0),(c,0),(gis,0),(d,0),(e,0)))
       range:     ((c,-2),(c,2))
+      vtype:       xpose
     voice1:
       # trick here is for duration choices to be equal in duration
       # and for total counts of durs to be as close as possible
@@ -118,6 +118,7 @@ bridge:
     common:
       range:   ((c,2),(c,-2))
       mpitOctss: (((a,0),(g,0),(dis,0),(r,0),(gis,-1)),((a,0),(g,0),(r,0),(r,0),(dis,0),(gis,-1)))
+      vtype:       xpose
     voice1:
       durss:    ((8,8,16),(16,8,8))
       accentss: ((~,~,>,>),(~,~,~,~))
@@ -139,6 +140,7 @@ bridge:
     common:
       mpitOctss: (((c,0),(dis,0),(r,0),(gis,0)),((dis,0),(r,0),(c,0),(gis,0),(d,0)))
       range:     ((c,-2),(c,2))
+      vtype:       xpose
     voice1:
       durss:    ((4,8,8),(16,16,16,8,16,16,16),(4,16,16,8),(8,8,8,8))
       accentss: ((~,~,>,>),(~,~,~,~))
@@ -160,6 +162,7 @@ bridge:
     common:
       range:   ((c,2),(c,-2))
       mpitOctss: (((a,0),(g,0),(dis,0),(r,0),(gis,-1)),((a,0),(g,0),(r,0),(r,0),(dis,0),(gis,-1)))
+      vtype:       xpose
     voice1:
       durss:    ((4,8,8),(16,16,16,8,16,16,16),(4,16,16,8),(8,8,8,8))
       accentss: ((~,~,>,>),(~,~,~,~))
@@ -181,6 +184,7 @@ bridge:
     common:
       range:   ((c,1),(g,-2))
       mpitOctss: (((a,0),(dis,0),(r,0),(gis,-1)),((a,0),(r,0),(r,0),(dis,0),(gis,-1)))
+      vtype:       xpose
     voice1:
       durss:    ((4,8,8),(16,16,16,8,16,16,16),(4,16,16,8),(8,8,8,8))
       accentss: ((~,~,>,>),(~,~,~,~))
@@ -202,6 +206,7 @@ bridge:
     common:
       range:   ((c,0),(g,-2))
       mpitOctss: (((a,0),(dis,0),(gis,-1)),((a,0),(r,0),(dis,0),(gis,-1)))
+      vtype:       xpose
     voice1:
       durss:    ((16,16,16,16,8,8),(16,16,16,8,16,16,16),(4,16,16,8),(8,8,8,8))
       accentss: ((~,~,>,>),(~,~,~,~))
@@ -223,6 +228,7 @@ bridge:
     common:
       range:   ((g,-1),(g,-2))
       mpitOctss: (((a,0),(dis,0),(gis,-1)),((a,0),(r,0),(dis,0),(gis,-1)))
+      vtype:       xpose
     voice1:
       durss:    ((16,16,16,16,8,8))
       accentss: ((~,~,>,>),(~,~,~,~))
@@ -236,8 +242,8 @@ bridge:
       durss:    ((8,8,16,16,16,16))
       accentss: ((~,>,>),(>,>,~,~,~))
 
-  # heterogonous texture with voices of different types (proof of concept, not even a sketch)
-  voicemix:
+# heterogonous texture with voices of different types (proof of concept, not even a sketch)
+voicemix:
   common:
     changeclefs: int 3
     tempo:       int 120

@@ -71,9 +71,6 @@ main =  do
   gen <- getStdGen
   void . liftIO $ runReaderT (runDriver (cfg2Score _optTarget (show gen))) (initEnv config (show gen))
 
-changeClefs :: Int
-changeClefs = 5
-
 cfg2Score :: String -> String -> Driver ()
 cfg2Score title gen = do
   tempoInt  <- searchConfigParam  (title <> ".common.tempo")
@@ -91,9 +88,8 @@ cfg2Score title gen = do
     pipeline :: Int -> TimeSignature -> KeySignature -> Instrument -> [[NoteOrRest]] -> [Voice]
     pipeline tempoInt timeSig keySig instr nOrRss = --
       zipWith alignNoteOrRestsDurations timeSigs nOrRss            -- -> [[NoteOrRest]]
-      & fmap splitNoteOrRests                                      -- -> [([VoiceEvent],[VoiceEvent])]
-      & zipWith3 (mkVesPrTotDur (maximum veLens)) veLens timeSigs  -- -> [([VoiceEvent],[VoiceEvent])]
-      & zipWith4 genPolyVocs instrs keySigs timeSigs               -- -> [Voice]
+      & zipWith3 (mkVesPrTotDur (maximum veLens)) veLens timeSigs  -- -> [[VoiceEvent]]
+      & zipWith4 genSplitStaffVoc instrs keySigs timeSigs          -- -> [Voice]
       & tagTempo tempo                                             -- -> [Voice]
       where
         tempo      = TempoDur QDur (fromIntegral tempoInt)

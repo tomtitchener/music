@@ -594,6 +594,19 @@ isVEMeta VeTempo {}         = True
 isVEMeta VeKeySignature {}  = True
 isVEMeta VeTimeSignature {} = True
 isVEMeta _                  = False
+
+-- TBD:  deprecate
+-- Lilypond allows this very abbreviated syntax, where you don't have to create "up" and "down" staff and voice explicitly.
+-- Score generation works just fine, but Midi generation creates four sequential tracks for "up" staves, then four more for
+-- "down" staves.  So if you want to manage left and right hand pan settings, for example, you have to hunt for other hand.
+-- So this is commented-out, to be deprecated eventually.
+-- toSplitStaffVoice :: Instrument -> NE.NonEmpty VoiceEvent -> String
+-- toSplitStaffVoice instr events =
+--   [str|\new PianoStaff {
+--       \set PianoStaff.instrumentName = ##"$shortInstrName instr$"\set PianoStaff.midiInstrument = ##"$midiName instr$"
+--       \autochange { $unwords (fmap toLily (NE.toList events))$ } \bar "|."
+--       }
+--       |]
   
 toSplitStaffVoice :: Instrument -> NE.NonEmpty VoiceEvent -> String
 toSplitStaffVoice instr events =
@@ -613,6 +626,11 @@ toSplitStaffVoice instr events =
       >>
       }
       |]
+
+-- TBD:  deprecate, see above
+--parseSplitStaffVoiceEvents :: Parser (NE.NonEmpty VoiceEvent)
+--parseSplitStaffVoiceEvents = NE.fromList <$> (string [str|\autochange { |] *> parseVoiceEvent `endBy` space <* string [str|} \bar "|."
+--                                                                                                                          }|])
 
 parseVoiceEventOrAutochange :: Parser (Maybe VoiceEvent)
 parseVoiceEventOrAutochange = Just <$> parseVoiceEvent <|> Nothing <$ string "\\autochange { \\clef treble"
@@ -683,16 +701,24 @@ parseVoice = choice [
                                    |]
                         *> (NE.fromList <$> (parseVoice `endBy` newline
                             <* string ">>"))))
+  -- TBD:  deprecate, see above
+  -- ,try (SplitStaffVoice <$> (string [str|\new PianoStaff {
+  --                                       \set PianoStaff.instrumentName = ##|]
+  --                              *> parseQuotedIdentifier
+  --                              *> string [str|\set PianoStaff.midiInstrument = ##"|]
+  --                              *> parseInstrument
+  --                              <* string [str|"$endline$|])
+  --                            <*> parseSplitStaffVoiceEvents)
   ,try (SplitStaffVoice <$> (string [str|\new PianoStaff {
-                                  <<
-                                  \set PianoStaff.instrumentName = ##|]
+                                        <<
+                                        \set PianoStaff.instrumentName = ##|]
                                *> parseQuotedIdentifier
                                *> string [str|\set PianoStaff.midiInstrument = ##"|]
                                *> parseInstrument
                                <* string [str|"$endline$|])
-                             <*> parseSplitStaffVoiceEvents
-                             <* string [str|>>
-                                           }|])
+                               <*> parseSplitStaffVoiceEvents
+                               <* string [str|>>
+                                            }|])
   ,try (PolyVoice <$> (string [str|\new PianoStaff {
                                   <<
                                   \set PianoStaff.instrumentName = ##|]

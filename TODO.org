@@ -350,6 +350,13 @@ canon.ly:41:3352: warning: no viable initial configuration found: may not find g
 These seem to be benign.
 Or, create a special voice, SplitStaffVoice, as this seems like a very special case.
 Render it as a single PianoStaff with the autochange keyword to distribute the VoiceEvents.
+
+Got this to work at very end of the day after putzing about with parser, which is usually the
+hard part.  Then overnight I realized there's an even simpler Lilypond variant where I don't
+specify up and down staffs and Lilypond does it all.  Got that to work with test suite, then
+discovered that midi output groups the "up" voices together and the "down" voices together,
+which makes doing things like paning between the voices harder. 
+So comment-out simple implementation and mark to be deprecated.
 ** TODO cfg2Score assumes all sections have equal number of Voices
 This line ...
   let nOrRss = concat <$> transpose nOrRsss
