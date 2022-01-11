@@ -170,8 +170,8 @@ instance Arbitrary Tuplet where
   arbitrary = do
     arbGtr :: Bool <- arbitrary --  > tuple num / denum, e.g. 1 vs. < 1, e.g. True => N + 1 / N, False => N / N + 1
     arbNum :: Int <- elements [3..7] -- tuples from [4 in the time of 3 | 3 in the time of 4 ..  7 in the time of 6 | 6 in the time of 7]
-    note <- Note <$> arbitrary <*> arbitrary <*> pure dur <*> arbitrary <*> elements [Forte,Piano,FF,MF] <*> arbitrary <*> pure "" <*> arbitrary
-    let notes = NE.fromList $ replicate arbNum note                      -- hack ^^ to force not NoDynamic ^^
+    note <- Note <$> arbitrary <*> arbitrary <*> pure dur <*> pure (NE.fromList [NoAccent]) <*> elements [Forte,Piano,FF,MF] <*> arbitrary <*> pure "" <*> arbitrary
+    let notes = NE.fromList $ replicate arbNum note                                     -- hack ^^ to force not NoDynamic ^^
     if arbGtr
     then pure $ Tuplet arbNum (arbNum - 1) dur (NE.map VeNote notes)
     else pure $ Tuplet (arbNum -1) arbNum dur (NE.map VeNote notes)
