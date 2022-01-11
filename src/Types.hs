@@ -35,6 +35,8 @@ module Types (Pitch (..)
              ,Instrument (..)
              ,Voice (..)
              ,Score (..)
+             ,DurTuplet (..)
+             ,DurOrDurTuplet
              ) where
 
 import Data.List.NonEmpty
@@ -74,7 +76,7 @@ data Swell = Crescendo | Decrescendo | Espressivo | SwellStop | NoSwell
 data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAccs :: NonEmpty Accent, _noteDyn :: Dynamic, _noteSwell :: Swell, _noteAnn :: String,  _noteTie :: Bool}
   deriving (Eq, Ord, Show)
 
-data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAccs :: NonEmpty Accent, _rhythmDyn :: Dynamic, _rhythmSwell :: Swell }
+data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAccs :: NonEmpty Accent, _rhythmDyn :: Dynamic, _rhythmSwell :: Swell } -- TBD: _rhythmTie :: Bool
   deriving (Eq, Ord, Show)
 
 data Rest = Rest { _restDur :: Duration, _restDyn :: Dynamic }
@@ -83,7 +85,15 @@ data Rest = Rest { _restDur :: Duration, _restDyn :: Dynamic }
 data Spacer = Spacer { _spacerDur :: Duration, _spacerDyn :: Dynamic }
   deriving (Eq, Ord, Show)
 
-data Tuplet = Tuplet { _tupNum :: Int, _tupDenom :: Int, _tupDur :: Duration, _tupNotes :: NonEmpty Note }
+-- TBD: want a smart constructor to ensure length _tupNotes is a multiple of _tupNum.
+-- Also check all _noteDur of _tupNotes are the same and two times that _noteDur equals _tupDur.
+-- Ugh, no, neither of these is always true.  It may be _noteDur is double the unit value, so
+-- to check _noteDur, should really check they are either _tupDur or half of _tupDur.
+-- TBD: NonEmpty Note for _tupNotes doesn't suffice, as there could be a Rest or a Chord in
+-- there as well.  So it really should be VoiceEvent, though not all VoiceEvent instances will parse.
+-- TBD: _tupNotes :: NonEmpty Note becomes _tupVoiceEvents :: NonEmpty VoiceEvent to allow for possibility
+-- of Note, Rest, or Chord for element in tuplet.  Will make rendering and parsing more complicated.
+data Tuplet = Tuplet { _tupNum :: Int, _tupDenom :: Int, _tupDur :: Duration, _tupNotes :: NonEmpty VoiceEvent }
   deriving (Eq, Ord, Show)
 
 data Chord = Chord { _chordPitOctPairs :: NonEmpty (Pitch, Octave) , _chordDur :: Duration, _chordAccs :: NonEmpty Accent, _chordDyn :: Dynamic, _chordSwell :: Swell, _chordTie :: Bool }
@@ -129,6 +139,30 @@ data VoiceEvent =
   | VeKeySignature { _veKeySig :: KeySignature }
   | VeTimeSignature { _veTimeSig :: TimeSignature }
    deriving (Eq, Ord, Show)
+
+{--
+data VoiceEventScore =
+    VeNote { _veNote :: Note }
+  | VeRest { _veRest :: Rest }
+  | VeChord { _veChord :: Chord }
+  | VeRhythm { _veRhythm :: Rhythm }
+  | VeTuplet { _veTuplet :: Tuplet }
+  | VeTremolo { _veTremolo :: Tremolo }
+  | VeSpacer { _veSpacer :: Spacer }
+   deriving (Eq,Ord,Show)  
+
+data VoiceEventControl =
+  | VeClef { _veClef :: Clef }
+  | VeTempo { _veTempo :: Tempo }
+  | VeKeySignature { _veKeySig :: KeySignature }
+  | VeTimeSignature { _veTimeSig :: TimeSignature }
+   deriving (Eq,Ord,Show)  
+
+data VoiceEventNew =
+  VenScore { _venScore :: VoiceEventScore }
+  | VenControl { _venControl :: VoiceEventControl }
+   deriving (Eq,Ord,Show)  
+--}
 
 data Instrument =
        AcousticGrand |           Contrabass |         LeadFfths |
@@ -186,3 +220,14 @@ data Voice =
 
 data Score = Score { _scoreTitle :: String, _scoreSeed :: String,  _scoreVoices :: NonEmpty Voice }
   deriving (Eq, Ord, Show)
+
+-- Total duration is (denom / num) * (sum durations / unit) * unit
+data DurTuplet = DurTuplet {
+   _durtupNumerator    :: Int
+  ,_durtupDenominator  :: Int
+  ,_durtupUnitDuration :: Duration
+  ,_durtupDurations    :: NonEmpty Duration
+  } deriving Show
+
+type DurOrDurTuplet = Either Duration DurTuplet 
+  

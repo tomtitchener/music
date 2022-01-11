@@ -1,5 +1,5 @@
 
-module ComposeData (VoiceConfig(..), SectionConfig(..), VoiceRuntimeConfig(..), cfg2SectionConfig) where
+module ComposeData (VoiceConfig(..), SectionConfig(..), VoiceRuntimeConfig(..), PitIntOrPitInts, cfg2SectionConfig) where
 
 import Driver (Driver, searchConfigParam, searchMConfigParam)
 import Types
@@ -9,63 +9,77 @@ import qualified Data.Map.Strict as M
 
 data SectionConfig =
   SectionConfigNeutral {
-                       _sctnPath        :: String
-                      ,_sctnReps        :: Int
-                      ,_sctnMName       :: Maybe String
-                      ,_sctnMConfigMods :: Maybe (NE.NonEmpty String)
-                      ,_sctnMNOrRsMods  :: Maybe (NE.NonEmpty String)
-                      ,_sctnVoices      :: NE.NonEmpty VoiceConfig
+                       _scnPath        :: String
+                      ,_scnReps        :: Int
+                      ,_scnMName       :: Maybe String
+                      ,_scnMConfigMods :: Maybe (NE.NonEmpty String)
+                      ,_scnMNOrRsMods  :: Maybe (NE.NonEmpty String)
+                      ,_scnVoices      :: NE.NonEmpty VoiceConfig
+                 }
+    -- TBD:  config with list of Bool to say flatten per voice per segment per param
+  | SectionConfigHomophony {
+                       _schPath        :: String
+                      ,_schReps        :: Int
+                      ,_schMName       :: Maybe String
+                      ,_schMConfigMods :: Maybe (NE.NonEmpty String)
+                      ,_schMNOrRsMods  :: Maybe (NE.NonEmpty String)
+                      ,_schVoices      :: NE.NonEmpty VoiceConfig
                  }
   | SectionConfigFadeIn {
-                       _sctfiPath        :: String
-                      ,_sctfiOrder       :: NE.NonEmpty Int
-                      ,_sctfiMName       :: Maybe String
-                      ,_sctfiMConfigMods :: Maybe (NE.NonEmpty String)
-                      ,_sctfiMNOrRsMods  :: Maybe (NE.NonEmpty String)
-                      ,_sctfiVoices      :: NE.NonEmpty VoiceConfig
+                       _scfiPath        :: String
+                      ,_scfiOrder       :: NE.NonEmpty Int
+                      ,_scfiMName       :: Maybe String
+                      ,_scfiMConfigMods :: Maybe (NE.NonEmpty String)
+                      ,_scfiMNOrRsMods  :: Maybe (NE.NonEmpty String)
+                      ,_scfiVoices      :: NE.NonEmpty VoiceConfig
                       }
   | SectionConfigFadeOut {
-                       _sctfoPath        :: String
-                      ,_sctfoOrder       :: NE.NonEmpty Int
-                      ,_sctfoMName       :: Maybe String
-                      ,_sctfoMConfigMods :: Maybe (NE.NonEmpty String)
-                      ,_sctfoMNOrRsMods  :: Maybe (NE.NonEmpty String)
-                      ,_sctfoVoices      :: NE.NonEmpty VoiceConfig
+                       _scfoPath        :: String
+                      ,_scfoOrder       :: NE.NonEmpty Int
+                      ,_scfoMName       :: Maybe String
+                      ,_scfoMConfigMods :: Maybe (NE.NonEmpty String)
+                      ,_scfoMNOrRsMods  :: Maybe (NE.NonEmpty String)
+                      ,_scfoVoices      :: NE.NonEmpty VoiceConfig
                       }
+    deriving Show
+
+type PitIntOrPitInts = Either (Pitch,Int) (NE.NonEmpty (Pitch,Int))
+
 data VoiceConfig =
   VoiceConfigXPose {
-                 _vcxInstr      :: Instrument
-                 ,_vcxKey       :: KeySignature
-                 ,_vcxScale     :: Scale
-                 ,_vcxTime      :: TimeSignature
-                 ,_vcxMPitOctss :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int)) 
-                 ,_vcxDurss     :: NE.NonEmpty (NE.NonEmpty Duration)
-                 ,_vcxAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                 ,_vcxRange     :: ((Pitch,Octave),(Pitch,Octave))
+                 _vcxInstr       :: Instrument
+                 ,_vcxKey        :: KeySignature
+                 ,_vcxScale      :: Scale
+                 ,_vcxTime       :: TimeSignature
+                 ,_vcxmPIOrPIsss :: NE.NonEmpty (NE.NonEmpty (Maybe PitIntOrPitInts))
+                 ,_vcxDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+                 ,_vcxAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
+                 ,_vcxRange      :: ((Pitch,Octave),(Pitch,Octave))
                  } 
   | VoiceConfigRepeat {
-                    _vcrInstr      :: Instrument
-                    ,_vcrKey       :: KeySignature
-                    ,_vcrScale     :: Scale
-                    ,_vcrTime      :: TimeSignature
-                    ,_vcrMPitOctss :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int))
-                    ,_vcrDurss     :: NE.NonEmpty (NE.NonEmpty Duration)
-                    ,_vcrAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vcrRegister  :: (Pitch,Octave)
-                    ,_vcrDurVal    :: Int
+                    _vcrInstr       :: Instrument
+                    ,_vcrKey        :: KeySignature
+                    ,_vcrScale      :: Scale
+                    ,_vcrTime       :: TimeSignature
+                    ,_vcrmPIOrPIsss :: NE.NonEmpty (NE.NonEmpty (Maybe PitIntOrPitInts))
+                    ,_vcrDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+                    ,_vcrAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
+                    ,_vcrRegister   :: (Pitch,Octave)
+                    ,_vcrDurVal     :: Int
                  } 
   | VoiceConfigCanon {
-                    _vccInstr      :: Instrument
-                    ,_vccKey       :: KeySignature
-                    ,_vccScale     :: Scale
-                    ,_vccTime      :: TimeSignature
-                    ,_vccMPitOctss :: NE.NonEmpty (NE.NonEmpty (Maybe Pitch,Int))
-                    ,_vccDurss     :: NE.NonEmpty (NE.NonEmpty Duration)
-                    ,_vccAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vccRegister  :: (Pitch,Octave)
-                    ,_vccDurVal    :: Int
-                    ,_vccRotVal    :: Int
+                    _vccInstr       :: Instrument
+                    ,_vccKey        :: KeySignature
+                    ,_vccScale      :: Scale
+                    ,_vccTime       :: TimeSignature
+                    ,_vccmPIOrPIsss :: NE.NonEmpty (NE.NonEmpty (Maybe PitIntOrPitInts))
+                    ,_vccDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+                    ,_vccAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
+                    ,_vccRegister   :: (Pitch,Octave)
+                    ,_vccDurVal     :: Int
+                    ,_vccRotVal     :: Int
                  }
+    deriving Show
 
 data VoiceRuntimeConfig =
   VoiceRuntimeConfig {
@@ -84,7 +98,7 @@ path2VoiceConfigXPose pre =
         <*> searchConfigParam  (pre <> ".key")
         <*> searchConfigParam  (pre <> ".scale")
         <*> searchConfigParam  (pre <> ".time")
-        <*> searchConfigParam  (pre <> ".mpitOctss")
+        <*> searchConfigParam  (pre <> ".mPitOctsss")
         <*> searchConfigParam  (pre <> ".durss")
         <*> searchConfigParam  (pre <> ".accentss")
         <*> searchConfigParam  (pre <> ".range")
@@ -96,7 +110,7 @@ path2VoiceConfigRepeat pre =
         <*> searchConfigParam  (pre <> ".key")
         <*> searchConfigParam  (pre <> ".scale")
         <*> searchConfigParam  (pre <> ".time")
-        <*> searchConfigParam  (pre <> ".mpitOctss")
+        <*> searchConfigParam  (pre <> ".mPitOctsss")
         <*> searchConfigParam  (pre <> ".durss")
         <*> searchConfigParam  (pre <> ".accentss")
         <*> searchConfigParam  (pre <> ".register")
@@ -109,7 +123,7 @@ path2VoiceConfigCanon pre =
         <*> searchConfigParam  (pre <> ".key")
         <*> searchConfigParam  (pre <> ".scale")
         <*> searchConfigParam  (pre <> ".time")
-        <*> searchConfigParam  (pre <> ".mpitOctss")
+        <*> searchConfigParam  (pre <> ".mPitOctsss")
         <*> searchConfigParam  (pre <> ".durss")
         <*> searchConfigParam  (pre <> ".accentss")
         <*> searchConfigParam  (pre <> ".register")
@@ -146,6 +160,15 @@ sectionAndVoices2SectionConfigNeutral section voices =
       <*> searchMConfigParam (section <> ".norrsmods")
       <*> path2VoiceConfigs section voices
       
+sectionAndVoices2SectionConfigHomophony :: SectionAndVoices2SectionConfig
+sectionAndVoices2SectionConfigHomophony section voices =
+      SectionConfigHomophony section
+      <$> searchConfigParam (section <> ".reps")
+      <*> searchMConfigParam (section <> ".sctname")
+      <*> searchMConfigParam (section <> ".cfgmods")
+      <*> searchMConfigParam (section <> ".norrsmods")
+      <*> path2VoiceConfigs section voices
+      
 sectionAndVoices2SectionConfigFadeIn :: SectionAndVoices2SectionConfig
 sectionAndVoices2SectionConfigFadeIn section voices =
       SectionConfigFadeIn section
@@ -165,9 +188,10 @@ sectionAndVoices2SectionConfigFadeOut section voices =
       <*> path2VoiceConfigs section voices
 
 name2SectionConfigMap :: M.Map String SectionAndVoices2SectionConfig
-name2SectionConfigMap = M.fromList [("neutral",sectionAndVoices2SectionConfigNeutral)
-                                   ,("fadein" ,sectionAndVoices2SectionConfigFadeIn)
-                                   ,("fadeout",sectionAndVoices2SectionConfigFadeOut)]
+name2SectionConfigMap = M.fromList [("neutral"  ,sectionAndVoices2SectionConfigNeutral)
+                                   ,("homophony",sectionAndVoices2SectionConfigHomophony)
+                                   ,("fadein"   ,sectionAndVoices2SectionConfigFadeIn)
+                                   ,("fadeout"  ,sectionAndVoices2SectionConfigFadeOut)]
 
 cfg2SectionConfig :: String -> NE.NonEmpty String -> Driver SectionConfig
 cfg2SectionConfig section voices =

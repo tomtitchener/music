@@ -80,21 +80,21 @@ cfg2Score title gen = do
   secNames  <- cfgPath2Keys ("section" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
   secVcsPrs <- traverse (secondM (cfgPath2Keys ("voice" `isPrefixOf`)) . dupe) secNames
   secCfgs   <- traverse (uncurry cfg2SectionConfig) (second NE.fromList <$> secVcsPrs)
-  nOrRsss   <- traverse sectionConfig2NoteOrRests secCfgs
-  let nOrRss    = concat <$> transpose nOrRsss
-      voices    = pipeline tempoInt timeSig keySig instr nOrRss
+  vesss     <- traverse sectionConfig2VoiceEvents secCfgs
+  let vess   = concat <$> transpose vesss
+      voices = pipeline tempoInt timeSig keySig instr vess
   writeScore ("./" <> title <> ".ly") $ Score title gen (NE.fromList voices)
   where
-    pipeline :: Int -> TimeSignature -> KeySignature -> Instrument -> [[NoteOrRest]] -> [Voice]
-    pipeline tempoInt timeSig keySig instr nOrRss = --
-      zipWith alignNoteOrRestsDurations timeSigs nOrRss            -- -> [[NoteOrRest]]
-      & zipWith3 (mkVesPrTotDur (maximum veLens)) veLens timeSigs  -- -> [[VoiceEvent]]
-      & zipWith4 genSplitStaffVoc instrs keySigs timeSigs          -- -> [Voice]
-      & tagTempo tempo                                             -- -> [Voice]
+    pipeline :: Int -> TimeSignature -> KeySignature -> Instrument -> [[VoiceEvent]] -> [Voice]
+    pipeline tempoInt timeSig keySig instr vess = --
+      zipWith alignVoiceEventsDurations timeSigs vess            -- -> [[VoiceEvent]]
+      & zipWith3 (mkVesTotDur (maximum veLens)) veLens timeSigs  -- -> [[VoiceEvent]]
+      & zipWith4 genSplitStaffVoc instrs keySigs timeSigs        -- -> [Voice]
+      & tagTempo tempo                                           -- -> [Voice]
       where
         tempo      = TempoDur QDur (fromIntegral tempoInt)
-        cntVoices  = length nOrRss
-        veLens     = nOrRs2DurVal <$> nOrRss
+        cntVoices  = length vess
+        veLens     = ves2DurVal <$> vess
         timeSigs   = replicate cntVoices timeSig
         keySigs    = replicate cntVoices keySig
         instrs     = replicate cntVoices instr

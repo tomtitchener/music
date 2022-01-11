@@ -173,8 +173,8 @@ instance Arbitrary Tuplet where
     note <- Note <$> arbitrary <*> arbitrary <*> pure dur <*> arbitrary <*> elements [Forte,Piano,FF,MF] <*> arbitrary <*> pure "" <*> arbitrary
     let notes = NE.fromList $ replicate arbNum note                      -- hack ^^ to force not NoDynamic ^^
     if arbGtr
-    then pure $ Tuplet arbNum (arbNum - 1) dur notes
-    else pure $ Tuplet (arbNum -1) arbNum dur notes
+    then pure $ Tuplet arbNum (arbNum - 1) dur (NE.map VeNote notes)
+    else pure $ Tuplet (arbNum -1) arbNum dur (NE.map VeNote notes)
     where
       dur = QDur
 

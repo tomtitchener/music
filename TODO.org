@@ -357,72 +357,56 @@ specify up and down staffs and Lilypond does it all.  Got that to work with test
 discovered that midi output groups the "up" voices together and the "down" voices together,
 which makes doing things like paning between the voices harder. 
 So comment-out simple implementation and mark to be deprecated.
-** TODO cfg2Score assumes all sections have equal number of Voices
-This line ...
-  let nOrRss = concat <$> transpose nOrRsss
-... won't work properly if the inner list of list of NOrRs ([ [NOrRs] ]) aren't all of the
-same length, i.e. have the same number of voices.
+** DONE Change NoteOrRest to VeEvent
+The way to enable Chord, Tuplet, and Tremolo events, eventually Rhythm too.
+*** TODO Update Config to allow Chord, Tremolo, and Tuplet.
+For Chord, update list of (Maybe Pitch,Octave) pairs to be [Pitch,Octave] with the empty list to match (Nothing,_) as a rest.
+For ease of notation, parse () to [], (a,0) to [(A,COct)], and ((a,0),(b,1)) to [(A,0),(B,1)] to have e.g. mixed sublists, 
+output type is [VeEvent] that comprise VeRest, VeNote, VeChord:
+  pitOcts = ((a,0),((a,0),(b,0)),(c,1))  maps to  [VeNote,VeChord,VeNote]
+  pitOctss = (((a,0),((a,0),(b,0)),(c,1)),(),((a,0),((a,0),(b,0)),(c,1))) maps to [[VeNote,Vechord,VeNote,VeRest..]
+Whops, but that doesn't work because I need duration!  But then, I need Duration for Rest also.
+Ugh, so it's not sufficient to go direction to VeEvent from list of (Pitch,Octave).  I need an intermediate representation
+of Rest, so that means a uniform encapsulation in an outer list or a Maybe type.  The list encapsulation seems bogus, so
+that means [Maybe (Pitch,Octave)] with Nothing to indicate Rest.  But to handle a chord, I actually need [Maybe [(Pitch,Octave)]]
+anyway, so I could go with [ [(Pitch,Octave)] ] and an empty inner [] to indicate Rest.  But that seems mysterious, so start
+with [Maybe [(Pitch,Octave)]] with Just [(Pitch,Octave)] for a Note and Just [(Pitch,Octave),(Pitch,Octave)...] for a Chord,
+and Nothing for Rest.  Which has to get fixed up later on with Duration.
 
-Here's the success case:
+Ugh, but what about Tremolo then?  These are reprsented as a Coproduct of NoteTremolo, which just as a single Note vs.
+ChordTremolo, which as two Chords, left and right.  So NoteTremolo is fundamentally Ok, as I have a way to designate a
+Note.  But for ChordTremolo I need a way to group two Chords (eventually), which means two Chord inputs, whereas I just
+figured out a way to do a single Chord.  Given the special-purpose nature of Tremolo and the awkwardness of fitting it 
+into a generic input type, I think I'm going to punt on this for now and treat it as a special case in the future.
 
-Prelude Data.List> concat <$> transpose [[[1,2,3],[10,20,30],[40,50,60]],[[101,102,103],[110,120,130],[140,150,160]],[[201,202,203],[210,220,130],[240,250,260]]]
-concat <$> transpose [[[1,2,3],[10,20,30],[40,50,60]],[[101,102,103],[110,120,130],[140,150,160]],[[201,202,203],[210,220,130],[240,250,260]]]
-[[1,2,3,101,102,103,201,202,203],[10,20,30,110,120,130,210,220,130],[40,50,60,140,150,160,240,250,260]]
+Then for Tuplet, I've got numerator, denominator, and dur to indicate for ... ugh, some arbitrary list of Notes with 
+complicated constraints on the note durations and the sum of the note durations.  What I'm looking at here is the 
+configuration data for the pitch,octave pair and how to denote rest, single note, and chord in one format.  None of 
+this involves duration, and so many things are a bit more orthogonal in that a tuplet is going to be some enhancement
+to the list of list of durations as currently supported:
 
-Here's the failure case:
+      durss:    ((8,16,16),(8.,16),(8,8,8))
 
-Prelude Data.List> concat <$> transpose [[[1,2,3],[10,20,30],[40,50,60]],[[101,102,103],[110,120,130]],[[201,202,203],[210,220,130]]]
-concat <$> transpose [[[1,2,3],[10,20,30],[40,50,60]],[[101,102,103],[110,120,130]],[[201,202,203],[210,220,130]]]
-[[1,2,3,101,102,103,201,202,203],[10,20,30,110,120,130,210,220,130],[40,50,60]]
+Now let's say I want a way to show a 3/2 tuplet of three eighths in the space of two.  Ugh.  I could have an intpreted
+sublist, which you have to know the values are (numerator, denominator, duration).  
 
-Need a configuration to capture juxtaposition of multiple choirs each with different counts of voices.
+      durss:    ((8,16,16),(8.,16),(8,8,8),((3,2,8)))
 
-** TODO Homophonic configuration
-I've changed my mind about doing this as a config mod due to the need to 
-process all voices at once.  Instead, there should be a new section type,
-homphonic, with its own list of voices.  Which should be of what type?
-Note that this will probably obsolete VoiceConfigRepeat, as it just makes
-the whole thing vastly configurable as a frozen version of something like
-VoiceConfigCanon.  In fact, VoiceConfigCanon could be simplified as well,
-as there's a fairly arbitrary design to the current implementation, which
-rotates "canon" so it's always a full voice, and which only rotates the
-pitch/octave list picked randomly from the list-of-list in the config, 
-and doesn't rotate e.g. the list-of-list of durations or accents.  In 
-fact, when you consider the larger scope, rotating a random element in a
-list of (Maybe Pitch, Octave) pairs is a pretty minor tweak in the context
-of the randomization of those elements in the first place.  I wonder how
-audible it'd be to compare with fade-in of non-canonical voices, if at all.
-The biggest effect is to avoid each voice starting with the exact same 
-pitch, given that the two sub-elements of the list-of-list of pairs is 
-identical.  
-** TODO NOrR mods 
-*** Trim or pad all voices in a section to a particular length
-Variation might be to dynamically back up from the end to the last point 
-before first voice becomes all rests.
-** TODO Retrograde, Inversion, and Retrograde Inversion
-Same row over and over winds up hammering in repetition.
-Could add another item to the configuration which is a list of
-orderings (n,r,i,ri) for normal, retrorade, inverted, and 
-retrograde inverted, then add those to the random soup.
-Note the octave banding is going to naturally call out the 
-highes and lows.
-Experimented with different ranges to avoid hammering on same
-highs and lows and effect tended toward mush, losing the 
-jazzy rhythms of the combined voices in the same range.
-Repetition problem ptends to go away with shorter fadein/fadeout 
-sections, less of one voice playing over and over same thing.
-** TODO Progressively intensify/de-intensify
-With piano texture, accents tend to overwhelm dynamic.
-Have a way to tune up or tune down a parameter like accent
-or dynamic level of the course of several segments.  So to
-tune up accents you could start by suppressing them all in
-the config, then incrementally scale them up over the course
-of the count of segments.  Similarly for the dynamic marker
-for a segment, going toward the the dynamic indicated in the
-config or away from it.  Or maybe a dynamic would just be a
-once-and-done to annotate the first note at the beginning of
-a section.
-** TODO Tuple notation for rhythms in config files
+But whereas I originally have a [ [Duration] ], what do I have instead for that inside list?  Those first two values
+are just Int, not Duration.  I could go with Either Duration (Int,Int,Duration) or just give the tuple a name to 
+disambiguate beteween numerator and denominator.  But really, then I also need a count of notes:
+
+      durss:    ((8,16,16),(8.,16),(8,8,8),((3,2,8,3)))
+
+And that only works for uniform durations so e.g. above, sixteenth notes.  So maybe it'd be better to have a list of
+Duration:  Either Duration (Int,Int,Duration,[Duration]), ugh, DurationOrTuple.
+
+      durss:    ((8,16,16),(8,16),(8,8,8),(8,(3,2,8,(16,8,16,16,16)),4))
+
+*** TODO Consider lenses 
+As I move away from a simplifeid type like NoteOrRest to VeEvent will I find lenses to be more useful?  There's only a bit
+more structure from VoiceEvent to Note|Rest|... 
+** DONE Tuple notation for rhythms in config files
 Rhythmic configurations look like this:
   durss:   ((1,2,4.),(8,16),(8,8,8,4))
 Add a way to group inside a duration list for tuples, e.g.:
@@ -474,6 +458,115 @@ going to be a challenge because now alignNoteOrRestsDurations takes
 a [NoteOrRestOrTuplet].  I suppose the Note and Tuplet can be dealt
 with comparably, though there has to be a way to recognize transition
 of a tuplet across a bar line into a new bar, which could be tricky.
+** DONE Fill-in/Fade-out  
+  To fill-in, introduce voices one-by-one playing 
+  single motif, then increase density across all voices.
+  Reverse to fade-out.
+** TODO cfg2Score assumes all sections have equal number of Voices
+This line ...
+  let nOrRss = concat <$> transpose nOrRsss
+... won't work properly if the inner list of list of NOrRs ([ [NOrRs] ]) aren't all of the
+same length, i.e. have the same number of voices.
+
+Here's the success case:
+
+Prelude Data.List> concat <$> transpose [[[1,2,3],[10,20,30],[40,50,60]],[[101,102,103],[110,120,130],[140,150,160]],[[201,202,203],[210,220,130],[240,250,260]]]
+concat <$> transpose [[[1,2,3],[10,20,30],[40,50,60]],[[101,102,103],[110,120,130],[140,150,160]],[[201,202,203],[210,220,130],[240,250,260]]]
+[[1,2,3,101,102,103,201,202,203],[10,20,30,110,120,130,210,220,130],[40,50,60,140,150,160,240,250,260]]
+
+Here's the failure case:
+
+Prelude Data.List> concat <$> transpose [[[1,2,3],[10,20,30],[40,50,60]],[[101,102,103],[110,120,130]],[[201,202,203],[210,220,130]]]
+concat <$> transpose [[[1,2,3],[10,20,30],[40,50,60]],[[101,102,103],[110,120,130]],[[201,202,203],[210,220,130]]]
+[[1,2,3,101,102,103,201,202,203],[10,20,30,110,120,130,210,220,130],[40,50,60]]
+
+Need a configuration to capture juxtaposition of multiple choirs each with different counts of voices.
+
+** TODO Homophonic configuration
+I've changed my mind about doing this as a config mod due to the need to 
+process all voices at once.  Instead, there should be a new section type,
+homphonic, with its own list of voices.  Which should be of what type?
+Note that this will probably obsolete VoiceConfigRepeat, as it just makes
+the whole thing vastly more configurable as a frozen version of something 
+like VoiceConfigCanon.  In fact, VoiceConfigCanon could be simplified as 
+well, as there's a fairly arbitrary design to the current implementation, 
+which rotates "canon" so it's always a full voice, and which only rotates 
+the pitch/octave list picked randomly from the list-of-list in the config, 
+and doesn't rotate e.g. the list-of-list of durations or accents.  In 
+fact, when you consider the larger scope, rotating a random element in a
+nnlist of (Maybe Pitch, Octave) pairs is a pretty minor tweak in the context
+of the randomization of those elements in the first place.  I wonder how
+audible it'd be to compare with fade-in of non-canonical voices, if at all.
+The biggest effect is to avoid each voice starting with the exact same 
+pitch, given that the two sub-elements of the list-of-list of pairs is 
+identical.  
+Consider generally the degrees of freedom available, both latent and
+special-purpose.  
+Latently, there's the randomization of the series of sublists plucked
+from the list-of-lists of (Maybe Pitch,Octave) pairs, Durations, and Accents.
+These are common to the three current config types, transpose, repeat, 
+canon.  The repeat voice randomizes the sublists once, then freezes that
+randomization, which it does for the three parameter types above.  So 
+that's one end of the degree of freedom.  The transpose and canon types
+randomize all three parameters, with canon rotating just the (Maybe Pitch,Octave)
+parameter as well.  Transpose ends the sequence when the pitch traverses the
+target range.  Repeat and canon end at a specific duration.  
+Just like I imagine parameterizing a homophonic section with a list of 
+list of voices by voice index where some subset of parameters would be
+common like especially durations, I can see having e.g. a way to selectively
+randomize a canon.  Or maybe this is jumping ahead, and the baseline should
+be the the repeat mechanism to which I add degrees of freedom, e.g. repeated
+randomization of sublist selection and rotation to mix things up.  Then as
+a separate dimension there's the idea of shared parameters *between* voices
+which brings in the homophony.
+So the maximum configurability would be a way to identify behaviors orthogonally
+for each of the three list-of-list data types per voice.  Or maybe have a default
+configuration that says to permute them all all the time.  But to get more 
+refined than that, I'd have a list of flags per voice, one list for each type.
+The list would be organized by voice index.  The value in the list could be
+a Bool flag to say to permute or to freeze.  Then if I wanted to have multiple
+segments, I'd have a list of a list of Bool, with outer list by voice and inner
+list by section.  And maybe I'd also have a list of durations so each segment
+wouldn't have to be the same duration.  And if the default behavior is to permute,
+then I could say an empty list for a voice means to permute each segment for that
+voice, and an empty list of lists means always permute all voices for all segments.
+In this sense, the default behavior is to permute, which the configuration 
+overrides.  Alternatively, I could make *not* to permute the default behavior and
+selectively override to allow permutation.  That makes for a quicker trial
+implementation, leaving the configuration bits until later.
+However, just fixing the individual sequences for a given segment doesn't actually
+remove that much from the texture, at least not when sticking with the same config
+as for the canon.  That's because though the sequence of sublists doesn't vary, 
+the different lengths or different counts of items in the sublists means the match
+up with notes and rests constantly varies: 11 accents to 10 durss to 28 pitch/octave
+pairs. 
+** TODO NOrR mods 
+*** Trim or pad all voices in a section to a particular length
+Variation might be to dynamically back up from the end to the last point 
+before first voice becomes all rests.
+** TODO Retrograde, Inversion, and Retrograde Inversion
+Same row over and over winds up hammering in repetition.
+Could add another item to the configuration which is a list of
+orderings (n,r,i,ri) for normal, retrorade, inverted, and 
+retrograde inverted, then add those to the random soup.
+Note the octave banding is going to naturally call out the 
+highes and lows.
+Experimented with different ranges to avoid hammering on same
+highs and lows and effect tended toward mush, losing the 
+jazzy rhythms of the combined voices in the same range.
+Repetition problem ptends to go away with shorter fadein/fadeout 
+sections, less of one voice playing over and over same thing.
+** TODO Progressively intensify/de-intensify
+With piano texture, accents tend to overwhelm dynamic.
+Have a way to tune up or tune down a parameter like accent
+or dynamic level of the course of several segments.  So to
+tune up accents you could start by suppressing them all in
+the config, then incrementally scale them up over the course
+of the count of segments.  Similarly for the dynamic marker
+for a segment, going toward the the dynamic indicated in the
+config or away from it.  Or maybe a dynamic would just be a
+once-and-done to annotate the first note at the beginning of
+a section.
 ** TODO Re-Architect Driver
 First: ToLily doesn't need to be monadic at all, and can just be a 
 library routine.
@@ -601,10 +694,6 @@ Or better yet, make a parser that knows (Int,a) pairs and a parser
 for a list of them.
 Also, consider filling out the percussion instruments so I can use
 claves.
-** TODO Fill-in/Fade-out  
-  To fill-in, introduce voices one-by-one playing 
-  single motif, then increase density across all voices.
-  Reverse to fade-out.
 ** TODO Motif Transitions
   - build longer-term transitions on top, e.g. migrate all 
     voices to a destination range: high, middle, low or

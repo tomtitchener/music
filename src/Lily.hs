@@ -233,13 +233,13 @@ instance FromLily Spacer  where
 ------------
 
 instance ToLily Tuplet where
-  toLily (Tuplet num denom dur notes) = "\\tuplet " <> show num <> "/" <> show denom <> " " <> toLily dur <> " {" <> (unwords . NE.toList . NE.map toLily $ notes) <> "}"
+  toLily (Tuplet num denom dur notes) = "\\tuplet " <> show num <> "/" <> show denom <> " " <> toLily dur <> " {" <> toLilyFromNEList notes <> "}"
 
-parseNotes :: Parser (NE.NonEmpty Note)
-parseNotes = NE.fromList <$> (parseNote `sepBy` spaces)
+parseVoiceEvents :: Parser (NE.NonEmpty VoiceEvent)
+parseVoiceEvents = NE.fromList <$> (parseVoiceEvent `sepBy` spaces)
 
 parseTuplet :: Parser Tuplet
-parseTuplet = Tuplet <$> (string "\\tuplet " *> parseNat) <*> (string "/" *> parseNat) <*> (spaces *> parseDuration) <*> (string " {" *> parseNotes <* string "}")
+parseTuplet = Tuplet <$> (string "\\tuplet " *> parseNat) <*> (string "/" *> parseNat) <*> (spaces *> parseDuration) <*> (string " {" *> parseVoiceEvents <* string "}")
 
 instance FromLily Tuplet where
   parseLily = mkParseLily parseTuplet

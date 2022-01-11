@@ -109,6 +109,12 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty (Pitch,Octave))) where
 instance FromConfig (NE.NonEmpty ((Pitch,Octave),(Pitch,Octave))) where
   parseConfig = mkParseConfig (mkPs pPitOctsPr)
 
+instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe (NE.NonEmpty (Pitch,Int))))) where
+  parseConfig = mkParseConfig (mkPs (mkPs (pM (mkPs pPitIntPr))))
+  
+instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Int) (NE.NonEmpty (Pitch,Int)))))) where
+  parseConfig = mkParseConfig (mkPs (mkPs (pM pPitIntPrOrPitIntPrs)))
+
 instance FromConfig (NE.NonEmpty (NE.NonEmpty Accent)) where
   parseConfig = mkParseConfig (mkPss pAccentStr)
 
@@ -117,6 +123,15 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty Dynamic)) where
 
 instance FromConfig (NE.NonEmpty (NE.NonEmpty Duration)) where
   parseConfig = mkParseConfig (mkPss parseDuration)
+
+instance FromConfig (NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)) where
+  parseConfig = mkParseConfig (mkPss parseDurOrDurTup)
+
+parseDurOrDurTup :: Parser DurOrDurTuplet
+parseDurOrDurTup = try (Left <$> parseDuration) <|> (Right <$> parseDurTup)
+
+parseDurTup :: Parser DurTuplet
+parseDurTup = DurTuplet <$> (char '(' *> int) <*> (char ',' *> int) <*> (char ',' *> parseDuration) <*> (char ',' *> mkPs parseDuration <* char ')')
 
 instance FromConfig (NE.NonEmpty Int) where
   parseConfig = mkParseConfig (mkPs int)
@@ -237,6 +252,12 @@ pPitOctsPr = between (char '(') (char ')') ((,) <$> pPitOctPr <*> (char ',' *> p
 pMPitOctPr :: Parser (Maybe Pitch,Int)
 pMPitOctPr = between (char '(') (char ')') ((,) <$> pMPitch <*> (char ',' *> int))
 
+pPitIntPr :: Parser (Pitch,Int)
+pPitIntPr = between (char '(') (char ')') ((,) <$> parsePitch <*> (char ',' *> int))
+
+pPitIntPrOrPitIntPrs :: Parser (Either (Pitch,Int) (NE.NonEmpty (Pitch,Int)))
+pPitIntPrOrPitIntPrs = try (Left <$> pPitIntPr) <|> (Right <$> mkPs pPitIntPr)
+  
 clefStrs :: [String]
 clefStrs = ["bass_8", "bass", "tenor", "alto", "treble", "treble^8"]
 

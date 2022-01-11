@@ -1,15 +1,17 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 
 module Utils where
 
+import Data.Bifunctor (second)
 import Data.List hiding (transpose)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
 import Data.Maybe
 import qualified Data.Set as S (fromList)
 import Data.Tuple
-import Data.Tuple.Extra
+import Data.Tuple.Extra hiding (second)
 
 import Types
 
@@ -267,22 +269,11 @@ rotNRev :: Int -> [[a]] -> [[a]]
 rotNRev _ [] = error "rotRevN empty list"
 rotNRev i xs = iterate rotRev xs !! i
 
--- Constraints:
---  * num > denom, -- no, this is wrong!
---  * length _tupNotes `mod` num == 0,
---  * 1 == length . nub . map _noteDur $ _tupNotes,
-mkTuplet :: Int -> Int -> NE.NonEmpty Note -> Tuplet
-mkTuplet num denom notes
---  | num <= denom                 = error $ "tuplet num: " <> show num <> " <= denom: " <> show denom
-  | 0 /= numNotes `mod` num      = error $ "tuplet length notes: " <> show numNotes <> " not evenly divisible by num " <> show num
-  | 1 /= NE.length (NE.nub durs) = error $ "tuplet non-uniform durations: " <> show durs
-  | otherwise = Tuplet num denom (NE.head durs) notes
-  where
-    durs = NE.map _noteDur notes
-    numNotes = NE.length notes
-
 nes2arrs :: NE.NonEmpty (NE.NonEmpty a) -> [[a]]
 nes2arrs = map NE.toList . NE.toList
+
+ness2Marrss :: forall a . NE.NonEmpty (NE.NonEmpty (Maybe (Either a (NE.NonEmpty a)))) -> [[Maybe (Either a [a])]]
+ness2Marrss = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
 
 -- Cloned from https://hackage.haskell.org/package/base-4.14.1.0/docs/src/Data.List.NonEmpty.html#zipWith
 neZipWith3 :: (a1 -> a2 -> a3 -> a4) -> NE.NonEmpty a1 -> NE.NonEmpty a2 -> NE.NonEmpty a3 -> NE.NonEmpty a4

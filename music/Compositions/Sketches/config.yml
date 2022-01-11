@@ -11,8 +11,8 @@ canon:
     register:    (c,0)
     accentss:    ((>,>,~,~),(~,>,>),(>,>,>,>))
     durss:       ((8),(16,16),(4),(8,8),(16,16,16,16))
-    mpitOctss:   (((b,0),(e,0),(a,0),(d,0),(r,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(r,0),(dis,0),(fis,0),(gis,0)),
-                  ((b,0),(e,0),(r,0),(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),(r,0),(fis,0),(gis,0)))
+    mPitOctsss:  (((b,0),(e,0),(a,0),(d,0),r,(g,0),(c,0),(f,0),(ais,0),(cis,0),r,(dis,0),(fis,0),(gis,0)),
+                  ((b,0),(e,0),r,(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),r,(fis,0),(gis,0)))
   section1:
     stype:        fadein
     delays:       (3,0,2,1)
@@ -88,9 +88,9 @@ bridge:
     common:
       # these are two choices from (c,0) to (d,0) and (dis,0) to (e,0),
       # so that's pretty close, whole step up, then half-step up
-      mpitOctss: (((c,0),(dis,0),(r,0),(gis,0),(d,0)),((dis,0),(r,0),(c,0),(gis,0),(d,0),(e,0)))
-      range:     ((c,-2),(c,2))
-      vtype:       xpose
+      mPitOctsss: (((c,0),(dis,0),r,(gis,0),(d,0)),((dis,0),r,(c,0),(gis,0),(d,0),(e,0)))
+      range:      ((c,-2),(c,2)))
+      vtype:      xpose
     voice1:
       # trick here is for duration choices to be equal in duration
       # and for total counts of durs to be as close as possible
@@ -116,9 +116,9 @@ bridge:
     uniformDyn: f
     norrsmods:  (uniformAccs,uniformDyns)
     common:
-      range:   ((c,2),(c,-2))
-      mpitOctss: (((a,0),(g,0),(dis,0),(r,0),(gis,-1)),((a,0),(g,0),(r,0),(r,0),(dis,0),(gis,-1)))
-      vtype:       xpose
+      range:      ((c,2),(c,-2))
+      mPitOctsss: (((a,0),(g,0),(dis,0),r,(gis,-1)),((a,0),(g,0),r,r,(dis,0),(gis,-1)))
+      vtype:      xpose
     voice1:
       durss:    ((8,8,16),(16,8,8))
       accentss: ((~,~,>,>),(~,~,~,~))
@@ -138,9 +138,9 @@ bridge:
     uniformDyn: mp
     norrsmods:  (uniformAccs,uniformDyns)
     common:
-      mpitOctss: (((c,0),(dis,0),(r,0),(gis,0)),((dis,0),(r,0),(c,0),(gis,0),(d,0)))
-      range:     ((c,-2),(c,2))
-      vtype:       xpose
+      mPitOctsss: (((c,0),(dis,0),r,(gis,0)),((dis,0),r,(c,0),(gis,0),(d,0)))
+      range:      ((c,-2),(c,2))
+      vtype:      xpose
     voice1:
       durss:    ((4,8,8),(16,16,16,8,16,16,16),(4,16,16,8),(8,8,8,8))
       accentss: ((~,~,>,>),(~,~,~,~))
@@ -160,9 +160,9 @@ bridge:
     uniformDyn: f
     norrsmods:  (uniformAccs,uniformDyns)
     common:
-      range:   ((c,2),(c,-2))
-      mpitOctss: (((a,0),(g,0),(dis,0),(r,0),(gis,-1)),((a,0),(g,0),(r,0),(r,0),(dis,0),(gis,-1)))
-      vtype:       xpose
+      range:      ((c,2),(c,-2))
+      mPitOctsss: (((a,0),(g,0),(dis,0),r,(gis,-1)),((a,0),(g,0),r,r,(dis,0),(gis,-1)))
+      vtype:      xpose
     voice1:
       durss:    ((4,8,8),(16,16,16,8,16,16,16),(4,16,16,8),(8,8,8,8))
       accentss: ((~,~,>,>),(~,~,~,~))
@@ -182,9 +182,9 @@ bridge:
     uniformDyn: f
     norrsmods:  (uniformAccs,uniformDyns)
     common:
-      range:   ((c,1),(g,-2))
-      mpitOctss: (((a,0),(dis,0),(r,0),(gis,-1)),((a,0),(r,0),(r,0),(dis,0),(gis,-1)))
-      vtype:       xpose
+      range:      ((c,1),(g,-2))
+      mPitOctsss: (((a,0),(dis,0),r,(gis,-1)),((a,0),r,r,(dis,0),(gis,-1)))
+      vtype:      xpose
     voice1:
       durss:    ((4,8,8),(16,16,16,8,16,16,16),(4,16,16,8),(8,8,8,8))
       accentss: ((~,~,>,>),(~,~,~,~))
@@ -204,9 +204,9 @@ bridge:
     uniformDyn: mf
     norrsmods:  (uniformAccs,uniformDyns)
     common:
-      range:   ((c,0),(g,-2))
-      mpitOctss: (((a,0),(dis,0),(gis,-1)),((a,0),(r,0),(dis,0),(gis,-1)))
-      vtype:       xpose
+      range:      ((c,0),(g,-2))
+      mPitOctsss: (((a,0),(dis,0),(gis,-1)),((a,0),r,(dis,0),(gis,-1)))
+      vtype:      xpose
     voice1:
       durss:    ((16,16,16,16,8,8),(16,16,16,8,16,16,16),(4,16,16,8),(8,8,8,8))
       accentss: ((~,~,>,>),(~,~,~,~))
@@ -226,9 +226,9 @@ bridge:
     uniformDyn: ppp
     norrsmods:  (uniformAccs,uniformDyns)
     common:
-      range:   ((g,-1),(g,-2))
-      mpitOctss: (((a,0),(dis,0),(gis,-1)),((a,0),(r,0),(dis,0),(gis,-1)))
-      vtype:       xpose
+      range:      ((g,-1),(g,-2))
+      mPitOctsss: (((a,0),(dis,0),(gis,-1)),((a,0),r,(dis,0),(gis,-1)))
+      vtype:      xpose
     voice1:
       durss:    ((16,16,16,16,8,8))
       accentss: ((~,~,>,>),(~,~,~,~))
@@ -255,22 +255,78 @@ voicemix:
     stype:   neutral
     reps:    int 1
     voice1:
-      vtype:    xpose
-      durss:    ((8),(8.,16,16))
-      accentss: ((>,~),(~,>))
-      mpitOctss: (((c,0),(dis,0),(r,0),(gis,0),(d,0)),((dis,0),(r,0),(c,0),(gis,0),(d,0),(e,0)))
-      range:     ((c,-2),(c,2))
+      vtype:      xpose
+      durss:      ((8),(8.,16,16))
+      accentss:   ((>,~),(~,>))
+      mPitOctsss: (((c,0),(dis,0),r,(gis,0),(d,0)),((dis,0),r,(c,0),(gis,0),(d,0),(e,0)))
+      range :     ((c,-2),(c,2))
     voice2:
-      vtype:    xpose
-      range:   ((c,2),(c,-2))
-      mpitOctss: (((a,0),(g,0),(dis,0),(r,0),(gis,-1)),((a,0),(g,0),(r,0),(r,0),(dis,0),(gis,-1)))
-      durss:    ((8,16,16),(8.,16),(8,8,8))
-      accentss: ((>,~,~))
+      vtype:      xpose
+      range:      ((c,2),(c,-2))
+      mPitOctsss: (((a,0),(g,0),(dis,0),r,(gis,-1)),((a,0),(g,0),r,r,(dis,0),(gis,-1)))
+      durss:      ((8,16,16),(8.,16),(8,8,8))
+      accentss:   ((>,~,~))
     voice3:
-      vtype:     repeat
-      mpitOctss: (((a,0),(g,0),(dis,0),(r,0),(gis,-1)),((a,0),(g,0),(r,0),(r,0),(dis,0),(gis,-1)))
-      durss:     ((16,8.))
-      accentss:  ((~,>,>),(>,>,~,~,~))
-      register:  (g,-1)
-      durval:    int 1024
+      vtype:      repeat
+      mPitOctsss: (((a,0),(g,0),(dis,0),r,(gis,-1)),((a,0),(g,0),r,r,(dis,0),(gis,-1)))
+      durss:      ((16,8.))
+      accentss:   ((~,>,>),(>,>,~,~,~))
+      register:   (g,-1)
+      durval:     int 1024
 
+# trial:  first pass without param to tie voices together
+homophony:
+  common:
+    tempo:       int 100
+    key:         c major
+    changeclefs: int 3
+    instr:       acoustic grand
+    time:        (4,4)
+    scale:       (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
+    register:    (c,0)
+    accentss:    ((>,>,~,~),(~,>,>),(>,>,>,>))
+    durss:       ((8),(16,16),(4),(8,8),(16,16,16,16))
+    mPitOctsss:  (((b,0),(e,0),(a,0),(d,0),r,(g,0),(c,0),(f,0),(ais,0),(cis,0),r,(dis,0),(fis,0),(gis,0)),
+                  ((b,0),(e,0),r,(a,0),(d,0),(g,0),(c,0),(f,0),(ais,0),(cis,0),(dis,0),r,(fis,0),(gis,0)))
+  section:
+    stype:      homophony
+    reps:       int 4
+    uniformAcc: !
+    uniformDyn: mp
+    norrsmods:  (uniformAccs,uniformDyns)
+    common:
+      vtype:    canon
+      durval:   int 512
+    voice1:
+      rotval:   int 0
+    voice2:
+      rotval:   int 0
+    voice3:
+      rotval:   int 0
+    voice4:
+      rotval:   int 0
+
+# expand mpitOcts to allow for chords, durss to allow for tuplets
+experimental:
+  common:
+    tempo:       int 100
+    key:         c major
+    changeclefs: int 3
+    instr:       acoustic grand
+    time:        (4,4)
+    scale:       (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
+    register:    (c,0)
+    accentss:    ((>,>,~,~),(~,>,>),(>,>,>,>))
+  section:
+    stype:      homophony
+    reps:       int 1
+    common:
+      vtype:      repeat
+      durval:     int 512
+      reps:       1
+      mPitOctsss: (((b,0),r,((a,0),(f,0))))
+      durss:      ((8),(16,16),(4),(8,(3,2,8,(16,8,16,16,16)),4)))
+    voice1:
+    voice2:
+    voice3:
+    voice4:
