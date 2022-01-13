@@ -462,6 +462,39 @@ of a tuplet across a bar line into a new bar, which could be tricky.
   To fill-in, introduce voices one-by-one playing 
   single motif, then increase density across all voices.
   Reverse to fade-out.
+** TODO Annotate variable names for inifinite lists with "inf" tag.
+** TODO For a section, extend all voices to equal the longest
+Currently I just fill the remainder out with rests.  
+But if I used the same logic to compute the duration remaining to the
+length of the longest voice, then I could generate stretches for just 
+the duration using the last -- or I suppose, the current configuration
+if I make this into a section mod or maybe just a new type of voice 
+mod -- then the question is how to drive the clipping?  Not all voice
+types work by clipping to a given duration.  Instead, maybe it'd make
+more sense to keep iterating on the voice until the length exceeds
+the amount needed for that voice and then clip that.  The thing is,
+the current mod types work one time from Config -> Config or from 
+[VoiceEvent] -> [VoiceEvent].  And they work by the individual voice,
+though you can determine which voice by the runtime info.
+I'm back at need to propagate behavior X over a list of voices based
+on some global state Y.  In this case Y is the duration of the longest
+voice.  This is all made more complicated by the fact that I only do
+the stitching together of lists of voices in the main loop, cfg2Score,
+which is where I can determine the accumulated lengths of all voices
+for the first time.  All the existing processing is within the scope
+of a section only.  
+So maybe what I'm really discovering is the need to have a super section
+type section where I can play around with this sort of tidying operation.
+Or just a higher-level grouping of sections into a ... group?  And it'd
+be at the level of the group that I could include an attribute that says
+to extend all voices to match the length of the longest voice by repeating
+the last section, and the main loop would accumulate groups instead of
+sections.
+What I'm looking at here is really how to bridge to a transition section.
+For the bridge sketch I want to have all voices catch up to each other so
+I can start the group that follows at the same point.  Which might even 
+saying something like extend all voices to the start of the next bar 
+after the end of the current longest-voice. 
 ** TODO cfg2Score assumes all sections have equal number of Voices
 This line ...
   let nOrRss = concat <$> transpose nOrRsss

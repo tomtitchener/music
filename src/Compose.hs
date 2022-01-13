@@ -7,7 +7,9 @@ module Compose (sectionConfig2VoiceEvents
                , mkVesTotDur
                , genSplitStaffVoc
                , tagTempo
+               , ve2DurVal
                , ves2DurVal
+               , swapVeLens
                )  where
 
 import Data.Bifunctor (second)
@@ -564,4 +566,13 @@ fixVoiceEventTie False tie   (VeChord chord) = VeChord $ chord { _chordAccs = si
 fixVoiceEventTie True  False (VeRest rest)   = VeRest    rest {-- TBD: { _restTie = True } --}
 fixVoiceEventTie False _     (VeRest rest)   = VeRest  $ rest { _restDyn = NoDynamic {-- TBD: ,_restTie = not tie --} }
 fixVoiceEventTie _     _     ve              = ve
+
+swapVeLens :: Duration -> VoiceEvent -> VoiceEvent
+swapVeLens dur (VeNote   note)   = VeNote   $ note { _noteDur = dur }
+swapVeLens dur (VeRest   rest)   = VeRest   $ rest { _restDur = dur }
+swapVeLens dur (VeChord  chord)  = VeChord  $ chord { _chordDur = dur }
+swapVeLens dur (VeRhythm rhythm) = VeRhythm $ rhythm { _rhythmDur = dur }
+swapVeLens dur (VeSpacer spacer) = VeSpacer $ spacer { _spacerDur = dur }
+swapVeLens dur (VeTuplet _)      = VeRest   $ Rest dur NoDynamic
+swapVeLens _   ve                = ve
 
