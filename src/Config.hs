@@ -3,6 +3,7 @@
 module Config (FromConfig(..)) where
 
 import Data.Functor ((<&>))
+import Data.Natural (Natural)
 import Text.Parsec
     ( letter,
       many,
@@ -21,7 +22,7 @@ import Text.Parsec.String ( Parser )
 
 import qualified Data.List.NonEmpty as NE
 import Lily
-    ( parseDuration, parseInstrument, parsePitch, parseNat )
+    ( parseDuration, parseInstrument, parsePitch, parseNat, parseNatural )
 import Types
 
 class FromConfig a where
@@ -151,6 +152,10 @@ instance FromConfig (NE.NonEmpty (Int,Int)) where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Int,Int))) where
   parseConfig = mkParseConfig (mkPss pIntPr)
 
+-- Tempo
+instance FromConfig Tempo where
+  parseConfig = mkParseConfig parseTempo
+
 mkParseConfig :: Parser a -> String -> a
 mkParseConfig parser  = either (error . show) id . parse parser ""
 
@@ -227,6 +232,12 @@ pIntPitOctPrs = between (char '(') (char ')') ((,) <$> int <*> mkPs pPitOctPr)
 
 pTimeSig :: Parser TimeSignature
 pTimeSig = pIntDurPr <&> uncurry TimeSignatureSimple
+
+parseTempo :: Parser Tempo
+parseTempo = pNatDurPr <&> uncurry (flip TempoDur)
+
+pNatDurPr :: Parser (Natural,Duration)
+pNatDurPr = between (char '(') (char ')') ((,) <$> parseNatural <*> (char ',' *> parseDuration))
 
 pTimeSignature :: Parser TimeSignature
 pTimeSignature = try pTimeSignatureGrouping <|> pTimeSig

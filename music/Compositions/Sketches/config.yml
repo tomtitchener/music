@@ -2,7 +2,7 @@
 
 canon:
   common:
-    tempo:       int 100
+    tempo:       (100,4)
     key:         c major
     changeclefs: int 3
     instr:       acoustic grand
@@ -73,7 +73,7 @@ canon:
 
 bridge:
   common:
-    tempo:       int 120
+    tempo:       (120,8)
     key:         c major
     changeclefs: int 3
     instr:       acoustic grand
@@ -83,7 +83,7 @@ bridge:
     stype: neutral
     reps:  int 1
     uniformAcc: !
-    uniformDyn: mp
+    uniformDyn: pp
     norrsmods:  (uniformAccs,uniformDyns)
     common:
       # these are two choices from (c,0) to (d,0) and (dis,0) to (e,0),
@@ -113,7 +113,7 @@ bridge:
     stype: neutral
     reps:  int 1
     uniformAcc: !
-    uniformDyn: mp
+    uniformDyn: ff
     norrsmods:  (uniformAccs,uniformDyns)
     common:
       # these are two choices from (c,0) to (d,0) and (dis,0) to (e,0),
@@ -143,7 +143,7 @@ bridge:
     stype: neutral
     reps:  int 1
     uniformAcc: .
-    uniformDyn: f
+    uniformDyn: fff
     norrsmods:  (uniformAccs,uniformDyns)
     common:
       range:      ((c,2),(c,-2))
@@ -165,7 +165,7 @@ bridge:
     stype: neutral
     reps:  int 1
     uniformAcc: !
-    uniformDyn: mp
+    uniformDyn: ff
     norrsmods:  (uniformAccs,uniformDyns)
     common:
       mPitOctsss: (((c,0),(dis,0),r,(gis,0),(f,0)),((e,0),r,(c,0),(gis,0),(d,0),(a,0)))
@@ -209,7 +209,7 @@ bridge:
     stype: neutral
     reps:  int 2
     uniformAcc: .
-    uniformDyn: ff
+    uniformDyn: f
     norrsmods:  (uniformAccs,uniformDyns)
     common:
       range:      ((c,1),(g,-2))
@@ -231,7 +231,7 @@ bridge:
     stype: neutral
     reps:  int 4
     uniformAcc: .
-    sectionDyns: (fff,ff,f,mf)
+    sectionDyns: (ffff,fff,ff,f)
     norrsmods:  (uniformAccs,sectionDyns)
     common:
       range:      ((c,0),(g,-2))
@@ -286,7 +286,7 @@ bridge:
 voicemix:
   common:
     changeclefs: int 3
-    tempo:       int 120
+    tempo:       (120,4)
     key:         c major
     instr:       acoustic grand
     time:        (4,4)
@@ -317,7 +317,7 @@ voicemix:
 # trial:  first pass without param to tie voices together
 homophony:
   common:
-    tempo:       int 100
+    tempo:       (100,4)
     key:         c major
     changeclefs: int 3
     instr:       acoustic grand
@@ -349,7 +349,7 @@ homophony:
 # expand mpitOcts to allow for chords, durss to allow for tuplets
 experimental:
   common:
-    tempo:       int 100
+    tempo:       (100,4)
     key:         c major
     changeclefs: int 3
     instr:       acoustic grand

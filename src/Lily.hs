@@ -10,6 +10,7 @@
 module Lily (ToLily(..)
             ,FromLily(..)
             ,parseNat
+            ,parseNatural
             ,parsePitch
             ,parseInstrument
             ,parseDuration

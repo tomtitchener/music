@@ -74,7 +74,7 @@ main =  do
 
 cfg2Score :: String -> String -> Driver ()
 cfg2Score title gen = do
-  tempoInt  <- searchConfigParam  (title <> ".common.tempo")
+  tempo     <- searchConfigParam  (title <> ".common.tempo")
   timeSig   <- searchConfigParam  (title <> ".common.time")
   keySig    <- searchConfigParam  (title <> ".common.key")
   instr     <- searchConfigParam  (title <> ".common.instr")
@@ -90,17 +90,16 @@ cfg2Score title gen = do
   -- Overall shape is going to be [[[VoiceEvent]]] -> SectionConfig -> Driver [[[VoiceEvent]]]
   -- so it could be inlined via >== 
   let vess   = concat <$> transpose vesss
-      voices = pipeline tempoInt timeSig keySig instr vess
+      voices = pipeline tempo timeSig keySig instr vess
   writeScore ("./" <> title <> ".ly") $ Score title gen (NE.fromList voices)
   where
-    pipeline :: Int -> TimeSignature -> KeySignature -> Instrument -> [[VoiceEvent]] -> [Voice]
-    pipeline tempoInt timeSig keySig instr vess = --
+    pipeline :: Tempo -> TimeSignature -> KeySignature -> Instrument -> [[VoiceEvent]] -> [Voice]
+    pipeline tempo timeSig keySig instr vess = --
       zipWith alignVoiceEventsDurations timeSigs vess            -- -> [[VoiceEvent]]
       & zipWith3 (mkVesTotDur (maximum veLens)) veLens timeSigs  -- -> [[VoiceEvent]]
       & zipWith4 genSplitStaffVoc instrs keySigs timeSigs        -- -> [Voice]
       & tagTempo tempo                                           -- -> [Voice]
       where
-        tempo      = TempoDur QDur (fromIntegral tempoInt)
         cntVoices  = length vess
         veLens     = ves2DurVal <$> vess
         timeSigs   = replicate cntVoices timeSig
@@ -133,10 +132,11 @@ trimVes lenDiff vesIn =
     trim :: Int -> [VoiceEvent] -> [VoiceEvent]
     trim lenTot = snd . foldl' tr (lenTot,[])
     tr :: (Int,[VoiceEvent]) -> VoiceEvent -> (Int,[VoiceEvent])
-    tr (0,ves') _  = (0,ves')
+    tr (0,ves) _  = (0,ves)
     tr (n,ves) ve  = (n',ves <> [ve'])
       where
         veLen  = ve2DurVal ve
         n'     = if n >= veLen then n - veLen else n
         veLen' = if n >= veLen then veLen else n
-        ve'    = swapVeLens (durVal2Dur veLen') ve
+        -- swapVeLens squashes Tuplet to Rest:  only swap when needed
+        ve'    = if veLen == veLen' then ve else swapVeLens (durVal2Dur veLen') ve
