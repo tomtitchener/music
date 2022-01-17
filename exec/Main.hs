@@ -1,5 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Main where
 
@@ -7,12 +8,12 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
 import Data.Tuple.Extra (dupe, second, secondM)
-import Data.List (zipWith3, zipWith4, last)
+import Data.List (zipWith3, zipWith4)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Yaml as Y
 import Options.Applicative
-import Prelude (String, error, show, head)
-import Protolude hiding (option, print, show, to, second, head)
+import Prelude (String, error, show)
+import Protolude hiding (option, print, show, to, second)
 import System.Directory (doesFileExist)
 import System.Random
 import System.Random.Internal
@@ -22,7 +23,6 @@ import Driver
 import Compose
 import ComposeData
 import Types
-import Utils hiding (transpose)
 
 -- _optRandomSeed via command-line argument  -s "<string>"
 -- to recreate pseudo-random number generator by copying
@@ -77,19 +77,12 @@ cfg2Score title gen = do
   tempo     <- searchConfigParam  (title <> ".common.tempo")
   timeSig   <- searchConfigParam  (title <> ".common.time")
   keySig    <- searchConfigParam  (title <> ".common.key")
-  instr     <- searchConfigParam  (title <> ".common.instr")
-  secNames  <- cfgPath2Keys ("section" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
-  secVcsPrs <- traverse (secondM (cfgPath2Keys ("voice" `isPrefixOf`)) . dupe) secNames
-  secCfgs   <- traverse (uncurry cfg2SectionConfig) (second NE.fromList <$> secVcsPrs)
-  vesss     <- traverse sectionConfig2VoiceEvents secCfgs >>= extendVoicesEvents (last secCfgs)
-  -- TBD: this is point where list of section configs and list of list of list of Voice Events
-  -- are all present together do something like extend the length of all voices to match the
-  -- length of the longest voice by repeating sectionConfig2VoiceEvents for the last of secCfgs
-  -- until all voices are at least as long as the longest one and clipping the last of vesss
-  -- so they're all of equal length.
-  -- Overall shape is going to be [[[VoiceEvent]]] -> SectionConfig -> Driver [[[VoiceEvent]]]
-  -- so it could be inlined via >== 
-  let vess   = concat <$> transpose vesss
+  instr     <- searchConfigParam  (title <> ".common.instr") -- TBD: this forces an ensemble of identical instruments only
+  grpNames   <- cfgPath2Keys ("group" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
+  grpScnsPrs <- traverse (secondM (cfgPath2Keys ("section" `isPrefixOf`)) . dupe) grpNames
+  grpCfgs    <- traverse (uncurry cfg2GroupConfig) (second NE.fromList <$> grpScnsPrs)
+  vesss      <- traverse groupConfig2VoiceEvents grpCfgs <&> concat
+  let vess = concat <$> transpose vesss
       voices = pipeline tempo timeSig keySig instr vess
   writeScore ("./" <> title <> ".ly") $ Score title gen (NE.fromList voices)
   where
@@ -106,37 +99,3 @@ cfg2Score title gen = do
         keySigs    = replicate cntVoices keySig
         instrs     = replicate cntVoices instr
 
-extendVoicesEvents :: SectionConfig -> [[[VoiceEvent]]] -> Driver [[[VoiceEvent]]]
-extendVoicesEvents sectionConfig vesssIn = 
-  let go vesss = do
-        let vess = concat <$> transpose vesss
-            veLens = ves2DurVal <$> vess
-        if sum veLens == length veLens * head veLens
-        then do pure vesss
-        else do
-          let maxLen = maximum veLens
-              veLenDiffs = (-) maxLen <$> veLens
-          vessNew <- sectionConfig2VoiceEvents sectionConfig <&> zipWith trimVes veLenDiffs
-          go $ vesss <> [vessNew]
-  in 
-    go vesssIn
-
-trimVes :: Int -> [VoiceEvent] -> [VoiceEvent]
-trimVes lenDiff vesIn =
-  case vesLen `compare` lenDiff of
-    GT -> trim lenDiff vesIn
-    LT -> vesIn
-    EQ -> []
-  where
-    vesLen = ves2DurVal vesIn
-    trim :: Int -> [VoiceEvent] -> [VoiceEvent]
-    trim lenTot = snd . foldl' tr (lenTot,[])
-    tr :: (Int,[VoiceEvent]) -> VoiceEvent -> (Int,[VoiceEvent])
-    tr (0,ves) _  = (0,ves)
-    tr (n,ves) ve  = (n',ves <> [ve'])
-      where
-        veLen  = ve2DurVal ve
-        n'     = if n >= veLen then n - veLen else n
-        veLen' = if n >= veLen then veLen else n
-        -- swapVeLens squashes Tuplet to Rest:  only swap when needed
-        ve'    = if veLen == veLen' then ve else swapVeLens (durVal2Dur veLen') ve

@@ -1,11 +1,35 @@
 
-module ComposeData (VoiceConfig(..), SectionConfig(..), VoiceRuntimeConfig(..), PitIntOrPitInts, cfg2SectionConfig) where
+module ComposeData (VoiceConfig(..), SectionConfig(..), GroupConfig(..), VoiceRuntimeConfig(..), PitIntOrPitInts, cfg2GroupConfig) where
 
-import Driver (Driver, searchConfigParam, searchMConfigParam)
+import Driver (Driver, searchConfigParam, searchMConfigParam, cfgPath2Keys)
 import Types
 
+import Data.List (isPrefixOf)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
+
+-- A piece is a NE.NonEmpty GroupConfig
+-- where the last Section of each is extended
+-- to the same length which is extended to the
+-- end of the last bar and the beginning is
+-- annotated with a rehearsal letter.
+-- Except that probably should be optional
+-- on a per sections basis, maybe with two
+-- flags, one to say to extend to the same
+-- length and another to say to extend to the
+-- end of the last bar.
+data GroupConfig =
+  GroupConfigNeutral {
+                     _gcnPath    :: String
+                    ,_gcnMName   :: Maybe String
+                    ,_gcnConfigs :: NE.NonEmpty SectionConfig
+                    }
+  | GroupConfigEvenEnds {
+                     _gcePath    :: String
+                    ,_gceMName   :: Maybe String
+                    ,_gceConfigs :: NE.NonEmpty SectionConfig
+                    }
+  deriving Show
 
 data SectionConfig =
   SectionConfigNeutral {
@@ -193,12 +217,51 @@ name2SectionConfigMap = M.fromList [("neutral"  ,sectionAndVoices2SectionConfigN
                                    ,("fadein"   ,sectionAndVoices2SectionConfigFadeIn)
                                    ,("fadeout"  ,sectionAndVoices2SectionConfigFadeOut)]
 
-cfg2SectionConfig :: String -> NE.NonEmpty String -> Driver SectionConfig
-cfg2SectionConfig section voices =
-  searchConfigParam (section <> ".stype") >>= runConfigType
+path2SectionConfig :: String -> Driver SectionConfig
+path2SectionConfig section = do
+  voices <- cfgPath2Keys ("voice" `isPrefixOf`) section
+  searchConfigParam (section <> ".stype") >>= flip runConfigType (NE.fromList voices)
   where
-    runConfigType cfgType =
+    runConfigType cfgType voices =
       case M.lookup cfgType name2SectionConfigMap of
-        Nothing  -> error $ "cfg2SectionConfig no converter for \"stype:\" " <> cfgType
+        Nothing  -> error $ "path2SectionConfig no converter for \"stype:\" " <> cfgType
         Just fun -> fun section voices
 
+path2SectionConfigs :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty SectionConfig)
+path2SectionConfigs group = traverse (path2SectionConfig . ((group <> ".") <>))
+
+type GroupAndSections2GroupConfig = String -> NE.NonEmpty String -> Driver GroupConfig
+
+groupAndSections2GroupConfigNeutral :: GroupAndSections2GroupConfig
+groupAndSections2GroupConfigNeutral group sections =
+      GroupConfigNeutral group
+      <$> searchMConfigParam (group <> ".grname")
+      <*> path2SectionConfigs group sections
+      
+groupAndSections2GroupConfigEvenEnds :: GroupAndSections2GroupConfig
+groupAndSections2GroupConfigEvenEnds group sections =
+      GroupConfigEvenEnds group
+      <$> searchMConfigParam (group <> ".grname")
+      <*> path2SectionConfigs group sections
+
+name2GroupConfigMap :: M.Map String GroupAndSections2GroupConfig
+name2GroupConfigMap = M.fromList [("neutral"  ,groupAndSections2GroupConfigNeutral)
+                                 ,("evenends" ,groupAndSections2GroupConfigEvenEnds)]
+                         
+cfg2GroupConfig :: String -> NE.NonEmpty String -> Driver GroupConfig
+cfg2GroupConfig group sections =
+  searchConfigParam (group <> ".grtype") >>= runConfigType
+  where
+    runConfigType cfgType =
+      case M.lookup cfgType name2GroupConfigMap of
+        Nothing  -> error $ "cfg2GroupConfig no converter for \"sstype:\" " <> cfgType
+        Just fun -> fun group sections 
+
+-- cfg2SectionConfig :: String -> NE.NonEmpty String -> Driver SectionConfig
+-- cfg2SectionConfig section voices =
+--   searchConfigParam (section <> ".stype") >>= runConfigType
+--   where
+--     runConfigType cfgType =
+--       case M.lookup cfgType name2SectionConfigMap of
+--         Nothing  -> error $ "cfg2SectionConfig no converter for \"stype:\" " <> cfgType
+--         Just fun -> fun section voices

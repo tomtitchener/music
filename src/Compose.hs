@@ -2,7 +2,7 @@
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Compose (sectionConfig2VoiceEvents
+module Compose (groupConfig2VoiceEvents
                , alignVoiceEventsDurations
                , mkVesTotDur
                , genSplitStaffVoc
@@ -13,13 +13,12 @@ module Compose (sectionConfig2VoiceEvents
                )  where
 
 import Data.Bifunctor (second)
--- import Control.Applicative ((<|>))
 import Control.Lens hiding (pre,ix)
 import Control.Monad (foldM)
 import Control.Monad.Extra (concatMapM)
 import Data.Foldable
 import Data.Function (on)
-import Data.List (elemIndex, findIndex, groupBy, sort, sortBy, unfoldr, (\\))
+import Data.List (elemIndex, findIndex, groupBy, sort, sortBy, unfoldr, (\\), transpose)
 import qualified Data.List.NonEmpty as NE
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as M
@@ -31,7 +30,7 @@ import ComposeData
 import Driver
        (Driver, randomElements, randomizeList, randomWeightedElement, searchConfigParam, searchMConfigParam)
 import Types
-import Utils
+import Utils hiding (transpose)
 
 newtype Range = Range ((Pitch,Octave),(Pitch,Octave)) deriving (Eq, Show)
 
@@ -357,7 +356,6 @@ sectionConfig2VoiceEvents (SectionConfigNeutral scnPath cntSegs mSctnName mConfi
     cntVocs = length voiceConfigs
     segRuntimeTupss = chunksOf cntSegs [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
     prs = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss (NE.toList voiceConfigs)
-
 sectionConfig2VoiceEvents (SectionConfigHomophony scnPath cntSegs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
   traverse (traverse (applyMConfigMods mConfigMods)) prs >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
   where
@@ -366,7 +364,6 @@ sectionConfig2VoiceEvents (SectionConfigHomophony scnPath cntSegs mSctnName mCon
     cntVocs = length voiceConfigs
     segRuntimeTupss = chunksOf cntSegs [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
     prs = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss (NE.toList voiceConfigs)
-
 sectionConfig2VoiceEvents (SectionConfigFadeIn scnPath fadeIxs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) =
   foldM foldMf ([],replicate cntVocs []) fadeIxs <&> addSecnName scnName . snd
   where
@@ -388,7 +385,6 @@ sectionConfig2VoiceEvents (SectionConfigFadeIn scnPath fadeIxs mSctnName mConfig
           unseenNumVocEventss = (,ves2VeRests seenVEs) <$> allUnseenNumVocs
           newEventss          = snd <$> sort (seenNumVocVEs:seenNumVocsEventss <> unseenNumVocEventss)
       pure (allSeenNumVocs,zipWith (<>) prevEventss newEventss)
-
 sectionConfig2VoiceEvents (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
   let initNumVocs = [0..cntVocs - 1]
       vocRunTups = mkVocRTT 0 <$> initNumVocs
@@ -414,26 +410,6 @@ sectionConfig2VoiceEvents (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfi
           newEventss = snd <$> sort (seenNumVocsEmpties <> unseenNumVocsEventss)
       pure (seenNumVocs',zipWith (<>) prevEventss newEventss)
 
-freezeNELists :: NE.NonEmpty (NE.NonEmpty a) -> Driver (NE.NonEmpty (NE.NonEmpty a))
-freezeNELists xss = randomizeList (nes2arrs xss) <&> singleton . NE.fromList . concat
-
-freezeConfig :: VoiceConfig -> Driver VoiceConfig
-freezeConfig vcx@VoiceConfigXPose{..}  = do
-  durss      <- freezeNELists _vcxDurss
-  acctss     <- freezeNELists _vcxAcctss
-  mPIOrPIsss <- freezeNELists _vcxmPIOrPIsss
-  pure $ vcx { _vcxDurss = durss, _vcxAcctss = acctss, _vcxmPIOrPIsss = mPIOrPIsss }
-freezeConfig vcr@VoiceConfigRepeat{..} = do
-  durss      <- freezeNELists _vcrDurss
-  acctss     <- freezeNELists _vcrAcctss
-  mPIOrPIsss <- freezeNELists _vcrmPIOrPIsss
-  pure $ vcr { _vcrDurss = durss, _vcrAcctss = acctss, _vcrmPIOrPIsss = mPIOrPIsss }
-freezeConfig vcc@VoiceConfigCanon{..}  = do
-  durss      <- freezeNELists _vccDurss
-  acctss     <- freezeNELists _vccAcctss
-  mPIOrPIsss <- freezeNELists _vccmPIOrPIsss
-  pure $ vcc { _vccDurss = durss, _vccAcctss = acctss, _vccmPIOrPIsss = mPIOrPIsss }
-    
 applyMods :: Maybe (NE.NonEmpty String) -> Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig,VoiceConfig) -> Driver (Int,[VoiceEvent])
 applyMods mConfigMods mVoiceEventsMods pr =
   applyMConfigMods mConfigMods pr >>= voiceConfig2VoiceEvents . snd >>= applyMVoiceEventsMods mVoiceEventsMods . (vrt,) <&> (_vrcNumVoc vrt,)
@@ -446,6 +422,48 @@ addSecnName scnName voices = prependAnnFirstNote scnName <$> voices
 genSplitStaffVoc :: Instrument -> KeySignature -> TimeSignature -> [VoiceEvent] -> Voice
 genSplitStaffVoc instr keySig timeSig ves
   = SplitStaffVoice instr (VeKeySignature keySig NE.<| VeTimeSignature timeSig NE.<| NE.fromList ves)
+
+groupConfig2VoiceEvents :: GroupConfig -> Driver [[[VoiceEvent]]]
+groupConfig2VoiceEvents (GroupConfigNeutral _ _ secCfgs) =
+  traverse sectionConfig2VoiceEvents (NE.toList secCfgs) -- <&> (concat <$> transpose)
+groupConfig2VoiceEvents (GroupConfigEvenEnds _ _ secCfgs) =
+  traverse sectionConfig2VoiceEvents (NE.toList secCfgs) >>= extendVoicesEvents (NE.last secCfgs) -- <&> (concat <$> transpose)
+
+extendVoicesEvents :: SectionConfig -> [[[VoiceEvent]]] -> Driver [[[VoiceEvent]]]
+extendVoicesEvents sectionConfig vesssIn = 
+  let go vesss = do
+        let vess = concat <$> transpose vesss
+            veLens = ves2DurVal <$> vess
+        if sum veLens == length veLens * head veLens
+        then do
+          pure vesss
+        else do
+          let maxLen = maximum veLens
+              veLenDiffs = (-) maxLen <$> veLens
+          vessNew <- sectionConfig2VoiceEvents sectionConfig <&> zipWith trimVes veLenDiffs
+          go $ vesss <> [vessNew]
+  in 
+    go vesssIn
+
+trimVes :: Int -> [VoiceEvent] -> [VoiceEvent]
+trimVes lenDiff vesIn =
+  case vesLen `compare` lenDiff of
+    GT -> trim lenDiff vesIn
+    LT -> vesIn
+    EQ -> vesIn
+  where
+    vesLen = ves2DurVal vesIn
+    trim :: Int -> [VoiceEvent] -> [VoiceEvent]
+    trim lenTot = snd . foldl' tr (lenTot,[])
+    tr :: (Int,[VoiceEvent]) -> VoiceEvent -> (Int,[VoiceEvent])
+    tr (0,ves) _  = (0,ves)
+    tr (n,ves) ve  = (n',ves <> [ve'])
+      where
+        veLen  = ve2DurVal ve
+        n'     = if n >= veLen then n - veLen else 0
+        veLen' = if n >= veLen then veLen else n
+        -- swapVeLens squashes Tuplet to Rest:  only swap when needed
+        ve'    = if veLen == veLen' then ve else swapVeLens (durVal2Dur veLen') ve
 
 -- maxLen and vesLen are in 128th notes
 -- maxLen is target length so all voices are equal length
@@ -576,3 +594,23 @@ swapVeLens dur (VeSpacer spacer) = VeSpacer $ spacer { _spacerDur = dur }
 swapVeLens dur (VeTuplet _)      = VeRest   $ Rest dur NoDynamic
 swapVeLens _   ve                = ve
 
+freezeNELists :: NE.NonEmpty (NE.NonEmpty a) -> Driver (NE.NonEmpty (NE.NonEmpty a))
+freezeNELists xss = randomizeList (nes2arrs xss) <&> singleton . NE.fromList . concat
+
+freezeConfig :: VoiceConfig -> Driver VoiceConfig
+freezeConfig vcx@VoiceConfigXPose{..}  = do
+  durss      <- freezeNELists _vcxDurss
+  acctss     <- freezeNELists _vcxAcctss
+  mPIOrPIsss <- freezeNELists _vcxmPIOrPIsss
+  pure $ vcx { _vcxDurss = durss, _vcxAcctss = acctss, _vcxmPIOrPIsss = mPIOrPIsss }
+freezeConfig vcr@VoiceConfigRepeat{..} = do
+  durss      <- freezeNELists _vcrDurss
+  acctss     <- freezeNELists _vcrAcctss
+  mPIOrPIsss <- freezeNELists _vcrmPIOrPIsss
+  pure $ vcr { _vcrDurss = durss, _vcrAcctss = acctss, _vcrmPIOrPIsss = mPIOrPIsss }
+freezeConfig vcc@VoiceConfigCanon{..}  = do
+  durss      <- freezeNELists _vccDurss
+  acctss     <- freezeNELists _vccAcctss
+  mPIOrPIsss <- freezeNELists _vccmPIOrPIsss
+  pure $ vcc { _vccDurss = durss, _vccAcctss = acctss, _vccmPIOrPIsss = mPIOrPIsss }
+    
