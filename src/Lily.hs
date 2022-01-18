@@ -182,8 +182,6 @@ instance ToLily Note where
   toLily (Note pit oct dur accs dyn swell ann slr) =
     toLily pit <> toLily oct <> toLily dur <> toLilyFromNEList accs <> toLily dyn <> toLily swell <> mkAnnotation ann <> if slr then "~" else ""
 
---  toLily pit <> toLily oct <> toLily dur <> toLilyFromNEList accs <> toLily dyn <> toLily swell <> (if null ann then "" else "^\"" <> ann <> "\"") <> if slr then "~" else "" 
-
 parseNote :: Parser Note
 parseNote = Note <$> parsePitch <*> parseOctave <*> parseDuration <*> parseAccents <*> parseDynamic <*> parseSwell <*> parseAnnotation <*> parseBool
 

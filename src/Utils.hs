@@ -174,6 +174,31 @@ timeSig2Denom :: TimeSignature -> Duration
 timeSig2Denom TimeSignatureSimple{..} = _tsDenom
 timeSig2Denom TimeSignatureGrouping{..} = _tsgDenom
 
+ve2Durs :: VoiceEvent -> [Duration]
+ve2Durs (VeNote   Note {..})    = [_noteDur]
+ve2Durs (VeRest   Rest {..})    = [_restDur]
+ve2Durs (VeChord  Chord {..})   = [_chordDur]
+ve2Durs (VeRhythm Rhythm {..})  = [_rhythmDur]
+ve2Durs (VeSpacer Spacer {..})  = [_spacerDur]
+ve2Durs (VeTuplet t@Tuplet{..}) = replicate (_tupDenom * tup2CntTups t) _tupDur
+ve2Durs _                       = []
+
+ve2DurVal :: VoiceEvent -> Int
+ve2DurVal ve = sum (dur2DurVal <$> ve2Durs ve)
+
+ves2DurVal :: [VoiceEvent] -> Int
+ves2DurVal = sum . fmap ve2DurVal
+
+-- validates _tupNotes contains integral count of tuplet, answers count
+tup2CntTups :: Tuplet -> Int
+tup2CntTups tup@Tuplet{..}
+  | 0 /= (notesDurVal `rem` (_tupNum * unitDurVal)) = error msg
+  | otherwise = notesDurVal `div` (_tupNum * unitDurVal)
+  where
+    unitDurVal  = dur2DurVal _tupDur
+    notesDurVal = ves2DurVal (NE.toList _tupNotes)
+    msg = "invalid tuplet: sum of dur vals " <> show notesDurVal <> " not divisible by num * durVal of unit: " <> show (_tupNum * unitDurVal) <> "\n" <> show tup 
+
 -- Why doesn't NonEmpty expose this?
 singleton :: a -> NE.NonEmpty a
 singleton a = a NE.:| []

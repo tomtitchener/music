@@ -9,7 +9,6 @@ module Compose (groupConfig2VoiceEvents
                , tagTempo
                , ve2DurVal
                , ves2DurVal
-               , swapVeLens
                )  where
 
 import Data.Bifunctor (second)
@@ -187,10 +186,12 @@ genXPose durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
 
 type UnfoldVETup = ([Maybe (Either (Pitch, Octave) [(Pitch, Octave)])],[Either Duration DurTuplet],[Accent])
 
--- Something going infinite here
+-- Check enough mPrOrOrPrss to fill all _durtupDurations to make sure to always generate full tuplet
 unfoldVEs :: UnfoldVETup -> Maybe (VoiceEvent,UnfoldVETup)
 unfoldVEs (mPrOrPrs:mPrOrPrss,Left dur:durOrDurTups,accent:accents) = Just (mkNoteChordOrRest mPrOrPrs dur accent,(mPrOrPrss,durOrDurTups,accents))
-unfoldVEs (mPrOrPrss,Right durTup:durOrDurTups,accents) = Just (veTup,(mPrOrPrss',durOrDurTups,accents'))
+unfoldVEs (mPrOrPrss,Right durTup:durOrDurTups,accents)
+ | length mPrOrPrss < NE.length (_durtupDurations durTup) = Nothing
+ | otherwise = Just (veTup,(mPrOrPrss',durOrDurTups,accents'))
   where
     (veTup,mPrOrPrss',accents') = mkVeTuplet mPrOrPrss durTup accents
 unfoldVEs (_,_,_) = Nothing
@@ -305,13 +306,17 @@ mIOrIs2MIOrIsDiffs =
     foldlf (prev,ret) (Just (Right is)) = (minimum is,ret <> [Just (Right (flip (-) prev <$> is))])
 
 mkVeTuplet :: [Maybe (Either (Pitch,Octave) [(Pitch,Octave)])] -> DurTuplet -> [Accent] -> (VoiceEvent,[Maybe (Either (Pitch,Octave) [(Pitch,Octave)])],[Accent])
-mkVeTuplet mPOrPrss DurTuplet{..} accents = (veTup,drop cntDurs mPOrPrss,drop cntDurs accents)
+mkVeTuplet mPOrPrss DurTuplet{..} accents = (verifyVeTuplet veTup,drop cntDurs mPOrPrss,drop cntDurs accents)
   where
     ves = zipWith3 mkNoteChordOrRest mPOrPrss' (NE.toList _durtupDurations) accents'
     veTup = VeTuplet (Tuplet _durtupNumerator _durtupDenominator _durtupUnitDuration (NE.fromList ves))
     mPOrPrss' = take cntDurs mPOrPrss
     accents' = take cntDurs accents
-    cntDurs = NE.length _durtupDurations
+    cntDurs = length _durtupDurations
+
+verifyVeTuplet :: VoiceEvent -> VoiceEvent
+verifyVeTuplet (VeTuplet tuplet) = if tup2CntTups tuplet /= 0 then VeTuplet tuplet else error "verifyVeTuplet shouldn't get here"
+verifyVeTuplet ve = ve
 
 voiceConfig2VoiceEvents :: VoiceConfig -> Driver [VoiceEvent]
 voiceConfig2VoiceEvents VoiceConfigXPose{..} =
@@ -492,21 +497,6 @@ tagTempo tempo (v1:rest) = tagVoice v1:rest
     tagVoice SplitStaffVoice {..}               = SplitStaffVoice _ssvInstrument (VeTempo tempo NE.<| _ssvVoiceEvents)
     tagVoice (VoiceGroup (v1' NE.:| r))         = VoiceGroup (tagVoice v1' NE.:| r)
 tagTempo _ vs = vs
-
-ve2Durs :: VoiceEvent -> [Duration]
-ve2Durs (VeNote   Note {..})   = [_noteDur]
-ve2Durs (VeRest   Rest {..})   = [_restDur]
-ve2Durs (VeChord  Chord {..})  = [_chordDur]
-ve2Durs (VeRhythm Rhythm {..}) = [_rhythmDur]
-ve2Durs (VeSpacer Spacer {..}) = [_spacerDur]
-ve2Durs (VeTuplet Tuplet {..}) = replicate _tupDenom _tupDur
-ve2Durs _                      = []
-
-ve2DurVal :: VoiceEvent -> Int
-ve2DurVal ve = sum (dur2DurVal <$> ve2Durs ve)
-
-ves2DurVal :: [VoiceEvent] -> Int
-ves2DurVal = sum . fmap ve2DurVal
 
 -- apportion [VeRest Rest] or [VeNote Note] durations according to place in bar given time signature
 -- 1) map [VoiceEvent] to [[VoiceEvent]] by [[Left Note]..[Right Rest]]
