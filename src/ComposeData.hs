@@ -1,9 +1,11 @@
+{-# LANGUAGE RecordWildCards     #-}
 
-module ComposeData (VoiceConfig(..), SectionConfig(..), GroupConfig(..), VoiceRuntimeConfig(..), PitIntOrPitInts, cfg2GroupConfig) where
+module ComposeData (VoiceConfig(..), SectionConfig(..), GroupConfig(..), VoiceRuntimeConfig(..), cfg2GroupConfig) where
 
 import Driver (Driver, searchConfigParam, searchMConfigParam, cfgPath2Keys)
 import Types
 
+import Data.Functor ((<&>))
 import Data.List (isPrefixOf)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
@@ -67,7 +69,6 @@ data SectionConfig =
                       }
     deriving Show
 
-type PitIntOrPitInts = Either (Pitch,Int) (NE.NonEmpty (Pitch,Int))
 
 data VoiceConfig =
   VoiceConfigXPose {
@@ -75,7 +76,7 @@ data VoiceConfig =
                  ,_vcxKey        :: KeySignature
                  ,_vcxScale      :: Scale
                  ,_vcxTime       :: TimeSignature
-                 ,_vcxmPIOrPIsss :: NE.NonEmpty (NE.NonEmpty (Maybe PitIntOrPitInts))
+                 ,_vcxmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave)))))
                  ,_vcxDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                  ,_vcxAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
                  ,_vcxRange      :: ((Pitch,Octave),(Pitch,Octave))
@@ -85,18 +86,29 @@ data VoiceConfig =
                     ,_vcrKey        :: KeySignature
                     ,_vcrScale      :: Scale
                     ,_vcrTime       :: TimeSignature
-                    ,_vcrmPIOrPIsss :: NE.NonEmpty (NE.NonEmpty (Maybe PitIntOrPitInts))
+                    ,_vcrmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave)))))
                     ,_vcrDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vcrAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vcrRegister   :: (Pitch,Octave)
                     ,_vcrDurVal     :: Int
+                 } 
+  | VoiceConfigCell {
+                    _vcclInstr       :: Instrument
+                    ,_vcclKey        :: KeySignature
+                    ,_vcclScale      :: Scale
+                    ,_vcclTime       :: TimeSignature
+                    ,_vcclmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave)))))
+                    ,_vcclDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+                    ,_vcclAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
+                    ,_vcclRegister   :: (Pitch,Octave)
+                    ,_vcclDurVal     :: Int
                  } 
   | VoiceConfigCanon {
                     _vccInstr       :: Instrument
                     ,_vccKey        :: KeySignature
                     ,_vccScale      :: Scale
                     ,_vccTime       :: TimeSignature
-                    ,_vccmPIOrPIsss :: NE.NonEmpty (NE.NonEmpty (Maybe PitIntOrPitInts))
+                    ,_vccmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave)))))
                     ,_vccDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vccAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vccRegister   :: (Pitch,Octave)
@@ -139,6 +151,30 @@ path2VoiceConfigRepeat pre =
         <*> searchConfigParam  (pre <> ".accentss")
         <*> searchConfigParam  (pre <> ".register")
         <*> searchConfigParam  (pre <> ".durval")
+        
+path2VoiceConfigCell' :: String -> Driver VoiceConfig
+path2VoiceConfigCell' pre =
+      VoiceConfigCell
+        <$> searchConfigParam  (pre <> ".instr")
+        <*> searchConfigParam  (pre <> ".key")
+        <*> searchConfigParam  (pre <> ".scale")
+        <*> searchConfigParam  (pre <> ".time")
+        <*> searchConfigParam  (pre <> ".mPitOctsss")
+        <*> searchConfigParam  (pre <> ".durss")
+        <*> searchConfigParam  (pre <> ".accentss")
+        <*> searchConfigParam  (pre <> ".register")
+        <*> searchConfigParam  (pre <> ".durval")
+
+path2VoiceConfigCell :: String -> Driver VoiceConfig
+path2VoiceConfigCell pre = path2VoiceConfigCell' pre <&> verifyListsLengths
+  where
+    verifyListsLengths :: VoiceConfig -> VoiceConfig
+    verifyListsLengths vc@VoiceConfigCell{..}
+      | all (== head allLengths) allLengths = vc
+      | otherwise = error $ "path2VoiceConfigCell unequal length listss: " <> show allLengths
+      where
+        allLengths = [NE.length _vcclmPOOrPOsss,NE.length _vcclAcctss,NE.length _vcclDurss]
+    verifyListsLengths vc = error $ "pagth2VoiceConfigCell unexpected VoiceConfig: " <> show vc
 
 path2VoiceConfigCanon :: String -> Driver VoiceConfig
 path2VoiceConfigCanon pre =
@@ -159,6 +195,7 @@ type Path2VoiceConfig = String -> Driver VoiceConfig
 name2VoiceConfigMap :: M.Map String Path2VoiceConfig
 name2VoiceConfigMap = M.fromList [("xpose" ,path2VoiceConfigXPose)
                                  ,("repeat",path2VoiceConfigRepeat)
+                                 ,("cell"  ,path2VoiceConfigCell)
                                  ,("canon" ,path2VoiceConfigCanon)]
 
 path2VoiceConfig :: Path2VoiceConfig

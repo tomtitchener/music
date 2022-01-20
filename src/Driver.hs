@@ -13,6 +13,7 @@ module Driver (initEnv
               ,randomElement
               ,randomWeightedElement
               ,randomElements
+              ,randomIndices
               ,randomizeList
               ,getConfigParam
               ,getMConfigParam
@@ -57,6 +58,7 @@ data ActionNoValue where
 data ActionWithValue a where
   RandomElement    :: [b] -> ActionWithValue b
   RandomElements   :: [b] -> ActionWithValue [b]
+  RandomIndices    :: Int -> ActionWithValue [Int]
   RandomizeList    :: [b] -> ActionWithValue [b]
   GetConfigParam   :: FromConfig a => String -> ActionWithValue a
   GetMConfigParam  :: FromConfig a => String -> ActionWithValue (Maybe a)
@@ -76,6 +78,7 @@ runDriver (Free (DoActionThen act k)) =
   case act of
     RandomElement  l      -> getRandomR (0, length l - 1) >>= runDriver . k . (l !!)
     RandomElements l      -> getRandomRs (0, length l - 1) >>= runDriver . k . map (l !!)
+    RandomIndices  n      -> getRandomRs (0, n) >>= runDriver . k
     RandomizeList  l      -> shuffleM l >>= runDriver . k
     GetConfigParam path   -> asks (lookupConfig path . _config) >>= runDriver . k
     GetMConfigParam path  -> asks (lookupMConfig path . _config) >>= runDriver . k
@@ -136,6 +139,9 @@ randomWeightedElement ws = liftF $ DoActionThen (RandomElement (genByWeight ws))
 
 randomElements :: [a] -> Driver [a]
 randomElements ls = liftF $ DoActionThen (RandomElements ls) id
+
+randomIndices :: Int -> Driver [Int]
+randomIndices n = liftF $ DoActionThen (RandomIndices n) id
 
 randomizeList :: [a] -> Driver [a]
 randomizeList ls = liftF $ DoActionThen (RandomizeList ls) id

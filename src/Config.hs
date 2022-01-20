@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 
-module Config (FromConfig(..)) where
+module Config (FromConfig(..),octave2Int) where
 
 import Data.Functor ((<&>))
 import Data.Natural (Natural)
@@ -20,7 +20,9 @@ import Text.Parsec
 import Text.Parsec.Number ( int )
 import Text.Parsec.String ( Parser )
 
+import Data.List (elemIndex)
 import qualified Data.List.NonEmpty as NE
+
 import Lily
     ( parseDuration, parseInstrument, parsePitch, parseNat, parseNatural )
 import Types
@@ -68,6 +70,18 @@ instance FromConfig (NE.NonEmpty (Int,NE.NonEmpty (Pitch,Octave))) where
 instance FromConfig ((Pitch,Octave),(Pitch,Octave)) where
   parseConfig = mkParseConfig pPitOctsPr
 
+instance FromConfig (NE.NonEmpty (Pitch,Octave)) where
+  parseConfig = mkParseConfig (mkPs pPitOctPr)
+
+instance FromConfig (NE.NonEmpty (NE.NonEmpty (Pitch,Octave))) where
+  parseConfig = mkParseConfig (mkPss pPitOctPr)
+
+instance FromConfig (NE.NonEmpty ((Pitch,Octave),(Pitch,Octave))) where
+  parseConfig = mkParseConfig (mkPs pPitOctsPr)
+
+instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave)))))) where
+  parseConfig = mkParseConfig (mkPs (mkPs (pM pPitOctPrOrPitOctPrs)))
+
 instance FromConfig Scale where
   parseConfig = mkParseConfig (Scale <$> mkPs parsePitch)
 
@@ -100,15 +114,6 @@ instance FromConfig (NE.NonEmpty Duration) where
 
 instance FromConfig (NE.NonEmpty (Maybe Int)) where
   parseConfig = mkParseConfig (mkPs pMInt)
-
-instance FromConfig (NE.NonEmpty (Pitch,Octave)) where
-  parseConfig = mkParseConfig (mkPs pPitOctPr)
-
-instance FromConfig (NE.NonEmpty (NE.NonEmpty (Pitch,Octave))) where
-  parseConfig = mkParseConfig (mkPss pPitOctPr)
-
-instance FromConfig (NE.NonEmpty ((Pitch,Octave),(Pitch,Octave))) where
-  parseConfig = mkParseConfig (mkPs pPitOctsPr)
 
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe (NE.NonEmpty (Pitch,Int))))) where
   parseConfig = mkParseConfig (mkPs (mkPs (pM (mkPs pPitIntPr))))
@@ -248,11 +253,17 @@ pIntDurPr = between (char '(') (char ')') ((,) <$> parseNat <*> (char ',' *> par
 pIntPr :: Parser (Int,Int)
 pIntPr = between (char '(') (char ')') ((,) <$> parseNat <*> (char ',' *> parseNat))
 
-octaveInts :: [String]
-octaveInts = ["-4","-3","-2","-1","0","1","2","3"]
+octaveIntStrings :: [String]
+octaveIntStrings = ["-4","-3","-2","-1","0","1","2","3"]
+
+octaveInts :: [Int]
+octaveInts = [-4,-3,-2,-1,0,1,2,3]
 
 pOctaveStr :: Parser Octave
-pOctaveStr = choice (zipWith mkParser octaveInts [TwentyNineVBOct .. TwentyTwoVAOct])
+pOctaveStr = choice (zipWith mkParser octaveIntStrings [TwentyNineVBOct .. TwentyTwoVAOct])
+
+octave2Int :: Octave -> Int
+octave2Int oct = maybe (error $ "octave2Int unrecognized octave: " <> show oct) (octaveInts !!) $ elemIndex oct [TwentyNineVBOct .. TwentyTwoVAOct]
 
 pPitOctPr :: Parser (Pitch,Octave)
 pPitOctPr = between (char '(') (char ')') ((,) <$> parsePitch <*> (char ',' *> pOctaveStr))
@@ -268,6 +279,9 @@ pPitIntPr = between (char '(') (char ')') ((,) <$> parsePitch <*> (char ',' *> i
 
 pPitIntPrOrPitIntPrs :: Parser (Either (Pitch,Int) (NE.NonEmpty (Pitch,Int)))
 pPitIntPrOrPitIntPrs = try (Left <$> pPitIntPr) <|> (Right <$> mkPs pPitIntPr)
+
+pPitOctPrOrPitOctPrs :: Parser (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave)))
+pPitOctPrOrPitOctPrs = try (Left <$> pPitOctPr) <|> (Right <$> mkPs pPitOctPr)
   
 clefStrs :: [String]
 clefStrs = ["bass_8", "bass", "tenor", "alto", "treble", "treble^8"]

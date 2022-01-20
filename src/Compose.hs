@@ -23,8 +23,10 @@ import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
 import Data.Sequence (adjust, fromList)
+import Data.Traversable (mapAccumL)
 import Data.Tuple (swap)
 
+import Config 
 import ComposeData
 import Driver
        (Driver, randomElements, randomizeList, randomWeightedElement, searchConfigParam, searchMConfigParam)
@@ -63,11 +65,12 @@ decrNormalizeMPitOctssOctaves :: ConfigMod
 decrNormalizeMPitOctssOctaves = modMPitOctssOctaves mkIdWeightsDecr 
 
 modMPitOctssOctaves :: (Int -> Int -> Int ) -> ConfigMod
-modMPitOctssOctaves mkIdWeight vrtCfg vcx@VoiceConfigXPose{..}  = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcxmPIOrPIsss <&> \mPitOctsss -> vcx { _vcxmPIOrPIsss = mPitOctsss}
-modMPitOctssOctaves mkIdWeight vrtCfg vcr@VoiceConfigRepeat{..} = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcrmPIOrPIsss <&> \mPitOctsss -> vcr { _vcrmPIOrPIsss = mPitOctsss}
-modMPitOctssOctaves mkIdWeight vrtCfg vcc@VoiceConfigCanon{..}  = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vccmPIOrPIsss <&> \mPitOctsss -> vcc { _vccmPIOrPIsss = mPitOctsss}
+modMPitOctssOctaves mkIdWeight vrtCfg vcx@VoiceConfigXPose{..}  = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcxmPOOrPOsss  <&> \mPitOctsss -> vcx { _vcxmPOOrPOsss = mPitOctsss}
+modMPitOctssOctaves mkIdWeight vrtCfg vcr@VoiceConfigRepeat{..} = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcrmPOOrPOsss  <&> \mPitOctsss -> vcr { _vcrmPOOrPOsss = mPitOctsss}
+modMPitOctssOctaves mkIdWeight vrtCfg vcl@VoiceConfigCell{..}   = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcclmPOOrPOsss <&> \mPitOctsss -> vcl { _vcclmPOOrPOsss = mPitOctsss}
+modMPitOctssOctaves mkIdWeight vrtCfg vcc@VoiceConfigCanon{..}  = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vccmPOOrPOsss  <&> \mPitOctsss -> vcc { _vccmPOOrPOsss = mPitOctsss}
 
-modAnyMPitOctssOctaves :: (Int -> Int -> Int ) -> VoiceRuntimeConfig -> NE.NonEmpty (NE.NonEmpty (Maybe PitIntOrPitInts)) -> Driver (NE.NonEmpty (NE.NonEmpty (Maybe PitIntOrPitInts)))
+modAnyMPitOctssOctaves :: (Int -> Int -> Int ) -> VoiceRuntimeConfig -> NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave))))) -> Driver (NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave))))))
 modAnyMPitOctssOctaves mkIdWeight VoiceRuntimeConfig{..} = 
   traverse (traverse randomizeMPitOcts)
   where
@@ -145,14 +148,13 @@ uniformAccents VoiceRuntimeConfig{..} ves = do
 
 -- Unfold repeated transpositions of [[Maybe Pitch]] across Range
 -- matching up with repetitions of [[Duration]] and [[Accent] to generate VoiceEvent.
-genXPose :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe (Either (Pitch,Int) [(Pitch,Int)])]] -> Scale -> Range -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
+genXPose :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]] -> Scale -> Range -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
 genXPose durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
   let rangeOrd   = swap stop `compare` swap start
-      orderChords = second (sortBy (compare `on` swap))
-  manyMIOrIssDiffs <- randomElements mPrOrPrsss <&> concatMap (mIOrIs2MIOrIsDiffs . mPrOrPrss2MIOrIss scale . map (fmap orderChords))
+  manyMIOrIssDiffs <- randomElements mPrOrPrsss <&> concatMap (mPrOrPrss2MIOrIsDiffs scale)
   manyDurOrDurTups <- randomElements durOrDurTupss  <&> concat
   manyAccts        <- randomElements acctss <&> concat
-  let mSteps    = concatMap (map (fmap (either id minimum)) . mIOrIs2MIOrIsDiffs . mPrOrPrss2MIOrIss scale . map (fmap orderChords)) mPrOrPrsss
+  let mSteps    = concatMap (map (fmap (either id minimum)) . mPrOrPrss2MIOrIsDiffs scale) mPrOrPrsss
       stepOrd   = sum (fromMaybe 0 <$> mSteps) `compare` 0
       compareOp = if stepOrd == rangeOrd && stepOrd /= EQ
                   then if stepOrd == LT then (<=) else (>=)
@@ -184,62 +186,85 @@ genXPose durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
     unfoldMPrOrPrss _ (prev,Nothing:mIOrIss) = Just (Nothing,(prev,mIOrIss))
     unfoldMPrOrPrss _ (prev,mIOrIss) = error $ "invalid list of steps, (" <> show prev <> "," <> show (take 10 mIOrIss) <> ")"
 
-type UnfoldVETup = ([Maybe (Either (Pitch, Octave) [(Pitch, Octave)])],[Either Duration DurTuplet],[Accent])
+genCell :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]] -> Scale -> (Pitch,Octave) -> Int -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
+genCell durss acctss mPOOrPOsss scale register maxDurVal = do
+  -- TBD: going to look like genCanon without rotation and with call to randomIndices
+  -- to build list of indexes that seed identical choices of sub-lists of durss, acctss, mPrOrPrsss
+  -- Also:  be careful to extend each sub-list to the same count of items.  Which makes life
+  -- interesting when you consider Tuples, which I could include but for which I'd have to have
+  -- special treatment in the generation of the DurOrDurTuplet list, namely, that one DurTuplet
+  -- counts for _durTupNumerator Durations.  So if e.g. I get to the point of needing to extend
+  -- a [DurOrDurTuplet] to match a longer list of Maybe PitIntOrPitInts or Accent, then I do so
+  -- somehow, maybe using any Duration from [DurOrDurTuplet] when the count remaining is less
+  -- than _durTupNumerator, ugh -- note this means knowing how much farther there is to go as
+  -- I fill out the rest of [DurOrDurTuplet].
+  durss'      <- freezeLists durss
+  acctss'     <- freezeLists acctss
+  mPOOrPOsss' <- freezeLists mPOOrPOsss
+  genCanon durss' acctss' mPOOrPOsss' scale register maxDurVal 0 <&> replaceAnnFirstNote "cell"
+                                            
+genRepeat :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]] -> Scale -> (Pitch,Octave) -> Int -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
+genRepeat durss acctss mPOOrPOsss scale register maxDurVal = do
+  durss'      <- freezeLists durss
+  acctss'     <- freezeLists acctss
+  mPOOrPOsss' <- freezeLists mPOOrPOsss
+  genCanon durss' acctss' mPOOrPOsss' scale register maxDurVal 0 <&> replaceAnnFirstNote "repeat"
+
+freezeLists :: [[a]] -> Driver [[a]]
+freezeLists xss = randomizeList xss <&> (:[]) . concat
+
+genCanon :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]] -> Scale -> (Pitch,Octave) -> Int -> Int -> Driver [VoiceEvent]
+genCanon durOrDurTupss acctss mPOOrPOsss _ _ maxDurVal rotVal = do
+  manyMPOOrPOss    <- randomElements mPOOrPOsss <&> concatMap (rotN rotVal)
+  manyDurOrDurTups <- randomElements durOrDurTupss  <&> concat
+  manyAccts        <- randomElements acctss <&> concat
+  let allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,manyDurOrDurTups)
+      ves             = unfoldr unfoldVEs (manyMPOOrPOss,allDurOrDurTups,manyAccts)
+  pure $ appendAnnFirstNote "canon" ves
+
+-- mIOrIsTranspose :: Scale -> (Pitch,Octave) -> [Maybe (Either Int [Int])] -> [Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]
+-- mIOrIsTranspose scale start =
+--   map (fmap iOrIs2PoOrPos) . snd . mapAccumL accumMSteps 0
+--   where
+--     accumMSteps s Nothing         = (s, Nothing)
+--     accumMSteps s (Just (Left i)) = (s', Just (Left s'))
+--       where
+--         s' = s + i
+--     accumMSteps s (Just (Right is)) = (minimum is', Just (Right is'))
+--       where
+--         is' = (s +) <$> is
+--     iOrIs2PoOrPos = bimap (xp scale start) (fmap $ xp scale start)
+
+mPrOrPrss2MIOrIsDiffs :: Scale -> [Maybe (Either (Pitch,Octave) [(Pitch,Octave)])] -> [Maybe (Either Int [Int])]
+mPrOrPrss2MIOrIsDiffs scale =
+  mIOrIs2MIOrIsDiffs . mPrOrPrss2MIOrIss . map (fmap orderChords) . map (fmap (bimap po2pi (fmap po2pi)))
+  where
+    po2pi = second octave2Int
+    orderChords = second (sortBy (compare `on` swap))
+    mPrOrPrss2MIOrIss = map (fmap (bimap (pitchInt2ScaleDegree scale) (fmap (pitchInt2ScaleDegree scale))))
+    mIOrIs2MIOrIsDiffs = snd . mapAccumL accumDiff 0
+      where
+        accumDiff prev  Nothing          = (prev,Nothing)
+        accumDiff prev (Just (Left i))   = (i,Just (Left (i - prev)))
+        accumDiff prev (Just (Right is)) = (minimum is,Just (Right (flip (-) prev <$> is)))
+        
+type UnfoldVETup = ([Maybe (Either (Pitch,Octave) [(Pitch,Octave)])],[Either Duration DurTuplet],[Accent])
 
 -- Check enough mPrOrOrPrss to fill all _durtupDurations to make sure to always generate full tuplet
 unfoldVEs :: UnfoldVETup -> Maybe (VoiceEvent,UnfoldVETup)
-unfoldVEs (mPrOrPrs:mPrOrPrss,Left dur:durOrDurTups,accent:accents) = Just (mkNoteChordOrRest mPrOrPrs dur accent,(mPrOrPrss,durOrDurTups,accents))
-unfoldVEs (mPrOrPrss,Right durTup:durOrDurTups,accents)
- | length mPrOrPrss < NE.length (_durtupDurations durTup) = Nothing
- | otherwise = Just (veTup,(mPrOrPrss',durOrDurTups,accents'))
+unfoldVEs (mPOOrPOs:mPOOrPOss,Left dur:durOrDurTups,accent:accents) = Just (mkNoteChordOrRest mPOOrPOs dur accent,(mPOOrPOss,durOrDurTups,accents))
+unfoldVEs (mPOOrPOss,Right durTup:durOrDurTups,accents)
+ | length mPOOrPOss < NE.length (_durtupDurations durTup) = Nothing
+ | otherwise = Just (veTup,(mPOOrPOss',durOrDurTups,accents'))
   where
-    (veTup,mPrOrPrss',accents') = mkVeTuplet mPrOrPrss durTup accents
+    (veTup,mPOOrPOss',accents') = mkVeTuplet mPOOrPOss durTup accents
 unfoldVEs (_,_,_) = Nothing
 
 mkNoteChordOrRest :: Maybe (Either (Pitch,Octave) [(Pitch,Octave)]) -> Duration -> Accent -> VoiceEvent
 mkNoteChordOrRest (Just (Left (p,o))) d a = VeNote (Note p o d (singleton a) NoDynamic NoSwell "" False)
 mkNoteChordOrRest (Just (Right pos))  d a = VeChord (Chord (NE.fromList pos) d (singleton a) NoDynamic NoSwell False)
 mkNoteChordOrRest Nothing             d _ = VeRest (Rest d NoDynamic)
-    
-mPrOrPrss2MIOrIss :: Scale -> [Maybe (Either (Pitch,Int) [(Pitch,Int)])] -> [Maybe (Either Int [Int])]
-mPrOrPrss2MIOrIss scale = map (fmap (bimap (pitchInt2ScaleDegree scale) (fmap (pitchInt2ScaleDegree scale))))
 
-genRepeat :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe (Either (Pitch,Int) [(Pitch,Int)])]] -> Scale -> (Pitch,Octave) -> Int -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
-genRepeat durss acctss mPrOrPrsss scale register maxDurVal = do
-  durss'      <- freezeLists durss
-  acctss'     <- freezeLists acctss
-  mPrOrPrsss' <- freezeLists mPrOrPrsss
-  genCanon durss' acctss' mPrOrPrsss' scale register maxDurVal 0 <&> replaceAnnFirstNote "static"
-
-freezeLists :: [[a]] -> Driver [[a]]
-freezeLists xss = randomizeList xss <&> (:[]) . concat
-
-genCanon :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe (Either (Pitch,Int) [(Pitch,Int)])]] -> Scale -> (Pitch,Octave) -> Int -> Int -> Driver [VoiceEvent]
-genCanon durOrDurTupss acctss mPrOrPrsss scale register maxDurVal rotVal = do
-  let orderChords = second (sortBy (compare `on` swap)) -- for chord e.g. [(Pitch,Int)], order elements from low to high
-  manyMIOrIssDiffs <- randomElements mPrOrPrsss <&> fmap (mIOrIs2MIOrIsDiffs . mPrOrPrss2MIOrIss scale . map (fmap orderChords) . rotN rotVal)
-  manyDurOrDurTups <- randomElements durOrDurTupss  <&> concat
-  manyAccts        <- randomElements acctss <&> concat
-  let manyPOs         = repeat register
-      manyMPrOrPrss   = concat $ zipWith (mIOrIsTranspose scale) manyPOs manyMIOrIssDiffs
-      allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,manyDurOrDurTups)
-      ves             = unfoldr unfoldVEs (manyMPrOrPrss,allDurOrDurTups,manyAccts)
-  pure $ appendAnnFirstNote "canon" ves
-
-mIOrIsTranspose :: Scale -> (Pitch,Octave) -> [Maybe (Either Int [Int])] -> [Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]
-mIOrIsTranspose scale start = map (xp' scale start <$>) . reverse . snd . foldl' f (0,[])
-  where
-    f (s,l) Nothing         = (s, Nothing:l)
-    f (s,l) (Just (Left i)) = (s', Just (Left s'):l)
-      where
-        s' = s + i
-    f (s,l) (Just (Right is)) = (minimum is', Just (Right is'):l)
-      where
-        is' = (s +) <$> is
-    xp' :: Scale -> (Pitch,Octave) -> Either Int [Int] -> Either (Pitch,Octave) [(Pitch,Octave)]
-    xp' s po (Left off)  = Left (xp s po off)
-    xp' s po (Right offs) = Right (xp s po <$> offs)
-    
 unfoldDurOrDurTups :: Int -> (Int, [DurOrDurTuplet]) -> Maybe (DurOrDurTuplet, (Int, [DurOrDurTuplet]))
 unfoldDurOrDurTups maxDurVal (totDurVal,Left dur:durOrDurTups)
   | totDurVal > maxDurVal = error $ "unfoldDurs totDurVal: " <> show totDurVal <> " exceeds max: " <> show maxDurVal
@@ -257,10 +282,8 @@ unfoldDurOrDurTups maxDurVal (totDurVal,Right durTup:durOrDurTups)
       nextDurVal = dur2DurVal (durTup2Dur durTup)
       adjNextDurVal = if totDurVal + nextDurVal <= maxDurVal then nextDurVal else nextDurVal - ((totDurVal + nextDurVal) - maxDurVal)
       adjNextDur = if adjNextDurVal == nextDurVal then Right durTup else Left (durVal2Dur adjNextDurVal)
+      durTup2Dur DurTuplet{..} = durVal2Dur (getDurSum (sumDurs (replicate _durtupDenominator _durtupUnitDuration)))
 unfoldDurOrDurTups _ (_,[]) = error "unfoldDurOrDurTups unexpected empty list of [DurOrDurTuplet]"
-
-durTup2Dur :: DurTuplet -> Duration
-durTup2Dur DurTuplet{..} = durVal2Dur (getDurSum (sumDurs (replicate _durtupDenominator _durtupUnitDuration)))
 
 appendAnnFirstNote :: String -> [VoiceEvent] -> [VoiceEvent]
 appendAnnFirstNote ann = annFirstNote ann (\a b -> a <> ", " <> b)
@@ -272,18 +295,12 @@ replaceAnnFirstNote :: String -> [VoiceEvent] -> [VoiceEvent]
 replaceAnnFirstNote ann = annFirstNote ann (const id)
 
 annFirstNote :: String -> (String -> String -> String ) -> [VoiceEvent] -> [VoiceEvent]
-annFirstNote ann append = reverse . snd . foldl' foldlf (False,[])
+annFirstNote ann append = snd . mapAccumL accumSeen False
   where
-    foldlf :: (Bool,[VoiceEvent]) -> VoiceEvent -> (Bool,[VoiceEvent])
-    foldlf (True,ret)  (VeNote note) = (True,VeNote note:ret)
-    foldlf (False,ret) (VeNote note) = (True,VeNote (annNote note):ret)
-    foldlf (seen,ret)  event = (seen,event:ret)
-    annNote note@Note{..} = if null _noteAnn
-                            then
-                              note { _noteAnn = ann }
-                            else
-                              note { _noteAnn = append _noteAnn ann }
-                              
+    accumSeen False (VeNote note) = (True,VeNote (annNote note))
+    accumSeen seen  event         = (seen,event)
+    annNote note@Note{..} = note { _noteAnn = if null _noteAnn then ann else append _noteAnn ann }
+
 rotN :: Int -> [a] -> [a]
 rotN cnt as
   | cnt >= length as = error $ "rotN cnt: " <> show cnt <> " >= length as " <> show (length as)
@@ -295,15 +312,6 @@ pitchInt2ScaleDegree Scale{..} (pitch,octOff) =
   where
     pitches = NE.toList _scPitches
     err = error $ "mPitch2ScaleDegree no pitch: " <> show pitch <> " in pitches for scale: " <> show pitches
-
--- Same as mInts2MIntDiffs using minimum element in [Int]
-mIOrIs2MIOrIsDiffs :: [Maybe (Either Int [Int])] -> [Maybe (Either Int [Int])]
-mIOrIs2MIOrIsDiffs =
-  snd . foldl foldlf (0,[])
-  where
-    foldlf (prev,ret) Nothing          = (prev,ret <> [Nothing])
-    foldlf (prev,ret) (Just (Left i))  = (i,ret <> [Just (Left (i - prev))])
-    foldlf (prev,ret) (Just (Right is)) = (minimum is,ret <> [Just (Right (flip (-) prev <$> is))])
 
 mkVeTuplet :: [Maybe (Either (Pitch,Octave) [(Pitch,Octave)])] -> DurTuplet -> [Accent] -> (VoiceEvent,[Maybe (Either (Pitch,Octave) [(Pitch,Octave)])],[Accent])
 mkVeTuplet mPOrPrss DurTuplet{..} accents = (verifyVeTuplet veTup,drop cntDurs mPOrPrss,drop cntDurs accents)
@@ -320,11 +328,13 @@ verifyVeTuplet ve = ve
 
 voiceConfig2VoiceEvents :: VoiceConfig -> Driver [VoiceEvent]
 voiceConfig2VoiceEvents VoiceConfigXPose{..} =
-  genXPose (nes2arrs _vcxDurss) (nes2arrs _vcxAcctss)  (ness2Marrss _vcxmPIOrPIsss) _vcxScale (Range _vcxRange)
+  genXPose (nes2arrs _vcxDurss) (nes2arrs _vcxAcctss)  (ness2Marrss _vcxmPOOrPOsss) _vcxScale (Range _vcxRange)
 voiceConfig2VoiceEvents VoiceConfigRepeat{..} =
-  genRepeat (nes2arrs _vcrDurss) (nes2arrs _vcrAcctss) (ness2Marrss _vcrmPIOrPIsss) _vcrScale _vcrRegister _vcrDurVal
+  genRepeat (nes2arrs _vcrDurss) (nes2arrs _vcrAcctss) (ness2Marrss _vcrmPOOrPOsss) _vcrScale _vcrRegister _vcrDurVal
+voiceConfig2VoiceEvents VoiceConfigCell{..} =
+  genCell (nes2arrs _vcclDurss) (nes2arrs _vcclAcctss) (ness2Marrss _vcclmPOOrPOsss) _vcclScale _vcclRegister _vcclDurVal
 voiceConfig2VoiceEvents VoiceConfigCanon{..} =
-  genCanon (nes2arrs _vccDurss) (nes2arrs _vccAcctss) (ness2Marrss _vccmPIOrPIsss)_vccScale _vccRegister _vccDurVal _vccRotVal
+  genCanon (nes2arrs _vccDurss) (nes2arrs _vccAcctss) (ness2Marrss _vccmPOOrPOsss)_vccScale _vccRegister _vccDurVal _vccRotVal
 
 ves2VeRests :: [VoiceEvent] -> [VoiceEvent]
 ves2VeRests = fmap ve2VeRest
@@ -430,10 +440,13 @@ genSplitStaffVoc instr keySig timeSig ves
 
 groupConfig2VoiceEvents :: GroupConfig -> Driver [[[VoiceEvent]]]
 groupConfig2VoiceEvents (GroupConfigNeutral _ _ secCfgs) =
-  traverse sectionConfig2VoiceEvents (NE.toList secCfgs) -- <&> (concat <$> transpose)
+  traverse sectionConfig2VoiceEvents (NE.toList secCfgs)
 groupConfig2VoiceEvents (GroupConfigEvenEnds _ _ secCfgs) =
-  traverse sectionConfig2VoiceEvents (NE.toList secCfgs) >>= extendVoicesEvents (NE.last secCfgs) -- <&> (concat <$> transpose)
+  traverse sectionConfig2VoiceEvents (NE.toList secCfgs) >>= extendVoicesEvents (NE.last secCfgs)
 
+-- Repeatedly add [[VoiceEvent]] for last section to input until all [[VoiceEvent]] are the same
+-- total duration.  Tricky bit is that sectionConfig2VoiceEvents may not add [VoiceEvent] of
+-- sufficiently long sum duration to match difference in length needed.
 extendVoicesEvents :: SectionConfig -> [[[VoiceEvent]]] -> Driver [[[VoiceEvent]]]
 extendVoicesEvents sectionConfig vesssIn = 
   let go vesss = do
@@ -445,24 +458,27 @@ extendVoicesEvents sectionConfig vesssIn =
         else do
           let maxLen = maximum veLens
               veLenDiffs = (-) maxLen <$> veLens
-          vessNew <- sectionConfig2VoiceEvents sectionConfig <&> zipWith trimVes veLenDiffs
+          vessNew <- sectionConfig2VoiceEvents sectionConfig <&> zipWith maybeTrimVes veLenDiffs
           go $ vesss <> [vessNew]
   in 
     go vesssIn
 
-trimVes :: Int -> [VoiceEvent] -> [VoiceEvent]
-trimVes lenDiff vesIn =
+-- No need to trim for [VoiceEvent] that's already the longest (lenDiff is 0)
+-- or when sum of duration for new [VoiceEvent] is <= lenDiff
+maybeTrimVes :: Int -> [VoiceEvent] -> [VoiceEvent]
+maybeTrimVes 0 _ = []
+maybeTrimVes lenDiff vesIn =
   case vesLen `compare` lenDiff of
-    GT -> trim lenDiff vesIn
     LT -> vesIn
     EQ -> vesIn
+    GT -> trim lenDiff vesIn
   where
     vesLen = ves2DurVal vesIn
     trim :: Int -> [VoiceEvent] -> [VoiceEvent]
-    trim lenTot = snd . foldl' tr (lenTot,[])
-    tr :: (Int,[VoiceEvent]) -> VoiceEvent -> (Int,[VoiceEvent])
-    tr (0,ves) _  = (0,ves)
-    tr (n,ves) ve  = (n',ves <> [ve'])
+    trim lenTot = snd . foldr tr (lenTot,[])
+    tr :: VoiceEvent -> (Int,[VoiceEvent]) -> (Int,[VoiceEvent])
+    tr _ (0,ves)  = (0,ves)
+    tr ve (n,ves) = (n',ves <> [ve'])
       where
         veLen  = ve2DurVal ve
         n'     = if n >= veLen then n - veLen else 0
@@ -511,37 +527,37 @@ tagTempo _ vs = vs
 --        note the only other VoiceEvent with a tie is Chord, though
 --        there should also eventually be one for Rhythm
 alignVoiceEventsDurations :: TimeSignature -> [VoiceEvent] -> [VoiceEvent]
-alignVoiceEventsDurations timeSig =
-  snd . foldl' adjVEsDurs (0,[]) . groupBy ((==) `on` isVeRest)
+alignVoiceEventsDurations timeSig ves =
+  concat . snd $ mapAccumL adjVEsDurs 0 (groupBy ((==) `on` isVeRest) ves)
   where
     -- adjust [VoiceEvent] durations by time signature by current length at start of list
-    adjVEsDurs :: (Int,[VoiceEvent]) -> [VoiceEvent] -> (Int,[VoiceEvent])
+    adjVEsDurs :: Int -> [VoiceEvent] -> (Int,[VoiceEvent])
     -- contiguous rests can just use durations from addEndDurs, no need for ties
-    adjVEsDurs (curLen,ret) rests@((VeRest _):_) =
-      (curLen + addLen,ret <> newRests)
+    adjVEsDurs curLen rests@((VeRest _):_) =
+      (curLen + addLen,newRests)
       where
         addLen = ves2DurVal rests
         durs = addEndDurs timeSig curLen addLen
         newRests = VeRest . flip Rest NoDynamic <$> durs
-    -- fo notes and chords (eventually rhythms), add ties 
-    adjVEsDurs (curLen,ret) allVes =
-      foldl' adjVEDur (curLen,ret) allVes
+    -- for notes and chords (eventually rhythms), add ties 
+    adjVEsDurs curLen allVes =
+      second concat $ mapAccumL adjVEDur curLen allVes
       where
-        adjVEDur :: (Int,[VoiceEvent]) -> VoiceEvent -> (Int,[VoiceEvent])
-        adjVEDur (curLen',ret') (VeNote note@Note{..}) =
-          (curLen' + addLen,ret' <> (stripAnnotations . fixTies $ newNotes))
+        adjVEDur :: Int -> VoiceEvent -> (Int,[VoiceEvent])
+        adjVEDur curLen' (VeNote note@Note{..}) =
+          (curLen' + addLen,stripAnnotations . fixTies $ newNotes)
           where
             addLen = dur2DurVal _noteDur
             durs = addEndDurs timeSig curLen' addLen
             newNotes = VeNote . (\dur -> note {_noteDur = dur}) <$> durs
-        adjVEDur (curLen',ret') (VeChord chord@Chord{..}) =
-          (curLen' + addLen,ret' <> (stripAnnotations . fixTies $ newChords))
+        adjVEDur curLen' (VeChord chord@Chord{..}) =
+          (curLen' + addLen,stripAnnotations . fixTies $ newChords)
           where
             addLen = dur2DurVal _chordDur
             durs = addEndDurs timeSig curLen' addLen
             newChords = VeChord . (\dur -> chord {_chordDur = dur}) <$> durs
-        adjVEDur (curLen',ret') ve = (curLen' + ve2DurVal ve,ret' <> [ve])
-        
+        adjVEDur curLen' ve = (curLen' + ve2DurVal ve,[ve])
+
 fixTies :: [VoiceEvent] -> [VoiceEvent]
 fixTies ves
   | length ves < 2 = ves
@@ -591,16 +607,21 @@ freezeConfig :: VoiceConfig -> Driver VoiceConfig
 freezeConfig vcx@VoiceConfigXPose{..}  = do
   durss      <- freezeNELists _vcxDurss
   acctss     <- freezeNELists _vcxAcctss
-  mPIOrPIsss <- freezeNELists _vcxmPIOrPIsss
-  pure $ vcx { _vcxDurss = durss, _vcxAcctss = acctss, _vcxmPIOrPIsss = mPIOrPIsss }
+  mPOOrPOsss <- freezeNELists _vcxmPOOrPOsss
+  pure $ vcx { _vcxDurss = durss, _vcxAcctss = acctss, _vcxmPOOrPOsss = mPOOrPOsss }
 freezeConfig vcr@VoiceConfigRepeat{..} = do
   durss      <- freezeNELists _vcrDurss
   acctss     <- freezeNELists _vcrAcctss
-  mPIOrPIsss <- freezeNELists _vcrmPIOrPIsss
-  pure $ vcr { _vcrDurss = durss, _vcrAcctss = acctss, _vcrmPIOrPIsss = mPIOrPIsss }
+  mPOOrPOsss <- freezeNELists _vcrmPOOrPOsss
+  pure $ vcr { _vcrDurss = durss, _vcrAcctss = acctss, _vcrmPOOrPOsss = mPOOrPOsss }
+freezeConfig vcl@VoiceConfigCell{..} = do
+  durss      <- freezeNELists _vcclDurss
+  acctss     <- freezeNELists _vcclAcctss
+  mPOOrPOsss <- freezeNELists _vcclmPOOrPOsss
+  pure $ vcl { _vcclDurss = durss, _vcclAcctss = acctss, _vcclmPOOrPOsss = mPOOrPOsss }
 freezeConfig vcc@VoiceConfigCanon{..}  = do
   durss      <- freezeNELists _vccDurss
   acctss     <- freezeNELists _vccAcctss
-  mPIOrPIsss <- freezeNELists _vccmPIOrPIsss
-  pure $ vcc { _vccDurss = durss, _vccAcctss = acctss, _vccmPIOrPIsss = mPIOrPIsss }
+  mPOOrPOsss <- freezeNELists _vccmPOOrPOsss
+  pure $ vcc { _vccDurss = durss, _vccAcctss = acctss, _vccmPOOrPOsss = mPOOrPOsss }
     
