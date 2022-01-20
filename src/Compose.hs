@@ -222,22 +222,9 @@ genCanon durOrDurTupss acctss mPOOrPOsss _ _ maxDurVal rotVal = do
       ves             = unfoldr unfoldVEs (manyMPOOrPOss,allDurOrDurTups,manyAccts)
   pure $ appendAnnFirstNote "canon" ves
 
--- mIOrIsTranspose :: Scale -> (Pitch,Octave) -> [Maybe (Either Int [Int])] -> [Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]
--- mIOrIsTranspose scale start =
---   map (fmap iOrIs2PoOrPos) . snd . mapAccumL accumMSteps 0
---   where
---     accumMSteps s Nothing         = (s, Nothing)
---     accumMSteps s (Just (Left i)) = (s', Just (Left s'))
---       where
---         s' = s + i
---     accumMSteps s (Just (Right is)) = (minimum is', Just (Right is'))
---       where
---         is' = (s +) <$> is
---     iOrIs2PoOrPos = bimap (xp scale start) (fmap $ xp scale start)
-
 mPrOrPrss2MIOrIsDiffs :: Scale -> [Maybe (Either (Pitch,Octave) [(Pitch,Octave)])] -> [Maybe (Either Int [Int])]
 mPrOrPrss2MIOrIsDiffs scale =
-  mIOrIs2MIOrIsDiffs . mPrOrPrss2MIOrIss . map (fmap orderChords) . map (fmap (bimap po2pi (fmap po2pi)))
+  mIOrIs2MIOrIsDiffs . mPrOrPrss2MIOrIss . map (fmap (orderChords . bimap po2pi (fmap po2pi)))
   where
     po2pi = second octave2Int
     orderChords = second (sortBy (compare `on` swap))
