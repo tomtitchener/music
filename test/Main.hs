@@ -72,7 +72,7 @@ tests =
   ,testCase     "parseLily . toLily poly score"        (assertParseLilytoLilyVal polyScore)
   ,testCase     "parseLily . toLily split staff score" (assertParseLilytoLilyVal splitStaffScore)
   ,testCase     "parseLily . toLily group score"       (assertParseLilytoLilyVal groupScore)
-  --
+  
   ,testCase     "single-voice score" (testLilypond "single-voice.ly" minScore)
   ,testCase     "multi-voice score"  (testLilypond "multi-voice.ly" multiScore)
   ,testCase     "poly-voice score"   (testLilypond "poly-voice.ly" polyScore)
@@ -171,10 +171,10 @@ instance Arbitrary Tuplet where
     arbGtr :: Bool <- arbitrary --  > tuple num / denum, e.g. 1 vs. < 1, e.g. True => N + 1 / N, False => N / N + 1
     arbNum :: Int <- elements [3..7] -- tuples from [4 in the time of 3 | 3 in the time of 4 ..  7 in the time of 6 | 6 in the time of 7]
     note <- Note <$> arbitrary <*> arbitrary <*> pure dur <*> pure (NE.fromList [NoAccent]) <*> elements [Forte,Piano,FF,MF] <*> arbitrary <*> pure "" <*> arbitrary
-    let notes = NE.fromList $ replicate arbNum note                                     -- hack ^^ to force not NoDynamic ^^
-    if arbGtr
-    then pure $ Tuplet arbNum (arbNum - 1) dur (NE.map VeNote notes)
-    else pure $ Tuplet (arbNum -1) arbNum dur (NE.map VeNote notes)
+    let num = if arbGtr then arbNum else arbNum - 1                                        -- hack ^^ to force not NoDynamic ^^
+        den = if arbGtr then arbNum - 1 else arbNum
+        notes = NE.fromList $ replicate num note
+    pure $ Tuplet num den dur (NE.map VeNote notes)
     where
       dur = QDur
 

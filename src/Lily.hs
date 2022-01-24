@@ -7,7 +7,7 @@
      - Replace interpolator with one that works for ByteString (string-interpolate?).
 -}
 
-module Lily (ToLily(..)
+module Lily {--(ToLily(..)
             ,FromLily(..)
             ,parseNat
             ,parseNatural
@@ -17,7 +17,7 @@ module Lily (ToLily(..)
             ,parseDynamic
             ,parseSwell
             ,mkParseLily
-            ) where
+            ) --} where
 
 import Control.Monad (void)
 import qualified Data.List.NonEmpty as NE
@@ -232,10 +232,10 @@ instance FromLily Spacer  where
 ------------
 
 instance ToLily Tuplet where
-  toLily (Tuplet num denom dur notes) = "\\tuplet " <> show num <> "/" <> show denom <> " " <> toLily dur <> " {" <> toLilyFromNEList notes <> "}"
+  toLily (Tuplet num denom dur notes) = "\\tuplet " <> show num <> "/" <> show denom <> " " <> toLily dur <> " {" <> unwords (NE.toList $ NE.map toLily notes) <> "}"
 
 parseVoiceEvents :: Parser (NE.NonEmpty VoiceEvent)
-parseVoiceEvents = NE.fromList <$> (parseVoiceEvent `sepBy` spaces)
+parseVoiceEvents = NE.fromList <$> parseVoiceEvent `sepBy` char ' '
 
 parseTuplet :: Parser Tuplet
 parseTuplet = Tuplet <$> (string "\\tuplet " *> parseNat) <*> (string "/" *> parseNat) <*> (spaces *> parseDuration) <*> (string " {" *> parseVoiceEvents <* string "}")
@@ -429,6 +429,7 @@ parseVoiceEvent = choice [try (VeClef <$> parseClef)
                          ,try (VeSpacer <$> parseSpacer)
                          ,try (VeChord <$> parseChord)
                          ,try (VeTempo <$> parseTempo)
+                         ,try (VeTuplet <$> parseTuplet)
                          ,try (VeKeySignature <$> parseKeySignature)
                          ,try (VeTimeSignature <$> parseTimeSignature)
                          ,try (VeTremolo <$> parseTremolo)]
