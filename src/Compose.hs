@@ -26,10 +26,9 @@ import Data.Sequence (adjust, fromList)
 import Data.Traversable (mapAccumL)
 import Data.Tuple (swap)
 
-import Config 
 import ComposeData
 import Driver
-       (Driver, randomElements, randomizeList, randomWeightedElement, searchConfigParam, searchMConfigParam)
+       (Driver, randomElements, randomizeList, randomIndices, randomWeightedElement, searchConfigParam, searchMConfigParam)
 import Types
 import Utils hiding (transpose)
 
@@ -187,21 +186,20 @@ genXPose durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
     unfoldMPrOrPrss _ (prev,mIOrIss) = error $ "invalid list of steps, (" <> show prev <> "," <> show (take 10 mIOrIss) <> ")"
 
 genCell :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]] -> Scale -> (Pitch,Octave) -> Int -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
-genCell durss acctss mPOOrPOsss scale register maxDurVal = do
-  -- TBD: going to look like genCanon without rotation and with call to randomIndices
-  -- to build list of indexes that seed identical choices of sub-lists of durss, acctss, mPrOrPrsss
-  -- Also:  be careful to extend each sub-list to the same count of items.  Which makes life
-  -- interesting when you consider Tuples, which I could include but for which I'd have to have
-  -- special treatment in the generation of the DurOrDurTuplet list, namely, that one DurTuplet
-  -- counts for _durTupNumerator Durations.  So if e.g. I get to the point of needing to extend
-  -- a [DurOrDurTuplet] to match a longer list of Maybe PitIntOrPitInts or Accent, then I do so
-  -- somehow, maybe using any Duration from [DurOrDurTuplet] when the count remaining is less
-  -- than _durTupNumerator, ugh -- note this means knowing how much farther there is to go as
-  -- I fill out the rest of [DurOrDurTuplet].
-  durss'      <- freezeLists durss
-  acctss'     <- freezeLists acctss
-  mPOOrPOsss' <- freezeLists mPOOrPOsss
-  genCanon durss' acctss' mPOOrPOsss' scale register maxDurVal 0 <&> replaceAnnFirstNote "cell"
+genCell durss acctss mPOOrPOsss _ _ maxDurVal = do
+  manyIs <- randomIndices (maximum [length durss,length acctss, length mPOOrPOsss])
+  let (manyDurs,manyAccts,manyMPOOrPOss) = equalLengthLists ((durss !!) <$> manyIs,(acctss !!) <$> manyIs,(mPOOrPOsss !!) <$> manyIs)
+      allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,concat manyDurs)
+      ves             = unfoldr unfoldVEs (concat manyMPOOrPOss,allDurOrDurTups,concat manyAccts)
+  pure $ appendAnnFirstNote "cell" ves
+  where
+    equalLengthLists (as:asss,bs:bss,cs:css) = (as':asss,bs':bss,cs':css)
+      where
+        (as',bs',cs') = equalList (as,bs,cs)
+        equalList (xs,ys,zs) = (take l (cycle xs), take l (cycle ys), take l (cycle zs))
+          where
+            l = maximum [length xs,length ys,length zs]
+    equalLengthLists (as,bs,cs) = error $ "equalLists unexpected uneven length lists: " <> show (as,bs,cs)
                                             
 genRepeat :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]] -> Scale -> (Pitch,Octave) -> Int -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
 genRepeat durss acctss mPOOrPOsss scale register maxDurVal = do
@@ -227,6 +225,8 @@ mPrOrPrss2MIOrIsDiffs scale =
   mIOrIs2MIOrIsDiffs . mPrOrPrss2MIOrIss . map (fmap (orderChords . bimap po2pi (fmap po2pi)))
   where
     po2pi = second octave2Int
+    octaveInts = [-4,-3,-2,-1,0,1,2,3]
+    octave2Int oct = maybe (error $ "octave2Int unrecognized octave: " <> show oct) (octaveInts !!) $ elemIndex oct [TwentyNineVBOct .. TwentyTwoVAOct]
     orderChords = second (sortBy (compare `on` swap))
     mPrOrPrss2MIOrIss = map (fmap (bimap (pitchInt2ScaleDegree scale) (fmap (pitchInt2ScaleDegree scale))))
     mIOrIs2MIOrIsDiffs = snd . mapAccumL accumDiff 0

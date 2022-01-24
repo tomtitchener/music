@@ -1,6 +1,10 @@
 {-# LANGUAGE RecordWildCards     #-}
 
-module ComposeData (VoiceConfig(..), SectionConfig(..), GroupConfig(..), VoiceRuntimeConfig(..), cfg2GroupConfig) where
+module ComposeData (VoiceConfig(..)
+                   , SectionConfig(..)
+                   , GroupConfig(..)
+                   , VoiceRuntimeConfig(..)
+                   , cfg2GroupConfig) where
 
 import Driver (Driver, searchConfigParam, searchMConfigParam, cfgPath2Keys)
 import Types
@@ -168,7 +172,6 @@ path2VoiceConfigCell' pre =
 path2VoiceConfigCell :: String -> Driver VoiceConfig
 path2VoiceConfigCell pre = path2VoiceConfigCell' pre <&> verifyListsLengths
   where
-    verifyListsLengths :: VoiceConfig -> VoiceConfig
     verifyListsLengths vc@VoiceConfigCell{..}
       | all (== head allLengths) allLengths = vc
       | otherwise = error $ "path2VoiceConfigCell unequal length listss: " <> show allLengths

@@ -78,7 +78,7 @@ runDriver (Free (DoActionThen act k)) =
   case act of
     RandomElement  l      -> getRandomR (0, length l - 1) >>= runDriver . k . (l !!)
     RandomElements l      -> getRandomRs (0, length l - 1) >>= runDriver . k . map (l !!)
-    RandomIndices  n      -> getRandomRs (0, n) >>= runDriver . k
+    RandomIndices  n      -> getRandomRs (0, n - 1) >>= runDriver . k
     RandomizeList  l      -> shuffleM l >>= runDriver . k
     GetConfigParam path   -> asks (lookupConfig path . _config) >>= runDriver . k
     GetMConfigParam path  -> asks (lookupMConfig path . _config) >>= runDriver . k

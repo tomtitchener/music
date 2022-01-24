@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 
-module Config (FromConfig(..),octave2Int) where
+module Config (FromConfig(..)) where
 
 import Data.Functor ((<&>))
 import Data.Natural (Natural)
@@ -20,7 +20,6 @@ import Text.Parsec
 import Text.Parsec.Number ( int )
 import Text.Parsec.String ( Parser )
 
-import Data.List (elemIndex)
 import qualified Data.List.NonEmpty as NE
 
 import Lily
@@ -256,14 +255,8 @@ pIntPr = between (char '(') (char ')') ((,) <$> parseNat <*> (char ',' *> parseN
 octaveIntStrings :: [String]
 octaveIntStrings = ["-4","-3","-2","-1","0","1","2","3"]
 
-octaveInts :: [Int]
-octaveInts = [-4,-3,-2,-1,0,1,2,3]
-
 pOctaveStr :: Parser Octave
 pOctaveStr = choice (zipWith mkParser octaveIntStrings [TwentyNineVBOct .. TwentyTwoVAOct])
-
-octave2Int :: Octave -> Int
-octave2Int oct = maybe (error $ "octave2Int unrecognized octave: " <> show oct) (octaveInts !!) $ elemIndex oct [TwentyNineVBOct .. TwentyTwoVAOct]
 
 pPitOctPr :: Parser (Pitch,Octave)
 pPitOctPr = between (char '(') (char ')') ((,) <$> parsePitch <*> (char ',' *> pOctaveStr))
