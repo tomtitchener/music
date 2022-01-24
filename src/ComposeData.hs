@@ -80,7 +80,7 @@ data VoiceConfig =
                  ,_vcxKey        :: KeySignature
                  ,_vcxScale      :: Scale
                  ,_vcxTime       :: TimeSignature
-                 ,_vcxmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave)))))
+                 ,_vcxmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                  ,_vcxDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                  ,_vcxAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
                  ,_vcxRange      :: ((Pitch,Octave),(Pitch,Octave))
@@ -90,7 +90,7 @@ data VoiceConfig =
                     ,_vcrKey        :: KeySignature
                     ,_vcrScale      :: Scale
                     ,_vcrTime       :: TimeSignature
-                    ,_vcrmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave)))))
+                    ,_vcrmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcrDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vcrAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vcrRegister   :: (Pitch,Octave)
@@ -101,7 +101,7 @@ data VoiceConfig =
                     ,_vcclKey        :: KeySignature
                     ,_vcclScale      :: Scale
                     ,_vcclTime       :: TimeSignature
-                    ,_vcclmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave)))))
+                    ,_vcclmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcclDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vcclAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vcclRegister   :: (Pitch,Octave)
@@ -112,7 +112,7 @@ data VoiceConfig =
                     ,_vccKey        :: KeySignature
                     ,_vccScale      :: Scale
                     ,_vccTime       :: TimeSignature
-                    ,_vccmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave)))))
+                    ,_vccmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vccDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vccAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vccRegister   :: (Pitch,Octave)

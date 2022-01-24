@@ -32,6 +32,8 @@ import Driver
 import Types
 import Utils hiding (transpose)
 
+type PitOctOrPitOcts = Either (Pitch,Octave) [(Pitch,Octave)]
+
 newtype Range = Range ((Pitch,Octave),(Pitch,Octave)) deriving (Eq, Show)
 
 type ConfigMod = VoiceRuntimeConfig -> VoiceConfig -> Driver VoiceConfig
@@ -69,7 +71,7 @@ modMPitOctssOctaves mkIdWeight vrtCfg vcr@VoiceConfigRepeat{..} = modAnyMPitOcts
 modMPitOctssOctaves mkIdWeight vrtCfg vcl@VoiceConfigCell{..}   = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcclmPOOrPOsss <&> \mPitOctsss -> vcl { _vcclmPOOrPOsss = mPitOctsss}
 modMPitOctssOctaves mkIdWeight vrtCfg vcc@VoiceConfigCanon{..}  = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vccmPOOrPOsss  <&> \mPitOctsss -> vcc { _vccmPOOrPOsss = mPitOctsss}
 
-modAnyMPitOctssOctaves :: (Int -> Int -> Int ) -> VoiceRuntimeConfig -> NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave))))) -> Driver (NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave))))))
+modAnyMPitOctssOctaves :: (Int -> Int -> Int ) -> VoiceRuntimeConfig -> NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts)) -> Driver (NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts)))
 modAnyMPitOctssOctaves mkIdWeight VoiceRuntimeConfig{..} = 
   traverse (traverse randomizeMPitOcts)
   where
@@ -147,7 +149,7 @@ uniformAccents VoiceRuntimeConfig{..} ves = do
 
 -- Unfold repeated transpositions of [[Maybe Pitch]] across Range
 -- matching up with repetitions of [[Duration]] and [[Accent] to generate VoiceEvent.
-genXPose :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]] -> Scale -> Range -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
+genXPose :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Scale -> Range -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
 genXPose durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
   let rangeOrd   = swap stop `compare` swap start
   manyMIOrIssDiffs <- randomElements mPrOrPrsss <&> concatMap (mPrOrPrss2MIOrIsDiffs scale)
@@ -185,7 +187,7 @@ genXPose durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
     unfoldMPrOrPrss _ (prev,Nothing:mIOrIss) = Just (Nothing,(prev,mIOrIss))
     unfoldMPrOrPrss _ (prev,mIOrIss) = error $ "invalid list of steps, (" <> show prev <> "," <> show (take 10 mIOrIss) <> ")"
 
-genCell :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]] -> Scale -> (Pitch,Octave) -> Int -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
+genCell :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Scale -> (Pitch,Octave) -> Int -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
 genCell durss acctss mPOOrPOsss _ _ maxDurVal = do
   manyIs <- randomIndices (maximum [length durss,length acctss, length mPOOrPOsss])
   let (manyDurs,manyAccts,manyMPOOrPOss) = equalLengthLists ((durss !!) <$> manyIs,(acctss !!) <$> manyIs,(mPOOrPOsss !!) <$> manyIs)
@@ -201,7 +203,7 @@ genCell durss acctss mPOOrPOsss _ _ maxDurVal = do
             l = maximum [length xs,length ys,length zs]
     equalLengthLists (as,bs,cs) = error $ "equalLists unexpected uneven length lists: " <> show (as,bs,cs)
                                             
-genRepeat :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]] -> Scale -> (Pitch,Octave) -> Int -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
+genRepeat :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Scale -> (Pitch,Octave) -> Int -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
 genRepeat durss acctss mPOOrPOsss scale register maxDurVal = do
   durss'      <- freezeLists durss
   acctss'     <- freezeLists acctss
@@ -211,7 +213,7 @@ genRepeat durss acctss mPOOrPOsss scale register maxDurVal = do
 freezeLists :: [[a]] -> Driver [[a]]
 freezeLists xss = randomizeList xss <&> (:[]) . concat
 
-genCanon :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]] -> Scale -> (Pitch,Octave) -> Int -> Int -> Driver [VoiceEvent]
+genCanon :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Scale -> (Pitch,Octave) -> Int -> Int -> Driver [VoiceEvent]
 genCanon durOrDurTupss acctss mPOOrPOsss _ _ maxDurVal rotVal = do
   manyMPOOrPOss    <- randomElements mPOOrPOsss <&> concatMap (rotN rotVal)
   manyDurOrDurTups <- randomElements durOrDurTupss  <&> concat
@@ -220,7 +222,7 @@ genCanon durOrDurTupss acctss mPOOrPOsss _ _ maxDurVal rotVal = do
       ves             = unfoldr unfoldVEs (manyMPOOrPOss,allDurOrDurTups,manyAccts)
   pure $ appendAnnFirstNote "canon" ves
 
-mPrOrPrss2MIOrIsDiffs :: Scale -> [Maybe (Either (Pitch,Octave) [(Pitch,Octave)])] -> [Maybe (Either Int [Int])]
+mPrOrPrss2MIOrIsDiffs :: Scale -> [Maybe PitOctOrPitOcts] -> [Maybe (Either Int [Int])]
 mPrOrPrss2MIOrIsDiffs scale =
   mIOrIs2MIOrIsDiffs . mPrOrPrss2MIOrIss . map (fmap (orderChords . bimap po2pi (fmap po2pi)))
   where
@@ -235,7 +237,7 @@ mPrOrPrss2MIOrIsDiffs scale =
         accumDiff prev (Just (Left i))   = (i,Just (Left (i - prev)))
         accumDiff prev (Just (Right is)) = (minimum is,Just (Right (flip (-) prev <$> is)))
         
-type UnfoldVETup = ([Maybe (Either (Pitch,Octave) [(Pitch,Octave)])],[Either Duration DurTuplet],[Accent])
+type UnfoldVETup = ([Maybe PitOctOrPitOcts],[DurOrDurTuplet],[Accent])
 
 -- Check enough mPrOrOrPrss to fill all _durtupDurations to make sure to always generate full tuplet
 unfoldVEs :: UnfoldVETup -> Maybe (VoiceEvent,UnfoldVETup)
@@ -247,7 +249,7 @@ unfoldVEs (mPOOrPOss,Right durTup:durOrDurTups,accents)
     (veTup,mPOOrPOss',accents') = mkVeTuplet mPOOrPOss durTup accents
 unfoldVEs (_,_,_) = Nothing
 
-mkNoteChordOrRest :: Maybe (Either (Pitch,Octave) [(Pitch,Octave)]) -> Duration -> Accent -> VoiceEvent
+mkNoteChordOrRest :: Maybe PitOctOrPitOcts -> Duration -> Accent -> VoiceEvent
 mkNoteChordOrRest (Just (Left (p,o))) d a = VeNote (Note p o d (singleton a) NoDynamic NoSwell "" False)
 mkNoteChordOrRest (Just (Right pos))  d a = VeChord (Chord (NE.fromList pos) d (singleton a) NoDynamic NoSwell False)
 mkNoteChordOrRest Nothing             d _ = VeRest (Rest d NoDynamic)
@@ -300,7 +302,7 @@ pitchInt2ScaleDegree Scale{..} (pitch,octOff) =
     pitches = NE.toList _scPitches
     err = error $ "mPitch2ScaleDegree no pitch: " <> show pitch <> " in pitches for scale: " <> show pitches
 
-mkVeTuplet :: [Maybe (Either (Pitch,Octave) [(Pitch,Octave)])] -> DurTuplet -> [Accent] -> (VoiceEvent,[Maybe (Either (Pitch,Octave) [(Pitch,Octave)])],[Accent])
+mkVeTuplet :: [Maybe PitOctOrPitOcts] -> DurTuplet -> [Accent] -> (VoiceEvent,[Maybe PitOctOrPitOcts],[Accent])
 mkVeTuplet mPOrPrss DurTuplet{..} accents = (verifyVeTuplet veTup,drop cntDurs mPOrPrss,drop cntDurs accents)
   where
     ves = zipWith3 mkNoteChordOrRest mPOrPrss' (NE.toList _durtupDurations) accents'

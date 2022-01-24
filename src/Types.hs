@@ -37,6 +37,7 @@ module Types (Pitch (..)
              ,Score (..)
              ,DurTuplet (..)
              ,DurOrDurTuplet
+             ,PitOctOrNEPitOcts
              ) where
 
 import Data.List.NonEmpty
@@ -231,3 +232,4 @@ data DurTuplet = DurTuplet {
 
 type DurOrDurTuplet = Either Duration DurTuplet 
   
+type PitOctOrNEPitOcts =  Either (Pitch,Octave) (NonEmpty (Pitch,Octave))

@@ -78,7 +78,7 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty (Pitch,Octave))) where
 instance FromConfig (NE.NonEmpty ((Pitch,Octave),(Pitch,Octave))) where
   parseConfig = mkParseConfig (mkPs pPitOctsPr)
 
-instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave)))))) where
+instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))) where
   parseConfig = mkParseConfig (mkPs (mkPs (pM pPitOctPrOrPitOctPrs)))
 
 instance FromConfig Scale where
@@ -273,7 +273,7 @@ pPitIntPr = between (char '(') (char ')') ((,) <$> parsePitch <*> (char ',' *> i
 pPitIntPrOrPitIntPrs :: Parser (Either (Pitch,Int) (NE.NonEmpty (Pitch,Int)))
 pPitIntPrOrPitIntPrs = try (Left <$> pPitIntPr) <|> (Right <$> mkPs pPitIntPr)
 
-pPitOctPrOrPitOctPrs :: Parser (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave)))
+pPitOctPrOrPitOctPrs :: Parser PitOctOrNEPitOcts
 pPitOctPrOrPitOctPrs = try (Left <$> pPitOctPr) <|> (Right <$> mkPs pPitOctPr)
   
 clefStrs :: [String]
