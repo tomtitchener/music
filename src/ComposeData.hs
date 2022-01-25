@@ -1,15 +1,12 @@
 {-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE TemplateHaskell     #-}
 
-module ComposeData (VoiceConfig(..)
-                   , SectionConfig(..)
-                   , GroupConfig(..)
-                   , VoiceRuntimeConfig(..)
-                   , cfg2GroupConfig) where
+module ComposeData where
 
 import Driver (Driver, searchConfigParam, searchMConfigParam, cfgPath2Keys)
 import Types
 
-import Data.Functor ((<&>))
+import Control.Lens hiding (pre)
 import Data.List (isPrefixOf)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
@@ -120,6 +117,8 @@ data VoiceConfig =
                     ,_vccRotVal     :: Int
                  }
     deriving Show
+
+makeLenses ''VoiceConfig
 
 data VoiceRuntimeConfig =
   VoiceRuntimeConfig {

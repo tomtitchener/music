@@ -462,8 +462,7 @@ of a tuplet across a bar line into a new bar, which could be tricky.
   To fill-in, introduce voices one-by-one playing 
   single motif, then increase density across all voices.
   Reverse to fade-out.
-** TODO Annotate variable names for inifinite lists with "inf" tag.
-** TODO For a section, extend all voices to equal the longest
+** DONE For a section, extend all voices to equal the longest
 Currently I just fill the remainder out with rests.  
 But if I used the same logic to compute the duration remaining to the
 length of the longest voice, then I could generate stretches for just 
@@ -495,6 +494,14 @@ For the bridge sketch I want to have all voices catch up to each other so
 I can start the group that follows at the same point.  Which might even 
 saying something like extend all voices to the start of the next bar 
 after the end of the current longest-voice. 
+** TODO Config mod to gradually expand durations
+Effect should be to incrementally slow down rhythms.  Maybe voice-by-voice
+with each repetition?  Could double durations to cut tempo in half immediately.
+Or could blend between two textures voice-by-voice.  So first would have
+fast rhythms of first and fourth voices, second slow rhythms of second and
+third voices.  The nature of this group would be to blend together successive
+sections after first repeating the count of repetitions for that section.
+** TODO Annotate variable names for inifinite lists with "inf" tag.
 ** TODO cfg2Score assumes all sections have equal number of Voices
 This line ...
   let nOrRss = concat <$> transpose nOrRsss

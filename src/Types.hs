@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell     #-}
+
 {- | Music types for translating to and from Lilypond strings.
      Atomic types (Pitch, Scale, Octave, Accent, Duration, Dynamic, etc.)
      don't require context to be rendered to or parsed from their Lilypond
@@ -12,34 +14,9 @@
      notes with in the context of the meter and the curent offset within the bar.
 -}
 
-module Types (Pitch (..)
-             ,Scale (..)
-             ,Octave (..)
-             ,Duration (..)
-             ,Accent (..)
-             ,Dynamic (..)
-             ,Swell (..)
-             ,Note (..)
-             ,Rhythm (..)
-             ,Rest (..)
-             ,Spacer (..)
-             ,Tuplet (..)
-             ,Chord (..)
-             ,Clef (..)
-             ,Tempo (..)
-             ,Tremolo (..)
-             ,Mode (..)
-             ,KeySignature (..)
-             ,TimeSignature (..)
-             ,VoiceEvent (..)
-             ,Instrument (..)
-             ,Voice (..)
-             ,Score (..)
-             ,DurTuplet (..)
-             ,DurOrDurTuplet
-             ,PitOctOrNEPitOcts
-             ) where
+module Types where
 
+import Control.Lens 
 import Data.List.NonEmpty
 import Data.Natural
 
@@ -77,13 +54,13 @@ data Swell = Crescendo | Decrescendo | Espressivo | SwellStop | NoSwell
 data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAccs :: NonEmpty Accent, _noteDyn :: Dynamic, _noteSwell :: Swell, _noteAnn :: String,  _noteTie :: Bool}
   deriving (Eq, Ord, Show)
 
-data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAccs :: NonEmpty Accent, _rhythmDyn :: Dynamic, _rhythmSwell :: Swell } -- TBD: _rhythmTie :: Bool
-  deriving (Eq, Ord, Show)
-
 data Rest = Rest { _restDur :: Duration, _restDyn :: Dynamic }
   deriving (Eq, Ord, Show)
 
 data Spacer = Spacer { _spacerDur :: Duration, _spacerDyn :: Dynamic }
+  deriving (Eq, Ord, Show)
+
+data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAccs :: NonEmpty Accent, _rhythmDyn :: Dynamic, _rhythmSwell :: Swell } -- TBD: _rhythmTie :: Bool
   deriving (Eq, Ord, Show)
 
 -- TBD: want a smart constructor to ensure length _tupNotes is a multiple of _tupNum.
@@ -140,6 +117,17 @@ data VoiceEvent =
   | VeKeySignature { _veKeySig :: KeySignature }
   | VeTimeSignature { _veTimeSig :: TimeSignature }
    deriving (Eq, Ord, Show)
+
+makeLenses ''Note
+makeLenses ''Rest
+makeLenses ''Spacer
+makeLenses ''Rhythm
+makeLenses ''Tuplet
+makeLenses ''Chord
+makeLenses ''Tempo
+makeLenses ''Tremolo
+makeLenses ''TimeSignature
+makeLenses ''VoiceEvent
 
 {--
 data VoiceEventScore =
@@ -231,5 +219,8 @@ data DurTuplet = DurTuplet {
   } deriving Show
 
 type DurOrDurTuplet = Either Duration DurTuplet 
-  
+
+makeLenses ''DurTuplet
+
 type PitOctOrNEPitOcts =  Either (Pitch,Octave) (NonEmpty (Pitch,Octave))
+

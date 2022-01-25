@@ -211,7 +211,7 @@ bridge:
         accentss: ((~,>,>),(>,>,~,~,~))
     section5:
       stype: neutral
-      reps:  int 2
+      reps:  int 1
       uniformAcc: .
       uniformDyn: f
       norrsmods:  (uniformAccs,uniformDyns)
@@ -233,9 +233,9 @@ bridge:
         accentss: ((~,>,>),(>,>,~,~,~))
     section6:
       stype: neutral
-      reps:  int 4
+      reps:  int 2
       uniformAcc: .
-      sectionDyns: (ffff,fff,ff,f)
+      sectionDyns: (ff,f)
       norrsmods:  (uniformAccs,sectionDyns)
       common:
         range:      ((c,1),(g,-2))
@@ -262,29 +262,32 @@ bridge:
       uniformDyn: pppp
       norrsmods:  (uniformAccs,uniformDyns)
       common:
-        mPitOctsss: ( (((d,0),(ais,-1)),((c,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
         vtype:      canon
         durval:     int 64
       voice1:
+        mPitOctsss: ((((d,0),(ais,-1)),((c,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
         rotval:   int 0
         register: (c,0)
         durss:    ((16,16,16,16,8,8))
-        accentss: ((~,~,>,>),(~,~,~,~))
+        accentss: ((~,~),(~,~))
       voice2:
-        rotval:   int 1
-        register: (g,-1)
-        durss:    ((8,16,8,16,8))
-        accentss: ((~,>,~),(>,>,~))
-      voice3:
-        rotval:   int 2
-        register: (e,-1)
-        durss:    ((8,16,16,16,16,8))
-        accentss: ((~,>,>),(>,>,~,~,~))
-      voice4:
+        mPitOctsss: ((((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1)),(((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))))
         rotval:   int 0
+        register: (g,-1)
+        durss:    ((8,8,4),(8,8,4,8))
+        accentss: ((~,~),(~,~))
+      voice3:
+        mPitOctsss: ((((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1)),(((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))))
+        rotval:   int 1
+        register: (e,-1)
+        durss:    ((8,8,4),(8,4,8,8))
+        accentss: ((~,~,~),(~,~,~,~))
+      voice4:
+        mPitOctsss: ((((d,0),(ais,-1)),((c,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
+        rotval:   int 1
         register: (c,-1)
         durss:    ((8,8,16,16,16,16))
-        accentss: ((~,>,>),(>,>,~,~,~))
+        accentss: ((>,~),(~,~,~,~))
   group2:
     grname:  two
     grtype:  neutral
