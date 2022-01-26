@@ -296,6 +296,41 @@ bridge:
       reps:  int 10
       uniformAcc: !
       uniformDyn: pppp
+      dblCfgMod:  int 0
+      cfgmods:    (doubleDurs)
+      norrsmods:  (uniformAccs,uniformDyns)
+      common:
+        vtype:      canon
+        durval:     int 128
+      voice1:
+        mPitOctsss: ((((d,0),(ais,-1)),((c,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
+        rotval:   int 0
+        register: (c,0)
+        durss:    ((16,16,16,16,8,8))
+        accentss: ((~,~),(~,~))
+      voice2:
+        mPitOctsss: ((((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1)),(((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))))
+        rotval:   int 0
+        register: (g,-1)
+        durss:    ((8,8,4),(8,8,4,8))
+        accentss: ((~,~),(~,~))
+      voice3:
+        mPitOctsss: ((((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1)),(((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))))
+        rotval:   int 1
+        register: (e,-1)
+        durss:    ((8,8,4),(8,4,8,8))
+        accentss: ((~,~,~),(~,~,~,~))
+      voice4:
+        mPitOctsss: ((((d,0),(ais,-1)),((c,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
+        rotval:   int 1
+        register: (c,-1)
+        durss:    ((8,8,16,16,16,16))
+        accentss: ((>,~),(~,~,~,~))
+    section2:
+      stype: neutral
+      reps:  int 10
+      uniformAcc: !
+      uniformDyn: pppp
       norrsmods:  (uniformAccs,uniformDyns)
       common:
         vtype:      cell

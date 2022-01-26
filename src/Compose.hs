@@ -77,13 +77,13 @@ modAnyMPitOctssOctaves :: (Int -> Int -> Int ) -> VoiceRuntimeConfig -> NE.NonEm
 modAnyMPitOctssOctaves mkIdWeight VoiceRuntimeConfig{..} = 
   traverse (traverse randomizeMPitOcts)
   where
+    randomizeMPitOcts Nothing = pure Nothing
+    randomizeMPitOcts (Just (Left pr)) = randomizeMPitOct pr <&> Just . Left
+    randomizeMPitOcts (Just (Right prs)) = traverse randomizeMPitOct prs <&> Just . Right
+    randomizeMPitOct (pit,oct) = randomWeightedElement weights <&> (\f -> (pit,f oct))
     idWeight  = mkIdWeight _vrcCntSegs _vrcNumSeg
     modWeight = (100 - idWeight) `div` 2
     weights   = [(modWeight,pred),(idWeight,id),(modWeight,succ)]
-    randomizeMPitOcts (Just (Left pr)) = randomizeMPitOct pr <&> Just . Left
-    randomizeMPitOcts (Just (Right prs)) = traverse randomizeMPitOct prs <&> Just . Right
-    randomizeMPitOcts Nothing = pure Nothing
-    randomizeMPitOct (pit,oct) = randomWeightedElement weights <&> (\f -> (pit,f oct))
 
 mkIdWeightsIncr :: Int -> Int -> Int
 mkIdWeightsIncr      1      _  = 50
@@ -94,10 +94,15 @@ mkIdWeightsDecr      1      _  = 0
 mkIdWeightsDecr cntSegs numSeg = 100 - ((cntSegs - (1 + numSeg)) * (50 `div` (cntSegs - 1))) -- TBD: magic constant 50% of results to be modified at end)
 
 doubleCfgDurs :: ConfigMod
-doubleCfgDurs _ vcx@VoiceConfigXPose{}  = pure (vcx & vcxDurss  %~ doubleDurs)
-doubleCfgDurs _ vcr@VoiceConfigRepeat{} = pure (vcr & vcrDurss  %~ doubleDurs)
-doubleCfgDurs _ vcc@VoiceConfigCell{}   = pure (vcc & vcclDurss %~ doubleDurs)
-doubleCfgDurs _ vcc@VoiceConfigCanon{}  = pure (vcc & vccDurss  %~ doubleDurs)
+doubleCfgDurs vrtCfg vcx@VoiceConfigXPose{}  = mRunMod (vcx & vcxDurss  %~ doubleDurs) vrtCfg vcx
+doubleCfgDurs vrtCfg vcr@VoiceConfigRepeat{} = mRunMod (vcr & vcrDurss  %~ doubleDurs) vrtCfg vcr
+doubleCfgDurs vrtCfg vcc@VoiceConfigCell{}   = mRunMod (vcc & vcclDurss %~ doubleDurs) vrtCfg vcc
+doubleCfgDurs vrtCfg vcc@VoiceConfigCanon{}  = mRunMod (vcc & vccDurss  %~ doubleDurs) vrtCfg vcc
+
+mRunMod :: VoiceConfig -> VoiceRuntimeConfig -> VoiceConfig -> Driver VoiceConfig
+mRunMod vcMod VoiceRuntimeConfig{..} vCfg  = do
+  mod' <- searchMConfigParam (_vrcSctnPath <> ".dblCfgMod") <&> fromMaybe (_vrcCntSegs `div` _vrcCntVocs)
+  pure $ if _vrcNumVoc * mod' <= _vrcNumSeg then vcMod else vCfg
 
 doubleDurs :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet) -> NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
 doubleDurs = (fmap . fmap) doubleDurOrDurTup
@@ -115,7 +120,6 @@ multDur i d
   where
     durs = durSum2Durs $ sumDurs (replicate i d)
                                   
-
 --homAnyListOfList :: NE.NonEmpty (NE.NonEmpty a) -> Driver (NE.NonEmpty (NE.NonEmpty a))
 --homAnyListOfList xss = randomizeList (NE.toList (NE.toList <$> xss)) <&> singleton . NE.fromList . concat
 
