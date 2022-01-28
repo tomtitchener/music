@@ -177,10 +177,10 @@ timeSig2Denom TimeSignatureGrouping{..} = _tsgDenom
 ve2Durs :: VoiceEvent -> [Duration]
 ve2Durs (VeNote   Note {..})    = [_noteDur]
 ve2Durs (VeRest   Rest {..})    = [_restDur]
-ve2Durs (VeChord  Chord {..})   = [_chordDur]
-ve2Durs (VeRhythm Rhythm {..})  = [_rhythmDur]
 ve2Durs (VeSpacer Spacer {..})  = [_spacerDur]
+ve2Durs (VeRhythm Rhythm {..})  = [_rhythmDur]
 ve2Durs (VeTuplet t@Tuplet{..}) = replicate (_tupDenom * tup2CntTups t) _tupDur
+ve2Durs (VeChord  Chord {..})   = [_chordDur]
 ve2Durs _                       = []
 
 ve2DurVal :: VoiceEvent -> Int
@@ -262,7 +262,7 @@ fpow n f x = iterate f x !! n
 genNotes :: [Maybe (Pitch,Octave)] -> [Duration] -> [Accent] -> [Dynamic] -> [VoiceEvent]
 genNotes = zipWith4 f
   where
-    f Nothing du _ dy = VeRest $ Rest du dy
+    f Nothing du _ dy = VeRest $ Rest du dy ""
     f (Just (p,o)) du a dy = VeNote (Note p o du (singleton a) dy NoSwell "" False)
 
 genNotess :: [[Maybe (Pitch,Octave)]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> [[VoiceEvent]]
@@ -271,7 +271,7 @@ genNotess = zipWith4 genNotes
 genNotesWithTies :: NE.NonEmpty (Maybe (Pitch,Octave)) -> NE.NonEmpty Duration -> NE.NonEmpty Accent -> NE.NonEmpty Dynamic -> NE.NonEmpty Bool -> NE.NonEmpty VoiceEvent
 genNotesWithTies = neZipWith5 f
   where
-    f Nothing du _ dy _ = VeRest $ Rest du dy
+    f Nothing du _ dy _ = VeRest $ Rest du dy ""
     f (Just (p,o)) du a dy sl = VeNote $ Note p o du (singleton a) dy NoSwell "" sl 
 
 -- partial, panic on empty list

@@ -139,22 +139,31 @@ fadeInDynamics :: VoiceEventsMod
 fadeInDynamics VoiceRuntimeConfig{..} ves = do
   dyn1 <- searchMConfigParam (_vrcSctnPath <> ".fadeInDyn1") <&> fromMaybe Forte
   dyn2 <- searchMConfigParam (_vrcSctnPath <> ".fadeInDyn2") <&> fromMaybe PPP
-  pure $ maybe (tagFirstNoteDynamic dyn2 ves) (const $ tagFirstNoteDynamic dyn1 ves) _vrcMNumVoc
+  pure $ maybe (tagFirstSoundDynamic dyn2 ves) (const $ tagFirstSoundDynamic dyn1 ves) _vrcMNumVoc
 
 uniformDynamics :: VoiceEventsMod
 uniformDynamics VoiceRuntimeConfig{..} nOrRs = 
-  searchMConfigParam (_vrcSctnPath <> ".uniformDyn") <&> fromMaybe PPP <&> flip tagFirstNoteDynamic nOrRs
+  searchMConfigParam (_vrcSctnPath <> ".uniformDyn") <&> fromMaybe PPP <&> flip tagFirstSoundDynamic nOrRs
 
-tagFirstNoteDynamic :: Dynamic -> [VoiceEvent] -> [VoiceEvent]
-tagFirstNoteDynamic dyn ves = maybe ves (`tagDynForIdx` ves) (findIndex isVeNote ves)
+tagFirstSoundDynamic :: Dynamic -> [VoiceEvent] -> [VoiceEvent]
+tagFirstSoundDynamic dyn ves = maybe ves (`tagDynForIdx` ves) (findIndex isVeSound ves)
   where
     tagDynForIdx idx = toList . adjust (tagDyn dyn) idx . fromList
-    tagDyn dyn' ve@VeNote{} = ve & veNote . noteDyn .~ dyn'
+    tagDyn dyn' ve@VeNote{}    = ve & veNote . noteDyn .~ dyn'
+    tagDyn dyn' ve@VeRhythm{}  = ve & veRhythm . rhythmDyn .~ dyn'
+    tagDyn dyn' ve@VeTuplet{}  = ve & veTuplet . tupNotes %~ (\notes -> tagDyn dyn' (NE.head notes) NE.:| NE.tail notes)
+    tagDyn dyn' ve@VeChord{}   = ve & veChord . chordDyn .~ dyn'
+    tagDyn dyn' (VeTremolo nt@NoteTremolo{})  = VeTremolo (nt & ntrNote . noteDyn .~ dyn')
+    tagDyn dyn' (VeTremolo ct@ChordTremolo{})  = VeTremolo (ct & ctrLeftChord . chordDyn .~ dyn')
     tagDyn _    ve          = error $ "tagFirstDynamicNote: unexpected VoiceEvent: " <> show ve
 
-isVeNote :: VoiceEvent -> Bool
-isVeNote VeNote {} = True
-isVeNote _         = False
+isVeSound :: VoiceEvent -> Bool
+isVeSound VeNote {}    = True
+isVeSound VeRhythm {}  = True
+isVeSound VeTuplet {}  = True
+isVeSound VeChord {}   = True
+isVeSound VeTremolo {} = True
+isVeSound _            = False
 
 isVeRest :: VoiceEvent -> Bool
 isVeRest VeRest {} = True
@@ -162,7 +171,7 @@ isVeRest _         = False
     
 sectionDynamics :: VoiceEventsMod
 sectionDynamics VoiceRuntimeConfig{..} ves = 
-  searchConfigParam (_vrcSctnPath <> ".sectionDyns") <&> flip tagFirstNoteDynamic ves . (NE.!! _vrcNumSeg)
+  searchConfigParam (_vrcSctnPath <> ".sectionDyns") <&> flip tagFirstSoundDynamic ves . (NE.!! _vrcNumSeg)
 
 fadeOutDynamics :: VoiceEventsMod
 fadeOutDynamics _ = pure 
@@ -280,8 +289,8 @@ unfoldVEs (_,_,_) = Nothing
 
 mkNoteChordOrRest :: Maybe PitOctOrPitOcts -> Duration -> Accent -> VoiceEvent
 mkNoteChordOrRest (Just (Left (p,o))) d a = VeNote (Note p o d (singleton a) NoDynamic NoSwell "" False)
-mkNoteChordOrRest (Just (Right pos))  d a = VeChord (Chord (NE.fromList pos) d (singleton a) NoDynamic NoSwell False)
-mkNoteChordOrRest Nothing             d _ = VeRest (Rest d NoDynamic)
+mkNoteChordOrRest (Just (Right pos))  d a = VeChord (Chord (NE.fromList pos) d (singleton a) NoDynamic NoSwell "" False)
+mkNoteChordOrRest Nothing             d _ = VeRest (Rest d NoDynamic "")
 
 unfoldDurOrDurTups :: Int -> (Int, [DurOrDurTuplet]) -> Maybe (DurOrDurTuplet, (Int, [DurOrDurTuplet]))
 unfoldDurOrDurTups maxDurVal (totDurVal,Left dur:durOrDurTups)
@@ -304,20 +313,23 @@ unfoldDurOrDurTups maxDurVal (totDurVal,Right durTup:durOrDurTups)
 unfoldDurOrDurTups _ (_,[]) = error "unfoldDurOrDurTups unexpected empty list of [DurOrDurTuplet]"
 
 appendAnnFirstNote :: String -> [VoiceEvent] -> [VoiceEvent]
-appendAnnFirstNote ann = annFirstNote ann (\new old -> if null old then new else old <> ", " <> new)
+appendAnnFirstNote ann = annFirstEvent ann (\new old -> if null old then new else old <> ", " <> new)
 
 prependAnnFirstNote :: String -> [VoiceEvent] -> [VoiceEvent]
-prependAnnFirstNote ann = annFirstNote ann (\new old -> if null old then new else  new <> ", " <> old)
+prependAnnFirstNote ann = annFirstEvent ann (\new old -> if null old then new else  new <> ", " <> old)
 
 replaceAnnFirstNote :: String -> [VoiceEvent] -> [VoiceEvent]
-replaceAnnFirstNote ann = annFirstNote ann const
+replaceAnnFirstNote ann = annFirstEvent ann const
 
-annFirstNote :: String -> (String -> String -> String ) -> [VoiceEvent] -> [VoiceEvent]
-annFirstNote ann append = snd . mapAccumL accumSeen False
+annFirstEvent :: String -> (String -> String -> String ) -> [VoiceEvent] -> [VoiceEvent]
+annFirstEvent ann append = snd . mapAccumL accumSeen False
   where
-    accumSeen False (VeNote note) = (True,VeNote (annNote note))
-    accumSeen seen  event         = (seen,event)
-    annNote note = note & noteAnn %~ append ann
+    accumSeen False (VeNote note)     = (True,VeNote   (note   & noteAnn   %~ append ann))
+    accumSeen False (VeRest rest)     = (True,VeRest   (rest   & restAnn   %~ append ann))
+    accumSeen False (VeSpacer spacer) = (True,VeSpacer (spacer & spacerAnn %~ append ann))
+    accumSeen False (VeRhythm rhythm) = (True,VeRhythm (rhythm & rhythmAnn %~ append ann))
+    accumSeen False (VeChord chord)   = (True,VeChord  (chord  & chordAnn  %~ append ann))
+    accumSeen seen  event             = (seen,event)
 
 rotN :: Int -> [a] -> [a]
 rotN cnt as
@@ -357,8 +369,8 @@ voiceConfig2VoiceEvents VoiceConfigCanon{..} =
 ves2VeRests :: [VoiceEvent] -> [VoiceEvent]
 ves2VeRests = fmap ve2VeRest
   where
-    ve2VeRest (VeNote Note{..})   = VeRest (Rest _noteDur NoDynamic)
-    ve2VeRest (VeChord Chord{..}) = VeRest (Rest _chordDur NoDynamic)
+    ve2VeRest (VeNote Note{..})   = VeRest (Rest _noteDur NoDynamic _noteAnn)
+    ve2VeRest (VeChord Chord{..}) = VeRest (Rest _chordDur NoDynamic _chordAnn)
     ve2VeRest ve                  = ve
 
 applyMConfigMods :: Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig, VoiceConfig) -> Driver (VoiceRuntimeConfig,VoiceConfig)
@@ -464,45 +476,60 @@ groupConfig2VoiceEvents (GroupConfigEvenEnds _ _ secCfgs) =
 
 -- Repeatedly add [[VoiceEvent]] for last section to input until all [[VoiceEvent]] are the same
 -- total duration.  Tricky bit is that sectionConfig2VoiceEvents may not add [VoiceEvent] of
--- sufficiently long sum duration to match difference in length needed.
+-- sufficiently long sum duration to match difference in length needed, in which case, loop.
+-- To polish, trim final result to end at the bar line.
 extendVoicesEvents :: SectionConfig -> [[[VoiceEvent]]] -> Driver [[[VoiceEvent]]]
 extendVoicesEvents sectionConfig vesssIn = 
-  let go vesss = do
+  let timeSig = sectionCfg2TimeSignature sectionConfig
+      go vesss = do
         let vess = concat <$> transpose vesss
             veLens = ves2DurVal <$> vess
         if sum veLens == length veLens * head veLens
         then do
           pure vesss
         else do
-          let maxLen = maximum veLens
+          let maxLen = bump2FullBar timeSig $ maximum veLens
               veLenDiffs = (-) maxLen <$> veLens
           vessNew <- sectionConfig2VoiceEvents sectionConfig <&> zipWith maybeTrimVes veLenDiffs
           go $ vesss <> [vessNew]
   in 
     go vesssIn
 
+-- Adjust partial bar to next full bar so len diffs above are always positive
+-- and we always end at the beginning of a bar (hack).
+bump2FullBar :: TimeSignature -> Int -> Int
+bump2FullBar timeSig totLen =
+  totLen + bumpLen
+  where
+    beatLen = dur2DurVal (timeSig2Denom timeSig)
+    barLen  = timeSig2Num timeSig * beatLen
+    remLen  = totLen `rem` barLen
+    bumpLen  = if 0 == remLen then 0 else barLen - remLen
+
 -- No need to trim for [VoiceEvent] that's already the longest (lenDiff is 0)
 -- or when sum of duration for new [VoiceEvent] is <= lenDiff
 maybeTrimVes :: Int -> [VoiceEvent] -> [VoiceEvent]
-maybeTrimVes 0 _ = []
-maybeTrimVes lenDiff vesIn =
-  case vesLen `compare` lenDiff of
-    LT -> vesIn
-    EQ -> vesIn
-    GT -> trim lenDiff vesIn
-  where
-    vesLen = ves2DurVal vesIn
-    trim :: Int -> [VoiceEvent] -> [VoiceEvent]
-    trim lenTot = snd . foldr tr (lenTot,[])
-    tr :: VoiceEvent -> (Int,[VoiceEvent]) -> (Int,[VoiceEvent])
-    tr _ (0,ves)  = (0,ves)
-    tr ve (n,ves) = (n',ves <> [ve'])
-      where
-        veLen  = ve2DurVal ve
-        n'     = if n >= veLen then n - veLen else 0
-        veLen' = if n >= veLen then veLen else n
-        -- swapVeLens squashes Tuplet to Rest:  only swap when needed
-        ve'    = if veLen == veLen' then ve else swapVeLens (durVal2Dur veLen') ve
+maybeTrimVes lenDiff vesIn
+  | lenDiff == 0 = []
+  | lenDiff <  0 = error $ "maybeTrimVes negative lenDiff: " <> show lenDiff
+  | otherwise = 
+    case vesLen `compare` lenDiff of
+      LT -> vesIn
+      EQ -> vesIn
+      GT -> trim lenDiff vesIn
+    where
+      vesLen = ves2DurVal vesIn
+      trim :: Int -> [VoiceEvent] -> [VoiceEvent]
+      trim lenTot = snd . foldl' tr (lenTot,[])
+      tr :: (Int,[VoiceEvent]) -> VoiceEvent -> (Int,[VoiceEvent])
+      tr (0,ves) _  = (0,ves)
+      tr (n,ves) ve = (n',ves <> [ve'])
+        where
+          veLen  = ve2DurVal ve
+          n'     = if n >= veLen then n - veLen else 0
+          veLen' = if n >= veLen then veLen else n
+          -- swapVeLens squashes Tuplet to Rest:  only swap when needed
+          ve'    = if veLen == veLen' then ve else swapVeLens (durVal2Dur veLen') ve
 
 -- maxLen and vesLen are in 128th notes
 -- maxLen is target length so all voices are equal length
@@ -515,7 +542,7 @@ mkVesTotDur maxLen vesLen timeSig ves =
     barLen  = timeSig2Num timeSig * beatLen
     remBar  = if maxLen `rem` barLen == 0 then 0 else barLen - (maxLen `rem` barLen)
     addLen  = if maxLen > vesLen then (maxLen - vesLen) + remBar else remBar
-    spacerOrRest = if isSpacer (last ves) then VeSpacer . flip Spacer NoDynamic else VeRest . flip Rest NoDynamic
+    spacerOrRest = if isSpacer (last ves) then VeSpacer . (\dur -> Spacer dur NoDynamic "") else VeRest . (\dur -> Rest dur NoDynamic "")
 
 isSpacer :: VoiceEvent -> Bool
 isSpacer VeSpacer {} = True
@@ -556,7 +583,7 @@ alignVoiceEventsDurations timeSig ves =
       where
         addLen = ves2DurVal rests
         durs = addEndDurs timeSig curLen addLen
-        newRests = VeRest . flip Rest NoDynamic <$> durs
+        newRests = VeRest . (\dur -> Rest dur NoDynamic "") <$> durs
     -- for notes and chords (eventually rhythms), add ties 
     adjVEsDurs curLen allVes =
       second concat $ mapAccumL adjVEDur curLen allVes
@@ -615,7 +642,7 @@ swapVeLens dur ve@VeRest{}   = ve & veRest   . restDur   .~ dur
 swapVeLens dur ve@VeChord{}  = ve & veChord  . chordDur  .~ dur
 swapVeLens dur ve@VeRhythm{} = ve & veRhythm . rhythmDur .~ dur
 swapVeLens dur ve@VeSpacer{} = ve & veSpacer . spacerDur .~ dur
-swapVeLens dur VeTuplet{}    = VeRest $ Rest dur NoDynamic
+swapVeLens dur VeTuplet{}    = VeRest $ Rest dur NoDynamic ""
 swapVeLens _   ve            = ve
 
 freezeNELists :: NE.NonEmpty (NE.NonEmpty a) -> Driver (NE.NonEmpty (NE.NonEmpty a))
@@ -643,3 +670,14 @@ freezeConfig vcc@VoiceConfigCanon{..}  = do
   mPOOrPOsss <- freezeNELists _vccmPOOrPOsss
   pure $ vcc & vccDurss .~ durss & vccAcctss .~ acctss & vccmPOOrPOsss .~ mPOOrPOsss
     
+sectionCfg2TimeSignature :: SectionConfig -> TimeSignature
+sectionCfg2TimeSignature SectionConfigNeutral{..}   = voiceCfg2TimeSignature (NE.head _scnVoices)
+sectionCfg2TimeSignature SectionConfigHomophony{..} = voiceCfg2TimeSignature (NE.head _schVoices)
+sectionCfg2TimeSignature SectionConfigFadeIn{..}    = voiceCfg2TimeSignature (NE.head _scfiVoices)
+sectionCfg2TimeSignature SectionConfigFadeOut{..}   = voiceCfg2TimeSignature (NE.head _scfoVoices)
+
+voiceCfg2TimeSignature :: VoiceConfig -> TimeSignature
+voiceCfg2TimeSignature VoiceConfigXPose{..}  = _vcxTime
+voiceCfg2TimeSignature VoiceConfigRepeat{..} = _vcrTime
+voiceCfg2TimeSignature VoiceConfigCell{..}   = _vcclTime
+voiceCfg2TimeSignature VoiceConfigCanon{..}  = _vccTime

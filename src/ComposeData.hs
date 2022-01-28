@@ -70,7 +70,8 @@ data SectionConfig =
                       }
     deriving Show
 
-
+-- TBD: what are instrument, key signature, and time signature doing here?
+-- Hoist to section or even group?
 data VoiceConfig =
   VoiceConfigXPose {
                  _vcxInstr       :: Instrument

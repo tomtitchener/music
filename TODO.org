@@ -494,13 +494,32 @@ For the bridge sketch I want to have all voices catch up to each other so
 I can start the group that follows at the same point.  Which might even 
 saying something like extend all voices to the start of the next bar 
 after the end of the current longest-voice. 
-** TODO Config mod to gradually expand durations
+** DONE Config mod to gradually expand durations
 Effect should be to incrementally slow down rhythms.  Maybe voice-by-voice
 with each repetition?  Could double durations to cut tempo in half immediately.
 Or could blend between two textures voice-by-voice.  So first would have
 fast rhythms of first and fourth voices, second slow rhythms of second and
 third voices.  The nature of this group would be to blend together successive
 sections after first repeating the count of repetitions for that section.
+See doubleDurs keyword, dblCfgMod for modulus for staggering voices.  A 
+dblCfgMod of 0 says don't stagger them at all. 
+** TODO Add attribute to extend to end of bar
+Should work as part of equalEnds maybe, or arbitrarily?
+Goal is to get section to start at known location within the
+bar.
+** TODO Rhythms to reflect barring
+So far it's all chaos, without respect to the bar.  
+** TODO Voice mod for custom dynamics.
+It'd be nice to have a way to rewrite e.g. dynamics, say for when
+even-ends repeats the last section picking up dynmaics from the
+beginning but I want to tailor the dynamics to what comes next.
+** TODO Try midi rendering of arpeggios.
+Doesn't work.  See workaround:
+https://www.mail-archive.com/search?l=lilypond-devel@gnu.org&q=subject:%22Re%5C%3A+A+question+of+rendering+multiple+instances+of+%5C%5Carpeggio+in+MIDI%22&o=newest&f=1
+Or better yet:
+https://www.mail-archive.com/lilypond-user@gnu.org/msg142903.html
+Trick is to insert tags separating pdf from midi output, with special hacks to midi to render the arpeggio as a roll.
+And probably to update the Scheme code to match the version of Lilypond.
 ** TODO Annotate variable names for inifinite lists with "inf" tag.
 ** TODO cfg2Score assumes all sections have equal number of Voices
 This line ...

@@ -140,7 +140,7 @@ instance Arbitrary Note where
   shrink = genericShrink
 
 instance Arbitrary Rest where
-  arbitrary = genericArbitrary
+  arbitrary = Rest <$> arbitrary <*> arbitrary <*> elements ["a","b","c"]
   shrink = genericShrink
 
 --
@@ -163,7 +163,7 @@ instance Arbitrary (NE.NonEmpty (Pitch,Octave)) where
 
 -- chord has non-empty list of (pitch,octave) pairs plus duration, accent, dynamic, swell, and slur
 instance Arbitrary Chord where
-  arbitrary = Chord . NE.fromList <$> listOfThree arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = Chord . NE.fromList <$> listOfThree arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> elements ["a","b","c"] <*> arbitrary
   shrink = genericShrink
 
 instance Arbitrary Tuplet where
@@ -198,11 +198,11 @@ instance Arbitrary TimeSignature where
 instance Arbitrary Tremolo where
   arbitrary = oneof [NoteTremolo <$> arbNote, arbChordTremolo]
     where
-      arbNote = Note <$> arbitrary <*> arbitrary <*> elements [DWDur, WDur, DHDur, HDur, DQDur, QDur] <*>  arbitrary <*> arbitrary <*> arbitrary <*> pure "" <*> arbitrary
+      arbNote = Note <$> arbitrary <*> arbitrary <*> elements [DWDur, WDur, DHDur, HDur, DQDur, QDur] <*>  arbitrary <*> arbitrary <*> arbitrary <*> elements ["a","b","c"] <*> arbitrary
       arbChordTremolo = do
         dur <- elements [DWDur, WDur, DHDur, HDur, DQDur, QDur]
-        arbChord1 <- (`Chord` dur) . NE.fromList <$> listOfThree arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-        arbChord2 <- (`Chord` dur) . NE.fromList <$> listOfThree arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+        arbChord1 <- (`Chord` dur) . NE.fromList <$> listOfThree arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> elements ["a","b","c"] <*> arbitrary
+        arbChord2 <- (`Chord` dur) . NE.fromList <$> listOfThree arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> elements ["a","b","c"] <*> arbitrary
         pure $ ChordTremolo arbChord1 arbChord2
   shrink = genericShrink
 
