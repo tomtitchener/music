@@ -86,12 +86,10 @@ data VoiceConfig =
   | VoiceConfigRepeat {
                     _vcrInstr       :: Instrument
                     ,_vcrKey        :: KeySignature
-                    ,_vcrScale      :: Scale
                     ,_vcrTime       :: TimeSignature
                     ,_vcrmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcrDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vcrAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vcrRegister   :: (Pitch,Octave)
                     ,_vcrDurVal     :: Int
                  } 
   | VoiceConfigCell {
@@ -108,12 +106,10 @@ data VoiceConfig =
   | VoiceConfigCanon {
                     _vccInstr       :: Instrument
                     ,_vccKey        :: KeySignature
-                    ,_vccScale      :: Scale
                     ,_vccTime       :: TimeSignature
                     ,_vccmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vccDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vccAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vccRegister   :: (Pitch,Octave)
                     ,_vccDurVal     :: Int
                     ,_vccRotVal     :: Int
                  }
@@ -148,12 +144,10 @@ path2VoiceConfigRepeat pre =
       VoiceConfigRepeat 
         <$> searchConfigParam  (pre <> ".instr")
         <*> searchConfigParam  (pre <> ".key")
-        <*> searchConfigParam  (pre <> ".scale")
         <*> searchConfigParam  (pre <> ".time")
         <*> searchConfigParam  (pre <> ".mPitOctsss")
         <*> searchConfigParam  (pre <> ".durss")
         <*> searchConfigParam  (pre <> ".accentss")
-        <*> searchConfigParam  (pre <> ".register")
         <*> searchConfigParam  (pre <> ".durval")
         
 path2VoiceConfigCell' :: String -> Driver VoiceConfig
@@ -184,12 +178,10 @@ path2VoiceConfigCanon pre =
       VoiceConfigCanon 
         <$> searchConfigParam  (pre <> ".instr")
         <*> searchConfigParam  (pre <> ".key")
-        <*> searchConfigParam  (pre <> ".scale")
         <*> searchConfigParam  (pre <> ".time")
         <*> searchConfigParam  (pre <> ".mPitOctsss")
         <*> searchConfigParam  (pre <> ".durss")
         <*> searchConfigParam  (pre <> ".accentss")
-        <*> searchConfigParam  (pre <> ".register")
         <*> searchConfigParam  (pre <> ".durval")
         <*> searchConfigParam  (pre <> ".rotval")
         

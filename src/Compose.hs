@@ -45,13 +45,13 @@ name2VoiceConfigMods = M.fromList [("incrRandOcts",incrRandomizeMPitOctssOctaves
                       
 type VoiceEventsMod = VoiceRuntimeConfig -> [VoiceEvent] -> Driver [VoiceEvent]
 
-name2VoiceVoiceEventsMods :: M.Map String VoiceEventsMod
-name2VoiceVoiceEventsMods = M.fromList [("uniformAccs",uniformAccents)
-                                 ,("fadeInAccs",fadeInAccents)
-                                 ,("fadeInDyns",fadeInDynamics)
-                                 ,("uniformDyns",uniformDynamics)
-                                 ,("sectionDyns",sectionDynamics)
-                                 ,("fadeOutDyns",fadeOutDynamics)]
+name2VoiceEventsMods :: M.Map String VoiceEventsMod
+name2VoiceEventsMods = M.fromList [("uniformAccs",uniformAccents)
+                                  ,("fadeInAccs",fadeInAccents)
+                                  ,("fadeInDyns",fadeInDynamics)
+                                  ,("uniformDyns",uniformDynamics)
+                                  ,("sectionDyns",sectionDynamics)
+                                  ,("fadeOutDyns",fadeOutDynamics)]
 
 -- Weight, action pairs for four segment example, all voices have same weight:
 -- [[(0,-1),   (100,0),  (0,1)]      == 4,0 (((100 - (100 - (0 * (50/(4-1))))) / 2),(100 - (0 * (50/(4-1)))),((100 - (100 - (0 * (50/(4-1))))) / 2))
@@ -141,9 +141,11 @@ fadeInDynamics VoiceRuntimeConfig{..} ves = do
   dyn2 <- searchMConfigParam (_vrcSctnPath <> ".fadeInDyn2") <&> fromMaybe PPP
   pure $ maybe (tagFirstSoundDynamic dyn2 ves) (const $ tagFirstSoundDynamic dyn1 ves) _vrcMNumVoc
 
+-- no need to repeat dynamic for each seg
 uniformDynamics :: VoiceEventsMod
-uniformDynamics VoiceRuntimeConfig{..} nOrRs = 
-  searchMConfigParam (_vrcSctnPath <> ".uniformDyn") <&> fromMaybe PPP <&> flip tagFirstSoundDynamic nOrRs
+uniformDynamics VoiceRuntimeConfig{..} ves
+  | _vrcNumSeg == 0 = searchMConfigParam (_vrcSctnPath <> ".uniformDyn") <&> fromMaybe PPP <&> flip tagFirstSoundDynamic ves
+  | otherwise = pure ves
 
 tagFirstSoundDynamic :: Dynamic -> [VoiceEvent] -> [VoiceEvent]
 tagFirstSoundDynamic dyn ves = maybe ves (`tagDynForIdx` ves) (findIndex isVeSound ves)
@@ -187,9 +189,10 @@ uniformAccents VoiceRuntimeConfig{..} ves = do
 
 -- Unfold repeated transpositions of [[Maybe Pitch]] across Range
 -- matching up with repetitions of [[Duration]] and [[Accent] to generate VoiceEvent.
-genXPose :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Scale -> Range -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
-genXPose durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
+genXPose :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Scale -> Range -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
+genXPose path durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
   let rangeOrd   = swap stop `compare` swap start
+  showVType::Int   <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
   manyMIOrIssDiffs <- randomElements mPrOrPrsss <&> concatMap (mPrOrPrss2MIOrIsDiffs scale)
   manyDurOrDurTups <- randomElements durOrDurTupss  <&> concat
   manyAccts        <- randomElements acctss <&> concat
@@ -200,7 +203,9 @@ genXPose durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
                   else error $ "invalid step order " <> show stepOrd <> " compared with range order " <> show rangeOrd
       mPrOrPrss = unfoldr (unfoldMPrOrPrss compareOp) (Left start,manyMIOrIssDiffs)
       ves       = unfoldr unfoldVEs (mPrOrPrss,manyDurOrDurTups,manyAccts)
-  pure $ ves & appendAnnFirstNote "xpose"
+  if 0 == showVType
+  then pure ves 
+  else pure $ appendAnnFirstNote "xpose" ves
   where
     unfoldMPrOrPrss cmp (Left prev,Just (Left step):mIOrIss)
       | swap next `cmp` swap stop = Nothing
@@ -225,13 +230,16 @@ genXPose durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
     unfoldMPrOrPrss _ (prev,Nothing:mIOrIss) = Just (Nothing,(prev,mIOrIss))
     unfoldMPrOrPrss _ (prev,mIOrIss) = error $ "invalid list of steps, (" <> show prev <> "," <> show (take 10 mIOrIss) <> ")"
 
-genCell :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Scale -> (Pitch,Octave) -> Int -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
-genCell durss acctss mPOOrPOsss _ _ maxDurVal = do
+genCell :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Scale -> (Pitch,Octave) -> Int -> Driver [VoiceEvent]
+genCell path durss acctss mPOOrPOsss _ _ maxDurVal = do
+  showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
   manyIs <- randomIndices (maximum [length durss,length acctss, length mPOOrPOsss])
   let (manyDurs,manyAccts,manyMPOOrPOss) = equalLengthLists ((durss !!) <$> manyIs,(acctss !!) <$> manyIs,(mPOOrPOsss !!) <$> manyIs)
       allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,concat manyDurs)
       ves             = unfoldr unfoldVEs (concat manyMPOOrPOss,allDurOrDurTups,concat manyAccts)
-  pure $ appendAnnFirstNote "cell" ves
+  if 0 == showVType
+  then pure ves 
+  else pure $ appendAnnFirstNote "cell" ves
   where
     equalLengthLists (as:asss,bs:bss,cs:css) = (as':asss,bs':bss,cs':css)
       where
@@ -241,24 +249,27 @@ genCell durss acctss mPOOrPOsss _ _ maxDurVal = do
             l = maximum [length xs,length ys,length zs]
     equalLengthLists (as,bs,cs) = error $ "equalLists unexpected uneven length lists: " <> show (as,bs,cs)
                                             
-genRepeat :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Scale -> (Pitch,Octave) -> Int -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
-genRepeat durss acctss mPOOrPOsss scale register maxDurVal = do
+genRepeat :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Driver [VoiceEvent]
+genRepeat path durss acctss mPOOrPOsss maxDurVal = do
   durss'      <- freezeLists durss
   acctss'     <- freezeLists acctss
   mPOOrPOsss' <- freezeLists mPOOrPOsss
-  genCanon durss' acctss' mPOOrPOsss' scale register maxDurVal 0 <&> replaceAnnFirstNote "repeat"
+  genCanon path durss' acctss' mPOOrPOsss' maxDurVal 0 <&> replaceAnnFirstNote "repeat"
 
 freezeLists :: [[a]] -> Driver [[a]]
 freezeLists xss = randomizeList xss <&> (:[]) . concat
 
-genCanon :: [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Scale -> (Pitch,Octave) -> Int -> Int -> Driver [VoiceEvent]
-genCanon durOrDurTupss acctss mPOOrPOsss _ _ maxDurVal rotVal = do
+genCanon :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Int -> Driver [VoiceEvent]
+genCanon path durOrDurTupss acctss mPOOrPOsss maxDurVal rotVal = do
+  showVType::Int   <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
   manyMPOOrPOss    <- randomElements mPOOrPOsss <&> concatMap (rotN rotVal)
   manyDurOrDurTups <- randomElements durOrDurTupss  <&> concat
   manyAccts        <- randomElements acctss <&> concat
   let allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,manyDurOrDurTups)
       ves             = unfoldr unfoldVEs (manyMPOOrPOss,allDurOrDurTups,manyAccts)
-  pure $ appendAnnFirstNote "canon" ves
+  if 0 == showVType
+  then pure ves 
+  else pure $ appendAnnFirstNote "canon" ves
 
 mPrOrPrss2MIOrIsDiffs :: Scale -> [Maybe PitOctOrPitOcts] -> [Maybe (Either Int [Int])]
 mPrOrPrss2MIOrIsDiffs scale =
@@ -356,15 +367,15 @@ verifyVeTuplet :: VoiceEvent -> VoiceEvent
 verifyVeTuplet (VeTuplet tuplet) = if tup2CntTups tuplet /= 0 then VeTuplet tuplet else error "verifyVeTuplet shouldn't get here"
 verifyVeTuplet ve = ve
 
-voiceConfig2VoiceEvents :: VoiceConfig -> Driver [VoiceEvent]
-voiceConfig2VoiceEvents VoiceConfigXPose{..} =
-  genXPose (nes2arrs _vcxDurss) (nes2arrs _vcxAcctss)  (ness2Marrss _vcxmPOOrPOsss) _vcxScale (Range _vcxRange)
-voiceConfig2VoiceEvents VoiceConfigRepeat{..} =
-  genRepeat (nes2arrs _vcrDurss) (nes2arrs _vcrAcctss) (ness2Marrss _vcrmPOOrPOsss) _vcrScale _vcrRegister _vcrDurVal
-voiceConfig2VoiceEvents VoiceConfigCell{..} =
-  genCell (nes2arrs _vcclDurss) (nes2arrs _vcclAcctss) (ness2Marrss _vcclmPOOrPOsss) _vcclScale _vcclRegister _vcclDurVal
-voiceConfig2VoiceEvents VoiceConfigCanon{..} =
-  genCanon (nes2arrs _vccDurss) (nes2arrs _vccAcctss) (ness2Marrss _vccmPOOrPOsss)_vccScale _vccRegister _vccDurVal _vccRotVal
+voiceConfig2VoiceEvents :: String -> VoiceConfig -> Driver [VoiceEvent]
+voiceConfig2VoiceEvents path VoiceConfigXPose{..} =
+  genXPose path (nes2arrs _vcxDurss) (nes2arrs _vcxAcctss)  (ness2Marrss _vcxmPOOrPOsss) _vcxScale (Range _vcxRange)
+voiceConfig2VoiceEvents path VoiceConfigRepeat{..} =
+  genRepeat path (nes2arrs _vcrDurss) (nes2arrs _vcrAcctss) (ness2Marrss _vcrmPOOrPOsss) _vcrDurVal
+voiceConfig2VoiceEvents path VoiceConfigCell{..} =
+  genCell path (nes2arrs _vcclDurss) (nes2arrs _vcclAcctss) (ness2Marrss _vcclmPOOrPOsss) _vcclScale _vcclRegister _vcclDurVal
+voiceConfig2VoiceEvents path VoiceConfigCanon{..} =
+  genCanon path (nes2arrs _vccDurss) (nes2arrs _vccAcctss) (ness2Marrss _vccmPOOrPOsss) _vccDurVal _vccRotVal
 
 ves2VeRests :: [VoiceEvent] -> [VoiceEvent]
 ves2VeRests = fmap ve2VeRest
@@ -377,7 +388,7 @@ applyMConfigMods :: Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig, VoiceConf
 applyMConfigMods mNames pr = applyMMods mNames pr (applyMod name2VoiceConfigMods) <&> (fst pr,)
 
 applyMVoiceEventsMods :: Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig,[VoiceEvent]) -> Driver [VoiceEvent]
-applyMVoiceEventsMods mNames pr = applyMMods mNames pr (applyMod name2VoiceVoiceEventsMods)
+applyMVoiceEventsMods mNames pr = applyMMods mNames pr (applyMod name2VoiceEventsMods)
 
 applyMMods :: forall a. Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig,a) -> (String -> (VoiceRuntimeConfig,a) -> Driver a) -> Driver a
 applyMMods Nothing (_,as) _ = pure as
@@ -396,7 +407,7 @@ sectionConfig2VoiceEvents :: SectionConfig -> Driver [[VoiceEvent]]
 sectionConfig2VoiceEvents (SectionConfigNeutral scnPath cntSegs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
   traverse (traverse (applyMConfigMods mConfigMods)) prs >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
   where
-    cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
+    cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
     scnName = fromMaybe "neutral" mSctnName
     cntVocs = length voiceConfigs
     segRuntimeTupss = chunksOf cntSegs [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
@@ -404,7 +415,7 @@ sectionConfig2VoiceEvents (SectionConfigNeutral scnPath cntSegs mSctnName mConfi
 sectionConfig2VoiceEvents (SectionConfigHomophony scnPath cntSegs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
   traverse (traverse (applyMConfigMods mConfigMods)) prs >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
   where
-    cvtAndApplyMod (rt,cfg) = freezeConfig cfg >>= voiceConfig2VoiceEvents >>= applyMVoiceEventsMods mVoiceEventsMods . (rt,)
+    cvtAndApplyMod (rt,cfg) = freezeConfig cfg >>= voiceConfig2VoiceEvents scnPath >>= applyMVoiceEventsMods mVoiceEventsMods . (rt,)
     scnName = fromMaybe "homophony" mSctnName
     cntVocs = length voiceConfigs
     segRuntimeTupss = chunksOf cntSegs [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
@@ -420,10 +431,10 @@ sectionConfig2VoiceEvents (SectionConfigFadeIn scnPath fadeIxs mSctnName mConfig
       let numSeg = length seenNumVocs
           vocCfgTup = voiceConfigs NE.!! numVoc
           vocRTTup  = VoiceRuntimeConfig scnPath (Just numVoc) cntVocs numVoc cntSegs numSeg
-      seenVEs <- applyMConfigMods mConfigMods (vocRTTup,vocCfgTup) >>= voiceConfig2VoiceEvents . snd >>= applyMVoiceEventsMods mVoiceEventsMods . (vocRTTup,)
+      seenVEs <- applyMConfigMods mConfigMods (vocRTTup,vocCfgTup) >>= voiceConfig2VoiceEvents scnPath . snd >>= applyMVoiceEventsMods mVoiceEventsMods . (vocRTTup,)
       let vocRunTups = mkVocRTT numSeg <$> seenNumVocs
           vocCfgTups = (voiceConfigs NE.!!) <$> seenNumVocs
-      seenNumVocsEventss <- traverse (applyMods mConfigMods mVoiceEventsMods) (zip vocRunTups vocCfgTups)
+      seenNumVocsEventss <- traverse (applyMods scnPath  mConfigMods mVoiceEventsMods) (zip vocRunTups vocCfgTups)
       let seenNumVocVEs      = (numVoc,seenVEs)
           allSeenNumVocs     = numVoc:seenNumVocs
           allUnseenNumVocs   = [0..(cntVocs - 1)] \\ allSeenNumVocs
@@ -434,7 +445,7 @@ sectionConfig2VoiceEvents (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfi
   let initNumVocs = [0..cntVocs - 1]
       vocRunTups = mkVocRTT 0 <$> initNumVocs
       vocCfgTups = (voiceConfigs NE.!!) <$> initNumVocs
-  inits <- traverse (applyMods mConfigMods mVoiceEventsMods) (zip vocRunTups vocCfgTups)
+  inits <- traverse (applyMods scnPath mConfigMods mVoiceEventsMods) (zip vocRunTups vocCfgTups)
   ves   <- foldM foldMf ([],snd <$> inits) fadeIxs <&> addSecnName scnName . snd
   let veDurs = ves2DurVal <$> ves
   pure $ zipWith3 (mkVesTotDur (maximum veDurs)) veDurs timeSigs ves
@@ -450,14 +461,14 @@ sectionConfig2VoiceEvents (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfi
           unseenNumVocs = [0..(cntVocs - 1)] \\ seenNumVocs'
           vocRunTups = mkVocRTT numSeg <$> unseenNumVocs
           vocCfgTups =  (voiceConfigs NE.!!) <$> unseenNumVocs
-      unseenNumVocsEventss <- traverse (applyMods mConfigMods mVoiceEventsMods) (zip vocRunTups vocCfgTups)
+      unseenNumVocsEventss <- traverse (applyMods scnPath mConfigMods mVoiceEventsMods) (zip vocRunTups vocCfgTups)
       let seenNumVocsEmpties::[(Int,[VoiceEvent])] = (,[]) <$> seenNumVocs'
           newEventss = snd <$> sort (seenNumVocsEmpties <> unseenNumVocsEventss)
       pure (seenNumVocs',zipWith (<>) prevEventss newEventss)
 
-applyMods :: Maybe (NE.NonEmpty String) -> Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig,VoiceConfig) -> Driver (Int,[VoiceEvent])
-applyMods mConfigMods mVoiceEventsMods pr =
-  applyMConfigMods mConfigMods pr >>= voiceConfig2VoiceEvents . snd >>= applyMVoiceEventsMods mVoiceEventsMods . (vrt,) <&> (_vrcNumVoc vrt,)
+applyMods :: String -> Maybe (NE.NonEmpty String) -> Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig,VoiceConfig) -> Driver (Int,[VoiceEvent])
+applyMods path mConfigMods mVoiceEventsMods pr =
+  applyMConfigMods mConfigMods pr >>= voiceConfig2VoiceEvents path . snd >>= applyMVoiceEventsMods mVoiceEventsMods . (vrt,) <&> (_vrcNumVoc vrt,)
   where
     vrt = fst pr
 

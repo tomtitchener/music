@@ -267,6 +267,7 @@ bridge:
       uniformAcc: !
       uniformDyn: pppp
       norrsmods:  (uniformAccs,uniformDyns)
+      showVType:  int 0
       common:
         vtype:      canon
         durval:     int 64
@@ -318,6 +319,7 @@ bridge:
       uniformAcc: !
       uniformDyn: pppp
       norrsmods:  (uniformAccs,uniformDyns)
+      showVType:  int 0
       common:
         vtype:      canon
         durval:     int 128
