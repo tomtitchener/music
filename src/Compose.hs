@@ -1,3 +1,4 @@
+
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -14,6 +15,7 @@ module Compose (groupConfig2VoiceEvents
 import Data.Bifunctor (second)
 import Control.Lens 
 import Control.Monad (foldM)
+-- import Control.Monad.ListM (mapAccumM)
 import Control.Monad.Extra (concatMapM)
 import Data.Foldable
 import Data.Function (on)
@@ -113,13 +115,6 @@ doubleDurOrDurTup = bimap (multDur 2) (multDurTuplet 2)
 multDurTuplet :: Int -> DurTuplet -> DurTuplet
 multDurTuplet i tup = tup & durtupUnitDuration %~ multDur i & durtupDurations %~ fmap (multDur i)
 
-multDur :: Int -> Duration -> Duration
-multDur i d
-  | length durs == 1 = head durs
-  | otherwise = error $ "doubleDur' unable to atomically multiply duration " <> show d <> " by " <> show i
-  where
-    durs = durSum2Durs $ sumDurs (replicate i d)
-                                  
 --homAnyListOfList :: NE.NonEmpty (NE.NonEmpty a) -> Driver (NE.NonEmpty (NE.NonEmpty a))
 --homAnyListOfList xss = randomizeList (NE.toList (NE.toList <$> xss)) <&> singleton . NE.fromList . concat
 

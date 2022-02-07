@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 {- | Music types for translating to and from Lilypond strings.
      Atomic types (Pitch, Scale, Octave, Accent, Duration, Dynamic, etc.)
@@ -63,14 +63,7 @@ data Spacer = Spacer { _spacerDur :: Duration, _spacerDyn :: Dynamic, _spacerAnn
 data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAccs :: NonEmpty Accent, _rhythmDyn :: Dynamic, _rhythmSwell :: Swell, _rhythmAnn :: String } -- TBD: _rhythmTie :: Bool
   deriving (Eq, Ord, Show)
 
--- TBD: want a smart constructor to ensure length _tupNotes is a multiple of _tupNum.
--- Also check all _noteDur of _tupNotes are the same and two times that _noteDur equals _tupDur.
--- Ugh, no, neither of these is always true.  It may be _noteDur is double the unit value, so
--- to check _noteDur, should really check they are either _tupDur or half of _tupDur.
--- TBD: NonEmpty Note for _tupNotes doesn't suffice, as there could be a Rest or a Chord in
--- there as well.  So it really should be VoiceEvent, though not all VoiceEvent instances will parse.
--- TBD: _tupNotes :: NonEmpty Note becomes _tupVoiceEvents :: NonEmpty VoiceEvent to allow for possibility
--- of Note, Rest, or Chord for element in tuplet.  Will make rendering and parsing more complicated.
+-- NB: when rendering, double _tupDenom for Lilypond
 data Tuplet = Tuplet { _tupNum :: Int, _tupDenom :: Int, _tupDur :: Duration, _tupNotes :: NonEmpty VoiceEvent }
   deriving (Eq, Ord, Show)
 

@@ -59,6 +59,20 @@ composedDur reps dur =
     durVal :: Int
     durVal = truncate (128 * (fromIntegral reps / fromIntegral denom)::Double)
 
+multDur :: Int -> Duration -> Duration
+multDur i d
+  | length durs == 1 = head durs
+  | otherwise = error $ "multDur unable to atomically multiply duration " <> show d <> " by " <> show i
+  where
+    durs = durSum2Durs $ sumDurs (replicate i d)
+
+divDur :: Int -> Duration -> Duration
+divDur i dur
+  | durVal `rem` i == 0 = durVal2Dur (durVal `div` i)
+  | otherwise = error $ "divDur: durVal " <> show durVal <> " is not evenly divisble by " <> show i
+    where
+      durVal = dur2DurVal dur
+    
 -- Simple-minded disaggregation, will prefer dotted durations, e.g.:
 -- > durSum2Durs (addDur WDur (addDur WDur (addDur WDur zDurSum)))
 --  [DWDur,DWDur]

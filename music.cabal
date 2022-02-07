@@ -28,6 +28,7 @@ library
                      , lens
                      , lens-aeson
                      , mtl
+                     , monadlist
                      , MonadRandom
                      , natural-numbers
                      , parsec

@@ -503,12 +503,91 @@ third voices.  The nature of this group would be to blend together successive
 sections after first repeating the count of repetitions for that section.
 See doubleDurs keyword, dblCfgMod for modulus for staggering voices.  A 
 dblCfgMod of 0 says don't stagger them at all. 
-** TODO Add attribute to extend to end of bar
+** DONE Add attribute to extend to end of bar
 Should work as part of equalEnds maybe, or arbitrarily?
 Goal is to get section to start at known location within the
-bar.
+bar. 
+This turned out to be much more work than I expected.  For one thing,
+I was doing a foldr on new voices for the last seg to fill in the space
+to match the longest voice which reversed the previous config, in this 
+case making a transpose that ascended instead of descending.  For another,
+my annotations to indicate the beginning of a new section were skipping 
+voice events that consumed durations like rests and chords to annotate
+the first note, so I mistakenly thought my computation of the durations
+was wrong when it was actually the position of the annotation.  
+** DONE Lilypond command-line to ignore warnings:  lilypond --loglevel=ERROR bridge.ly
+** DONE Investigate the problem with triplets.
+I must be doing something wrong.  Except I can't figure out what it might
+be from the documentation and I can't figure out how to query for the answer here:
+  https://lists.endsoftwarepatents.org/archive/html/lilypond-user/2016-06/msg00434.html
+Note I tried adding spaces around the list of notes but it didn't make any difference.
+I just can't get legitimate tuplet notation for my simple, 3/2 eighth-note tuplets in
+7/8 time.  I tried removing the special formatting in the \score directive and that
+didn't make any difference except it ruined one double-page where the music on the RHS
+was clipped apparently running past the border there.
+But then after lettin git rest several days I just tried doubling the unit and everything
+rendered as expected.  But all my math has to be redone though.  Or else I just have to 
+double the unit when I convert to Lilypond I guess.
+** TODO Control complexity for mix of durations, pitches, and accents
+For any voice type,  have a way to tie one or more voices together through
+sharing of the same configuration parameter.
+The sharing should take the form of equal access to the same stream of random
+choices of individual elements with a list of a list of elements between one 
+or more voices:  a dup of a stream among the target voices.
+This means lifting the stream generation from the voice to the section and
+duping the stream to multiple voices.
+Or maybe I can add this as a driver method where each call gets a list of 'n'
+results that are the same.
+Consider the context:  sectionConfig2VoiceEvents.  Each is currently a traversal
+over a list of tuples where one element is the individual VoiceConfig, which is 
+where the params are located:  accentss, durationss, pitchess.  Those config params
+get passed on to voiceConfig2VoiceEvents where we interact with the driver to get
+the list of random accents, durations, and pitches that generate the notes.  
+Now what I'm saying is I want a way to hoist one or more configuration elements 
+from a given voice, use that to run the driver command myself or provide a callback
+to do that where I dupliate the return across as each target voice, and plumb that
+back into the voice generation process, maybe as a runtime config param.
+Could this be a config mod where e.g. the list of list of durations got turned into
+a single item list shared among the target voices?  
+The question is, if there were multiple segments for the section, would the count of
+elements in the list stay synchronized between voices between segments?
+For durations, you could manage the number of list items consumed by limiting the 
+overall duration for the section.  Note currently the duration limit is part of the
+voice configuration, so I'd have to be careful the voices in question just had the
+same value.  Also notice the transposing voice doesn't have a duration limit, though
+I suppose it could have either that or a transposition limit, though that's going to
+make for an awkward implementation.
+Ideally there'd be a way to generate the list of e.g. durations and then have it 
+available to pass into the relevant voices as a runtime parameter that the voice 
+would somehow know to inspect for and use if available.  
+What about the other two parameters:  pitch,octave pairs and accents?  Am I likely
+to ever want to hold the generation of those constant independently or in parallel
+with durations?
+Note that it'd be possible to explore these effects without any extra coding using
+the current setup just by cloning between voices and e.g. keeping the duration the
+same as well.
+Maybe before I do any coding it'd be worthwhile seeing if this is even an effect
+that's promissing to explore or if maybe it'd just be good enough to do it via the
+config file.
+** TODO group config that blends section to section.
+Take some count of first section by config, then 
+progressively blend in voice-by-voice from next section,
+and etc. for all successive sections.
+Have a group config param to say how many repetitions of
+solid blend before starting transition with minimum of 1.
+Consider blend possibilities: 
+  * voice-by-voice, e.g. generate the [ [VoiceEvent] ] first, then 
+    interleave voices, could get confusing if the different sections
+    have different or just non-fixed lengths
+  * configuration element by configuration element -- this wouldn't work
+    for transpose voice configs, but you could swap among the list of list of
+    e.g. mPitOctOrPitOcts or DurOrDurTuplets, chosing sub-list by sub-list,
+    though you wouldn't know how many sublists would be involved, and results    
+    interleaved with other section might be a little bizarre
+    could also do this horizontally for all voices at once, to make a sort
+    of holographic migration
 ** TODO Rhythms to reflect barring
-So far it's all chaos, without respect to the bar.  
+So far it's all chaos, without respect to the bar, could be any time signature.
 ** TODO Voice mod for custom dynamics.
 It'd be nice to have a way to rewrite e.g. dynamics, say for when
 even-ends repeats the last section picking up dynmaics from the

@@ -22,13 +22,14 @@ module Lily {--(ToLily(..)
 import Control.Monad (void)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as M
+import Data.Functor ((<&>))
 import Data.Maybe (fromMaybe, catMaybes)
 import Data.Natural (Natural)
 import Data.String.Interpolation (endline, str)
 import Text.Parsec
 import Text.Parsec.String (Parser)
 import Types
-import Utils (composedDur, getDurSum, sumDurs)
+import Utils (composedDur, getDurSum, sumDurs, multDur, divDur)
 
 class ToLily a where
   -- | Convert a Haskell value to a Lilypond string
@@ -232,13 +233,13 @@ instance FromLily Spacer  where
 ------------
 
 instance ToLily Tuplet where
-  toLily (Tuplet num denom dur notes) = "\\tuplet " <> show num <> "/" <> show denom <> " " <> toLily dur <> " {" <> unwords (NE.toList $ NE.map toLily notes) <> "}"
+  toLily (Tuplet num denom dur notes) = "\\tuplet " <> show num <> "/" <> show denom <> " " <> toLily (multDur 2 dur) <> " {" <> unwords (NE.toList $ NE.map toLily notes) <> "}"
 
 parseVoiceEvents :: Parser (NE.NonEmpty VoiceEvent)
 parseVoiceEvents = NE.fromList <$> parseVoiceEvent `sepBy` char ' '
 
 parseTuplet :: Parser Tuplet
-parseTuplet = Tuplet <$> (string "\\tuplet " *> parseNat) <*> (string "/" *> parseNat) <*> (spaces *> parseDuration) <*> (string " {" *> parseVoiceEvents <* string "}")
+parseTuplet = Tuplet <$> (string "\\tuplet " *> parseNat) <*> (string "/" *> parseNat) <*> (spaces *> parseDuration <&> divDur 2) <*> (string " {" *> parseVoiceEvents <* string "}")
 
 instance FromLily Tuplet where
   parseLily = mkParseLily parseTuplet
