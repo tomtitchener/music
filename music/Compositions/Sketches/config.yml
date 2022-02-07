@@ -233,9 +233,9 @@ bridge:
         accentss: ((~,>,>),(>,>,~,~,~))
     section6:
       stype: neutral
-      reps:  int 2
+      reps:  int 3
       uniformAcc: .
-      sectionDyns: (ffff,ff)
+      sectionDyns: (ff,f,mf)
       norrsmods:  (uniformAccs,sectionDyns)
       common:
         range:      ((c,1),(g,-2))
@@ -244,28 +244,21 @@ bridge:
       voice1:
         mPitOctsss: (((e,0),((d,0),(ais,-1)),(gis,-1)),((d,0),((e,0),(c,0)),(gis,-1)))
         durss:    ((16,16,16,16,8,8),(16,16,(3,2,8,(8,8,8)),16,16),(4,16,16,8),(8,8,8,8))
-        # durss:    ((16,16,16,16,8,8),(16,16,8,8,16,16),(4,16,16,8),(8,8,8,8))
         accentss: ((~,~,>,>),(~,~,~,~))
       voice2:
         durss:    ((4,8,8),(8,16,8,16,8),((3,2,8,(8,8,8)),4,16,16),(8,16,16,16,16,8))
-        # durss:    ((4,8,8),(8,16,8,16,8),(8,8,4,16,16),(8,16,16,16,16,8))
         accentss: ((~,>,~),(>,>,~))
       voice3:
         durss:    ((4,8,16,16),(8,16,16,16,16,8),(4,8.,16),((3,2,8,(8,8,8)),8,16,8,16))
-        # durss:    ((4,8,16,16),(8,16,16,16,16,8),(4,8.,16),(8,8,8,16,8,16))
         accentss: ((~,>,>),(>,>,~,~,~))
       voice4:
         durss:    ((4,8,16,16),(8,16,4,16),(8,16,8,16,8),((3,2,8,(8,8,8)),16,16,16,16))
-        # durss:    ((4,8,16,16),(8,16,4,16),(8,16,8,16,8),(8,8,16,16,16,16))
         accentss: ((~,>,>),(>,>,~,~,~))
-  group2:
-    grname:  two
-    grtype:  neutral
-    section1:
+    section7:
       stype: neutral
       reps:  int 20
       uniformAcc: !
-      uniformDyn: pppp
+      uniformDyn: ppppp
       norrsmods:  (uniformAccs,uniformDyns)
       showVType:  int 0
       common:
@@ -295,10 +288,13 @@ bridge:
         register: (c,-1)
         durss:    ((8,8,16,16),(16,16),(8.,16,16,8.))
         accentss: ((>,~),(~,~,~,~))
-    section2:
+  group2:
+    grname:  two
+    grtype:  neutral
+    section1:
       stype: neutral
       reps:  int 10
-      uniformDyn: pppp
+      uniformDyn: ppppp
       norrsmods:  (uniformDyns)
       showVType:  int 0
       common:
@@ -334,10 +330,11 @@ bridge:
         register: (c,-1)
         durss:    ((8,8,16,16),(16,16),(8.,16,16,8.))
         accentss: ((>,~),(~,~,~,~))
-    section3:
+    section2:
       stype: neutral
-      reps:  int 10
-      uniformDyn: pppp
+      reps:  int 20
+      showVType:  int 0
+      uniformDyn: ppppp
       dblCfgMod:  int 1
       cfgmods:    (doubleDurs)
       norrsmods:  (uniformDyns)
@@ -374,35 +371,35 @@ bridge:
         register: (c,-1)
         durss:    ((8,8,16,16),(16,16),(8.,16,16,8.))
         accentss: ((>,~),(~,~,~,~))
-    section4:
-      stype: neutral
-      reps:  int 10
-      uniformAcc: !
-      uniformDyn: pppp
-      norrsmods:  (uniformAccs,uniformDyns)
-      common:
-        vtype:      cell
-        durval:     int 64
-      voice1:
-        register:   (c,0)
-        mPitOctsss: ((((d,2),(ais,2),(e,2),(cis,2)),((fis,3),(b,2),(a,2),(d,2))),(((dis,0),(b,-1)),r,(cis,0),r,((gis,-1),(e,-1))))
-        durss:      ((2,4,4),(16,16,16,16,8,8))
-        accentss:   ((~,~,~),(>,~,>,~))
-      voice2:
-        register:   (g,-1)
-        mPitOctsss: ((((e,1),(b,0),(dis,1),(a,0)),((b,1),(gis,1),(f,1),(cis,1))),(((dis,0),(b,-1)),(cis,0),r,((gis,-1),(e,-1))))
-        durss:      ((4,4,2),(8,16,8,16,8))
-        accentss:   ((~,>,~),(>,>,~))
-      voice3:
-        register:   (e,-1)
-        mPitOctsss: ((((c,-1),(g,-1),(b,-1),(dis,0)),((e,0),(b,-1),(a,-1),(d,-1))),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-        durss:      ((4,4,2),(8,16,16,16,16,8))
-        accentss:   ((~,~,~),(>,>,~,~,~))
-      voice4:
-        register:   (c,-2)
-        mPitOctsss: ((((c,-2),(f,-2),(ais,-3),(dis,-3)),((a,-2),(dis,-2),(a,-3),(dis,-3))),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-        durss:      ((2,4,4,4),(8,8,16,16,16,16))
-        accentss:   ((~,>,>),(>,>,~,~,~))
+    # section3:
+    #   stype: neutral
+    #   reps:  int 10
+    #   uniformAcc: !
+    #   uniformDyn: pppp
+    #   norrsmods:  (uniformAccs,uniformDyns)
+    #   common:
+    #     vtype:      cell
+    #     durval:     int 64
+    #   voice1:
+    #     register:   (c,0)
+    #     mPitOctsss: ((((d,2),(ais,2),(e,2),(cis,2)),((fis,3),(b,2),(a,2),(d,2))),(((dis,0),(b,-1)),r,(cis,0),r,((gis,-1),(e,-1))))
+    #     durss:      ((2,4,4),(16,16,16,16,8,8))
+    #     accentss:   ((~,~,~),(>,~,>,~))
+    #   voice2:
+    #     register:   (g,-1)
+    #     mPitOctsss: ((((e,1),(b,0),(dis,1),(a,0)),((b,1),(gis,1),(f,1),(cis,1))),(((dis,0),(b,-1)),(cis,0),r,((gis,-1),(e,-1))))
+    #     durss:      ((4,4,2),(8,16,8,16,8))
+    #     accentss:   ((~,>,~),(>,>,~))
+    #   voice3:
+    #     register:   (e,-1)
+    #     mPitOctsss: ((((c,-1),(g,-1),(b,-1),(dis,0)),((e,0),(b,-1),(a,-1),(d,-1))),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
+    #     durss:      ((4,4,2),(8,16,16,16,16,8))
+    #     accentss:   ((~,~,~),(>,>,~,~,~))
+    #   voice4:
+    #     register:   (c,-2)
+    #     mPitOctsss: ((((c,-2),(f,-2),(ais,-3),(dis,-3)),((a,-2),(dis,-2),(a,-3),(dis,-3))),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
+    #     durss:      ((2,4,4,4),(8,8,16,16,16,16))
+    #     accentss:   ((~,>,>),(>,>,~,~,~))
   
 # heterogonous texture with voices of different types (proof of concept, not even a sketch)
 voicemix:
