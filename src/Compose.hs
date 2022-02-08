@@ -175,12 +175,14 @@ fadeOutDynamics _ = pure
 
 uniformAccents :: VoiceEventsMod
 uniformAccents VoiceRuntimeConfig{..} ves = do
-  acc <- searchMConfigParam (_vrcSctnPath <> ".uniformAccent") <&> fromMaybe Staccatissimo
-  traverse (uniformAccent acc) ves
+  searchMConfigParam (_vrcSctnPath <> ".uniformAcc") <&> fromMaybe Staccatissimo <&> (\acc -> uniformAccent acc <$> ves)
   where
-    uniformAccent :: Accent -> VoiceEvent -> Driver VoiceEvent
-    uniformAccent acc ve@VeNote{} = pure $ ve & veNote . noteAccs %~ (acc NE.<|)
-    uniformAccent _   vEvent      = pure vEvent
+    uniformAccent :: Accent -> VoiceEvent -> VoiceEvent
+    uniformAccent acc ve@VeNote{} = ve & veNote . noteAccs %~ (acc NE.<|)
+    uniformAccent acc ve@VeChord{} = ve & veChord . chordAccs %~ (acc NE.<|)
+    uniformAccent acc ve@(VeTremolo NoteTremolo{}) = ve & veTremolo . ntrNote . noteAccs %~ (acc NE.<|)
+    uniformAccent acc ve@(VeTremolo ChordTremolo{}) = ve & veTremolo . ctrLeftChord . chordAccs %~ (acc NE.<|)
+    uniformAccent _   vEvent      = vEvent
 
 -- Unfold repeated transpositions of [[Maybe Pitch]] across Range
 -- matching up with repetitions of [[Duration]] and [[Accent] to generate VoiceEvent.

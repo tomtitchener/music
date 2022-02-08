@@ -528,6 +528,20 @@ was clipped apparently running past the border there.
 But then after lettin git rest several days I just tried doubling the unit and everything
 rendered as expected.  But all my math has to be redone though.  Or else I just have to 
 double the unit when I convert to Lilypond I guess.
+** TODO Framework for controls like sustainOn/sustainOff
+Experimenting by manually editing lilypond files shows this renders rather nicely
+in midi.  Question is how to fit it into the config file.  In terms of the type 
+hierarchy, maybe it could be another instance of VoiceEvent:  VoiceEventControl,
+where there'd be different sorts of controls.  Or more properly, I should generalize
+a note attribute, add instances for dynamic and accent, and include sustainOn and
+sustainOff as well, and replace the separate items in Note and Rhythm with a list of
+Note Attributes?  Seems more flexible, though I might want to then limit use of the
+Note type in aggregates like Chord and Tremolo, though in fact that isn't so bad as
+Chord already just has NonEmpty (Pitch,Octave), with individual NonEmpty Accent, Dynamic,
+and Swell.  
+As a second topic, why is it NonEmpty Accent anyway?  I guess it's allowed in LilyPond,
+so thats good enough.  But the real reason is because I wanted a regular, detache effect
+via the uniformAccs norrsmods (which should really be vemsods), 
 ** TODO Control complexity for mix of durations, pitches, and accents
 For any voice type,  have a way to tie one or more voices together through
 sharing of the same configuration parameter.
@@ -569,6 +583,12 @@ same as well.
 Maybe before I do any coding it'd be worthwhile seeing if this is even an effect
 that's promissing to explore or if maybe it'd just be good enough to do it via the
 config file.
+Except that wouldn't really work either, as there'd be no variation between sections
+or within repeats of a section.
+It may be that capturing complexity like this isn't really feasible in the context
+of the records and routines I have so far, and I need to rethink e.g. an association
+of group/section/voice configurations that targets the possibility of replicated 
+configuration data.
 ** TODO group config that blends section to section.
 Take some count of first section by config, then 
 progressively blend in voice-by-voice from next section,

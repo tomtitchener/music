@@ -120,7 +120,7 @@ instance FromLily Duration  where
 ------------
 
 accentSyms :: [String]
-accentSyms = ["-^", "--", "-!", "-.",  "->", "-_", ""]
+accentSyms = ["-^", "--", "-!", "-.", "->", "-_", ""]
 
 accentVals :: [Accent]
 accentVals = [Marcato .. NoAccent]
