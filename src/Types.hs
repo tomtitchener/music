@@ -51,7 +51,23 @@ data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FF
 data Swell = Crescendo | Decrescendo | Espressivo | SwellStop | NoSwell
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteAccs :: NonEmpty Accent, _noteDyn :: Dynamic, _noteSwell :: Swell, _noteAnn :: String, _noteTie :: Bool}
+data Sustain = SustainOn | SustainOff 
+  deriving (Eq, Ord, Show, Enum, Bounded)
+
+data Control =
+    CtrlAccent     { _ctrlAccent     :: Accent }
+  | CtrlDynamic    { _ctrlDynamic    :: Dynamic }
+  | CtrlSwell      { _ctrlSwell      :: Swell }
+  | CtrlSustain    { _ctrlSustain    :: Sustain }
+  | CtrlAnnotation { _ctrlAnnotation :: String }
+  deriving (Eq, Ord, Show)
+
+data MidiControl =
+    MidiCtrlAccent  { _mctrlAccent  :: Accent }
+  | MidiCtrlDynamic { _mctrlDynamic :: Dynamic }
+  deriving (Eq, Ord, Show)
+
+data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteMidiCtrls :: [MidiControl], _noteCtrls :: [Control], _noteTie :: Bool}
   deriving (Eq, Ord, Show)
 
 data Rest = Rest { _restDur :: Duration, _restDyn :: Dynamic, _restAnn :: String }
@@ -60,14 +76,14 @@ data Rest = Rest { _restDur :: Duration, _restDyn :: Dynamic, _restAnn :: String
 data Spacer = Spacer { _spacerDur :: Duration, _spacerDyn :: Dynamic, _spacerAnn :: String }
   deriving (Eq, Ord, Show)
 
-data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmAccs :: NonEmpty Accent, _rhythmDyn :: Dynamic, _rhythmSwell :: Swell, _rhythmAnn :: String } -- TBD: _rhythmTie :: Bool
+data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmMidiCtrls :: [MidiControl], _rhythmCtrls :: [Control] } -- TBD: _rhythmTie :: Bool
   deriving (Eq, Ord, Show)
 
 -- NB: when rendering, double _tupDenom for Lilypond
 data Tuplet = Tuplet { _tupNum :: Int, _tupDenom :: Int, _tupDur :: Duration, _tupNotes :: NonEmpty VoiceEvent }
   deriving (Eq, Ord, Show)
 
-data Chord = Chord { _chordPitOctPairs :: NonEmpty (Pitch, Octave) , _chordDur :: Duration, _chordAccs :: NonEmpty Accent, _chordDyn :: Dynamic, _chordSwell :: Swell, _chordAnn :: String, _chordTie :: Bool }
+data Chord = Chord { _chordPitOctPairs :: NonEmpty (Pitch, Octave) , _chordDur :: Duration, _chordMidiCtrls :: [MidiControl], _chordCtrls :: [Control], _chordTie :: Bool }
   deriving (Eq, Ord, Show)
 
 data Clef = Bass8VB | Bass | Tenor | Alto | Treble | Treble8VA
@@ -121,30 +137,6 @@ makeLenses ''Tempo
 makeLenses ''Tremolo
 makeLenses ''TimeSignature
 makeLenses ''VoiceEvent
-
-{--
-data VoiceEventScore =
-    VeNote { _veNote :: Note }
-  | VeRest { _veRest :: Rest }
-  | VeChord { _veChord :: Chord }
-  | VeRhythm { _veRhythm :: Rhythm }
-  | VeTuplet { _veTuplet :: Tuplet }
-  | VeTremolo { _veTremolo :: Tremolo }
-  | VeSpacer { _veSpacer :: Spacer }
-   deriving (Eq,Ord,Show)  
-
-data VoiceEventControl =
-  | VeClef { _veClef :: Clef }
-  | VeTempo { _veTempo :: Tempo }
-  | VeKeySignature { _veKeySig :: KeySignature }
-  | VeTimeSignature { _veTimeSig :: TimeSignature }
-   deriving (Eq,Ord,Show)  
-
-data VoiceEventNew =
-  VenScore { _venScore :: VoiceEventScore }
-  | VenControl { _venControl :: VoiceEventControl }
-   deriving (Eq,Ord,Show)  
---}
 
 data Instrument =
        AcousticGrand |           Contrabass |         LeadFfths |

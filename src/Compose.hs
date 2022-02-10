@@ -24,13 +24,14 @@ import qualified Data.List.NonEmpty as NE
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
-import Data.Sequence (adjust, fromList)
+import Data.Sequence (adjust', fromList)
 import Data.Traversable (mapAccumL)
 import Data.Tuple (swap)
 
 import ComposeData
 import Driver
        (Driver, randomElements, randomizeList, randomIndices, randomWeightedElement, searchConfigParam, searchMConfigParam)
+import Lily (accent2Name)
 import Types
 import Utils hiding (transpose)
 
@@ -118,6 +119,8 @@ multDurTuplet i tup = tup & durtupUnitDuration %~ multDur i & durtupDurations %~
 --homAnyListOfList :: NE.NonEmpty (NE.NonEmpty a) -> Driver (NE.NonEmpty (NE.NonEmpty a))
 --homAnyListOfList xss = randomizeList (NE.toList (NE.toList <$> xss)) <&> singleton . NE.fromList . concat
 
+-- TBD: annotate first note with "sempre <accent>", would be nice not to repeat annotation for non-highlighted segments
+-- uniform accents are specific to midi, score gets annotation
 fadeInAccents :: VoiceEventsMod
 fadeInAccents VoiceRuntimeConfig{..} ves = do
   acc1 <- searchMConfigParam (_vrcSctnPath <> ".fadeInAcc1") <&> fromMaybe Staccato
@@ -125,16 +128,23 @@ fadeInAccents VoiceRuntimeConfig{..} ves = do
   traverse (fadeInAccent _vrcMNumVoc acc1 acc2) ves
   where
     fadeInAccent :: Maybe Int -> Accent -> Accent -> VoiceEvent -> Driver VoiceEvent
-    fadeInAccent (Just _) acc1 _   ve@VeNote{}   = pure (ve & veNote . noteAccs %~ (acc1 NE.<|))
-    fadeInAccent Nothing  _   acc2 ve@VeNote{}   = pure (ve & veNote . noteAccs %~ (acc2 NE.<|))
-    fadeInAccent _        _   _    (VeRest rest) = pure $ VeRest rest
-    fadeInAccent _        _   _    vEvent        = pure vEvent 
-    
+    fadeInAccent (Just _) acc1 _    ve@VeNote{}  = pure (ve & veNote . noteMidiCtrls %~ (MidiCtrlAccent acc1 :))
+    fadeInAccent Nothing  _    acc2 ve@VeNote{}  = pure (ve & veNote . noteMidiCtrls %~ (MidiCtrlAccent acc2 :))
+    fadeInAccent (Just _) acc1 _    ve@VeChord{} = pure (ve & veChord . chordMidiCtrls %~ (MidiCtrlAccent acc1 :))
+    fadeInAccent Nothing  _    acc2 ve@VeChord{} = pure (ve & veChord . chordMidiCtrls %~ (MidiCtrlAccent acc2 :))
+    fadeInAccent (Just _) acc1 _    ve@(VeTremolo NoteTremolo{})  = pure (ve & veTremolo . ntrNote . noteMidiCtrls %~ (MidiCtrlAccent acc1 :))
+    fadeInAccent Nothing  _    acc2 ve@(VeTremolo NoteTremolo{})  = pure (ve & veTremolo . ntrNote . noteMidiCtrls %~ (MidiCtrlAccent acc2 :))
+    fadeInAccent (Just _) acc1 _    ve@(VeTremolo ChordTremolo{}) = pure (ve & veTremolo . ntrNote . noteMidiCtrls %~ (MidiCtrlAccent acc1 :))
+    fadeInAccent Nothing  _    acc2 ve@(VeTremolo ChordTremolo{}) = pure (ve & veTremolo . ntrNote . noteMidiCtrls %~ (MidiCtrlAccent acc2 :))
+    fadeInAccent _        _    _    vEvent = pure vEvent 
+
 fadeInDynamics :: VoiceEventsMod
 fadeInDynamics VoiceRuntimeConfig{..} ves = do
   dyn1 <- searchMConfigParam (_vrcSctnPath <> ".fadeInDyn1") <&> fromMaybe Forte
   dyn2 <- searchMConfigParam (_vrcSctnPath <> ".fadeInDyn2") <&> fromMaybe PPP
-  pure $ maybe (tagFirstSoundDynamic dyn2 ves) (const $ tagFirstSoundDynamic dyn1 ves) _vrcMNumVoc
+  pure $ case _vrcMNumVoc of
+    Just _  -> tagFirstSoundDynamic dyn1 ves -- fade-in voice signaled via Just <index>
+    Nothing -> tagFirstSoundDynamic dyn2 ves -- non fade-in voices get second dynamic
 
 -- no need to repeat dynamic for each seg
 uniformDynamics :: VoiceEventsMod
@@ -143,16 +153,21 @@ uniformDynamics VoiceRuntimeConfig{..} ves
   | otherwise = pure ves
 
 tagFirstSoundDynamic :: Dynamic -> [VoiceEvent] -> [VoiceEvent]
-tagFirstSoundDynamic dyn ves = maybe ves (`tagDynForIdx` ves) (findIndex isVeSound ves)
+tagFirstSoundDynamic dyn ves = maybe ves (`tagDynForIdx` ves) $ findIndex isVeSound ves
   where
-    tagDynForIdx idx = toList . adjust (tagDyn dyn) idx . fromList
-    tagDyn dyn' ve@VeNote{}    = ve & veNote . noteDyn .~ dyn'
-    tagDyn dyn' ve@VeRhythm{}  = ve & veRhythm . rhythmDyn .~ dyn'
-    tagDyn dyn' ve@VeTuplet{}  = ve & veTuplet . tupNotes %~ (\notes -> tagDyn dyn' (NE.head notes) NE.:| NE.tail notes)
-    tagDyn dyn' ve@VeChord{}   = ve & veChord . chordDyn .~ dyn'
-    tagDyn dyn' (VeTremolo nt@NoteTremolo{})  = VeTremolo (nt & ntrNote . noteDyn .~ dyn')
-    tagDyn dyn' (VeTremolo ct@ChordTremolo{})  = VeTremolo (ct & ctrLeftChord . chordDyn .~ dyn')
-    tagDyn _    ve          = error $ "tagFirstDynamicNote: unexpected VoiceEvent: " <> show ve
+    tagDynForIdx idx = toList . adjust' tagDyn idx . fromList
+    tagDyn ve@VeNote{}    = ve & veNote . noteCtrls %~ swapDyn dyn
+    tagDyn ve@VeRhythm{}  = ve & veRhythm . rhythmCtrls %~ swapDyn dyn
+    tagDyn ve@VeTuplet{}  = ve & veTuplet . tupNotes %~ (\notes -> tagDyn (NE.head notes) NE.:| NE.tail notes)
+    tagDyn ve@VeChord{}   = ve & veChord . chordCtrls %~ swapDyn dyn
+    tagDyn (VeTremolo nt@NoteTremolo{})  = VeTremolo (nt & ntrNote . noteCtrls %~ swapDyn dyn)
+    tagDyn (VeTremolo ct@ChordTremolo{})  = VeTremolo (ct & ctrLeftChord . chordCtrls %~ swapDyn dyn)
+    tagDyn ve             = error $ "tagFirstDynamicNote: unexpected VoiceEvent: " <> show ve
+    swapDyn dy = (:) (CtrlDynamic dy) . filter (not . isCtrlDynamic) 
+
+isCtrlDynamic :: Control -> Bool
+isCtrlDynamic CtrlDynamic {} = True
+isCtrlDynamic _              = False
 
 isVeSound :: VoiceEvent -> Bool
 isVeSound VeNote {}    = True
@@ -173,15 +188,18 @@ sectionDynamics VoiceRuntimeConfig{..} ves =
 fadeOutDynamics :: VoiceEventsMod
 fadeOutDynamics _ = pure 
 
+-- uniform accents are specific to midi, score gets annotation
 uniformAccents :: VoiceEventsMod
 uniformAccents VoiceRuntimeConfig{..} ves = do
-  searchMConfigParam (_vrcSctnPath <> ".uniformAcc") <&> fromMaybe Staccatissimo <&> (\acc -> uniformAccent acc <$> ves)
+  acc <- searchMConfigParam (_vrcSctnPath <> ".uniformAcc") <&> fromMaybe Staccatissimo
+  let ves' = if _vrcNumSeg == 0 then appendAnnFirstNote ("sempre " <> accent2Name acc) ves else ves
+  pure $ uniformAccent acc <$> ves'
   where
     uniformAccent :: Accent -> VoiceEvent -> VoiceEvent
-    uniformAccent acc ve@VeNote{} = ve & veNote . noteAccs %~ (acc NE.<|)
-    uniformAccent acc ve@VeChord{} = ve & veChord . chordAccs %~ (acc NE.<|)
-    uniformAccent acc ve@(VeTremolo NoteTremolo{}) = ve & veTremolo . ntrNote . noteAccs %~ (acc NE.<|)
-    uniformAccent acc ve@(VeTremolo ChordTremolo{}) = ve & veTremolo . ctrLeftChord . chordAccs %~ (acc NE.<|)
+    uniformAccent acc ve@VeNote{} = ve & veNote . noteMidiCtrls %~ (MidiCtrlAccent acc :)
+    uniformAccent acc ve@VeChord{} = ve & veChord . chordMidiCtrls %~ (MidiCtrlAccent acc :)
+    uniformAccent acc ve@(VeTremolo NoteTremolo{}) = ve & veTremolo . ntrNote . noteMidiCtrls %~ (MidiCtrlAccent acc :)
+    uniformAccent acc ve@(VeTremolo ChordTremolo{}) = ve & veTremolo . ctrLeftChord . chordMidiCtrls %~ (MidiCtrlAccent acc :)
     uniformAccent _   vEvent      = vEvent
 
 -- Unfold repeated transpositions of [[Maybe Pitch]] across Range
@@ -296,8 +314,8 @@ unfoldVEs (mPOOrPOss,Right durTup:durOrDurTups,accents)
 unfoldVEs (_,_,_) = Nothing
 
 mkNoteChordOrRest :: Maybe PitOctOrPitOcts -> Duration -> Accent -> VoiceEvent
-mkNoteChordOrRest (Just (Left (p,o))) d a = VeNote (Note p o d (singleton a) NoDynamic NoSwell "" False)
-mkNoteChordOrRest (Just (Right pos))  d a = VeChord (Chord (NE.fromList pos) d (singleton a) NoDynamic NoSwell "" False)
+mkNoteChordOrRest (Just (Left (p,o))) d a = VeNote (Note p o d [] [CtrlAccent a] False)
+mkNoteChordOrRest (Just (Right pos))  d a = VeChord (Chord (NE.fromList pos) d [] [CtrlAccent a] False)
 mkNoteChordOrRest Nothing             d _ = VeRest (Rest d NoDynamic "")
 
 unfoldDurOrDurTups :: Int -> (Int, [DurOrDurTuplet]) -> Maybe (DurOrDurTuplet, (Int, [DurOrDurTuplet]))
@@ -332,12 +350,23 @@ replaceAnnFirstNote ann = annFirstEvent ann const
 annFirstEvent :: String -> (String -> String -> String ) -> [VoiceEvent] -> [VoiceEvent]
 annFirstEvent ann append = snd . mapAccumL accumSeen False
   where
-    accumSeen False (VeNote note)     = (True,VeNote   (note   & noteAnn   %~ append ann))
-    accumSeen False (VeRest rest)     = (True,VeRest   (rest   & restAnn   %~ append ann))
-    accumSeen False (VeSpacer spacer) = (True,VeSpacer (spacer & spacerAnn %~ append ann))
-    accumSeen False (VeRhythm rhythm) = (True,VeRhythm (rhythm & rhythmAnn %~ append ann))
-    accumSeen False (VeChord chord)   = (True,VeChord  (chord  & chordAnn  %~ append ann))
+    accumSeen False (VeNote note)     = (True,VeNote   (note   & noteCtrls   %~ addOrAppendAnn ann append))
+    accumSeen False (VeRhythm rhythm) = (True,VeRhythm (rhythm & rhythmCtrls %~ addOrAppendAnn ann append))
+    accumSeen False (VeChord chord)   = (True,VeChord  (chord  & chordCtrls  %~ addOrAppendAnn ann append))
+    accumSeen False (VeRest rest)     = (True,VeRest   (rest   & restAnn     %~ append ann))
+    accumSeen False (VeSpacer spacer) = (True,VeSpacer (spacer & spacerAnn   %~ append ann))
     accumSeen seen  event             = (seen,event)
+
+addOrAppendAnn :: String -> (String -> String -> String) -> [Control] -> [Control]
+addOrAppendAnn newAnn append ctrls = maybe (CtrlAnnotation newAnn : ctrls) (`appendAnnForIdx` ctrls) $ findIndex isAnnotation ctrls
+  where
+    appendAnnForIdx idx = toList . adjust' appendAnn idx . fromList
+    appendAnn (CtrlAnnotation oldAnn) = CtrlAnnotation (append newAnn oldAnn)
+    appendAnn ctrl = error $ "appendAnn unexpected control: " <> show ctrl
+  
+isAnnotation :: Control -> Bool
+isAnnotation (CtrlAnnotation _) = True
+isAnnotation _                  = False
 
 rotN :: Int -> [a] -> [a]
 rotN cnt as
@@ -375,11 +404,9 @@ voiceConfig2VoiceEvents path VoiceConfigCanon{..} =
   genCanon path (nes2arrs _vccDurss) (nes2arrs _vccAcctss) (ness2Marrss _vccmPOOrPOsss) _vccDurVal _vccRotVal
 
 ves2VeRests :: [VoiceEvent] -> [VoiceEvent]
-ves2VeRests = fmap ve2VeRest
+ves2VeRests = concatMap (map dur2VeRest . ve2Durs)
   where
-    ve2VeRest (VeNote Note{..})   = VeRest (Rest _noteDur NoDynamic _noteAnn)
-    ve2VeRest (VeChord Chord{..}) = VeRest (Rest _chordDur NoDynamic _chordAnn)
-    ve2VeRest ve                  = ve
+    dur2VeRest dur = VeRest (Rest dur NoDynamic [])
 
 applyMConfigMods :: Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig, VoiceConfig) -> Driver (VoiceRuntimeConfig,VoiceConfig)
 applyMConfigMods mNames pr = applyMMods mNames pr (applyMod name2VoiceConfigMods) <&> (fst pr,)
@@ -598,13 +625,13 @@ alignVoiceEventsDurations timeSig ves =
       where
         adjVEDur :: Int -> VoiceEvent -> (Int,[VoiceEvent])
         adjVEDur curLen' (VeNote note@Note{..}) =
-          (curLen' + addLen,stripAnnotations . fixTies $ newNotes)
+          (curLen' + addLen,stripTiedEventsCtrls . fixTies $ newNotes)
           where
             addLen = dur2DurVal _noteDur
             durs = addEndDurs timeSig curLen' addLen
             newNotes = VeNote . (\dur -> note {_noteDur = dur}) <$> durs
         adjVEDur curLen' (VeChord chord@Chord{..}) =
-          (curLen' + addLen,stripAnnotations . fixTies $ newChords)
+          (curLen' + addLen,stripTiedEventsCtrls . fixTies $ newChords)
           where
             addLen = dur2DurVal _chordDur
             durs = addEndDurs timeSig curLen' addLen
@@ -621,25 +648,26 @@ fixTies ves
     lastVE  = fixVoiceEventTie False True (last ves)
     midVEs  = fixVoiceEventTie False False <$> drop 1 (init ves)
             
-stripAnnotations :: [VoiceEvent] -> [VoiceEvent]
-stripAnnotations ves
+stripTiedEventsCtrls :: [VoiceEvent] -> [VoiceEvent]
+stripTiedEventsCtrls ves
   | length ves < 2 = ves
-  | otherwise      = head ves:(stripAnnotation <$> tail ves)
+  | otherwise      = head ves:(stripTiedEventCtrls <$> tail ves)
         
--- tied-to voice events have no annotation
-stripAnnotation :: VoiceEvent -> VoiceEvent
-stripAnnotation (VeNote note@Note{}) = VeNote $ note & noteAccs .~ singleton NoAccent & noteDyn .~ NoDynamic & noteSwell .~ NoSwell & noteAnn .~ ""
-stripAnnotation ve                   = ve
+-- tied-to voice events have no annotation, only VeNote and VeChord can currently be tied-to VoiceEvents
+stripTiedEventCtrls :: VoiceEvent -> VoiceEvent
+stripTiedEventCtrls (VeNote note@Note{})    = VeNote $ note & noteCtrls .~ [] & noteMidiCtrls .~ []
+stripTiedEventCtrls (VeChord chord@Chord{}) = VeChord $ chord & chordCtrls .~ [] & chordMidiCtrls .~ []
+stripTiedEventCtrls ve                      = error $ "stripTiedEventCtrls unexpected VoiceEvent: " <> show ve
 
 -- first bool is True for first element in list, second bool is True for last element in list
--- for first note, want tie and annotations, for middle notes,
+-- for first note, want tie and annotations,
 -- for middle notes, want tie and no annotations
 -- for last note, want no tie and no annotations
 fixVoiceEventTie :: Bool -> Bool -> VoiceEvent -> VoiceEvent
 fixVoiceEventTie True  False ve@VeNote{}           = ve & veNote . noteTie .~ True 
-fixVoiceEventTie False tie   (VeNote note@Note{})  = VeNote $ note & noteAccs .~ singleton NoAccent & noteDyn .~ NoDynamic & noteSwell .~ NoSwell & noteAnn .~ "" & noteTie .~ not tie
+fixVoiceEventTie False tie   (VeNote note@Note{})  = VeNote $ note & noteMidiCtrls .~ [] & noteCtrls .~ [] & noteTie .~ not tie
 fixVoiceEventTie True  False ve@VeChord{}          = ve & veChord . chordTie .~ True
-fixVoiceEventTie False tie   (VeChord chd@Chord{}) = VeChord $ chd & chordAccs .~ singleton NoAccent & chordDyn .~ NoDynamic & chordSwell .~ NoSwell & chordTie .~ not tie 
+fixVoiceEventTie False tie   (VeChord chd@Chord{}) = VeChord $ chd & chordMidiCtrls .~ [] & chordCtrls .~ [] & chordTie .~ not tie 
 fixVoiceEventTie True  False (VeRest rest)         = VeRest rest {-- TBD: { _restTie = True } --}
 fixVoiceEventTie False _     ve@VeRest{}           = ve & veRest . restDyn .~ NoDynamic {-- TBD: ,_restTie = not tie --}
 fixVoiceEventTie _     _     ve                    = ve

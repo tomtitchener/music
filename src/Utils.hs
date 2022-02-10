@@ -277,7 +277,7 @@ genNotes :: [Maybe (Pitch,Octave)] -> [Duration] -> [Accent] -> [Dynamic] -> [Vo
 genNotes = zipWith4 f
   where
     f Nothing du _ dy = VeRest $ Rest du dy ""
-    f (Just (p,o)) du a dy = VeNote (Note p o du (singleton a) dy NoSwell "" False)
+    f (Just (p,o)) du a dy = VeNote (Note p o du [] [CtrlAccent a,CtrlDynamic dy] False)
 
 genNotess :: [[Maybe (Pitch,Octave)]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> [[VoiceEvent]]
 genNotess = zipWith4 genNotes
@@ -286,7 +286,7 @@ genNotesWithTies :: NE.NonEmpty (Maybe (Pitch,Octave)) -> NE.NonEmpty Duration -
 genNotesWithTies = neZipWith5 f
   where
     f Nothing du _ dy _ = VeRest $ Rest du dy ""
-    f (Just (p,o)) du a dy sl = VeNote $ Note p o du (singleton a) dy NoSwell "" sl 
+    f (Just (p,o)) du a dy sl = VeNote $ Note p o du [] [CtrlAccent a,CtrlDynamic dy] sl 
 
 -- partial, panic on empty list
 -- rotate a list forward by 1 step
@@ -406,7 +406,7 @@ startingClef cnt (clefs,ves) = normPit2Clef clefs averageNormPitch
     isNote _ = False
     normPitches = map normVeNote notes
     normVeNote :: VoiceEvent -> Int
-    normVeNote (VeNote (Note pit oct _ _ _ _ _ _)) = normalizePitchOctave pit oct
+    normVeNote (VeNote (Note pit oct _ _ _ _)) = normalizePitchOctave pit oct
     normVeNote ve = error $ "startingClef expected only VeNote but got: " <> show ve
     averageNormPitch = sum normPitches `div` length normPitches
 

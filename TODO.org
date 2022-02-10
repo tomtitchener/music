@@ -541,7 +541,104 @@ Chord already just has NonEmpty (Pitch,Octave), with individual NonEmpty Accent,
 and Swell.  
 As a second topic, why is it NonEmpty Accent anyway?  I guess it's allowed in LilyPond,
 so thats good enough.  But the real reason is because I wanted a regular, detache effect
-via the uniformAccs norrsmods (which should really be vemsods), 
+via the uniformAccs norrsmods (which should really be vemsods).  So that means e.g. a
+staccatissimo for articulation along with an accent for emphasis.
+As it is, I allow--and so does Lilypond--for multiple articulations, e.g. staccatissimo
+AND accent, which intuitively makes sense to me as different variables, note duration vs.
+note weight relative to the surrounding notes--in effect a temporary override on the 
+prevailing dynamic.  And Lilypond does render a difference in the midi output, though the
+accent effect is really audible in the quietest dynamics only.
+But the point was to have a secco articulation as a background, which certainly clutters
+the actual notation unnecessarily.  The proper solution to this is to have two versions 
+of the Lilypond output, one for the score, one for midi.  For which you can also use tags
+to annotate a single Lilypond stream for either destination (\tag #'midi, with alternate
+\tag #'layout, together with \removeWithTag #'midi | #'layout for the different targets).
+The real way to do this would be to have a global-scope "sempre" category that was 
+intepreted to mean a constant stream of annotation per note or rhythm where the printed
+score showed just the "sempre staccatissimo" notation but the midi had the attribute 
+attached to each note via a tag (see "Try midi rendering with arpeggios").
+But this seems like only the sort of pain I'd want to go through if I ever get the 
+chance to put a score before actual performers, which is pretty remote, so leave it 
+for later, and keep idea of multiple articulations per note to allow for both accent 
+and articulation together.
+In practice, this took some experimentation.  The document shows:
+
+  https://lilypond.org/doc/v2.22/Documentation/notation/different-editions-from-one-source
+
+  Tagged filtering can be applied to articulations, texts, etc., by prepending
+
+    -\tag #'your-tag
+
+  to an articulation. For example, this would define a note with a conditional fingering indication and a note with a conditional annotation:
+
+    c1-\tag #'finger ^4
+    c1-\tag #'warn ^"Watch!"
+
+But to get this to work I had to rearrange things slightly:
+
+  c,4\tag #'midi -!
+
+and ...
+
+\score { \removeWithTag #'midi \structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }
+\score { \unfoldRepeats \articulate \keepWithTag #'midi \structure \midi {  } }
+
+And presumably similarly for dynamic, swell, and sustain.
+Probably it'd be easiest to have two lists of attributes, one per tag?  Or maybe just a
+Maybe NonEmpty Control for midi only attributes, seeing as there are a few more:  pan/balance,
+expression level, reverb, chorus.
+Also, with the \articulate script, which I do invoke, you get "slurs, including phrasing slurs"
+which could be appealing for wind instruments.
+
+So I turn NonEmpty Accent, Dynamic, and Swell into NonEmpty Attribute sum type with
+instances for each together with the new Sustain attribute with instances SustainOn 
+and SustainOff.
+
+And then I have to figure out from a generative sense how to slip those sustain attributes
+into the event stream.  For my current piece, the best strategy will probably just be a
+vesmod to tag the first so sound in a section with the sustain on attribute, maybe to add
+a sustainOff attribute to the last note, too.  In the long term, it seems likely there'll
+be sustainOn/sustainOff pairs that bracket a handful of notes that'll have to be part of 
+the configuration somehow, or else implicit in the generation of the piece by title or
+voice type or something else.
+
+Consider more generally how to manage midi-only controls like uniform accents vs. notated
+controls like dynamics.  The real problem is that an annotation like "sempre staccatissimo"
+doesn't cause any midi effect.  Whereas if you set a dynamic then that leaves the dynamic
+in effect for all the notes that follow until the next dynamic.
+
+In fact, *is* there any other midi-only effect I have in mind?  It's sort of fun to imagine
+fixing the pan settings in the configuration, but doesn't seem worth the effort unless I'm
+going to do somethign funky like swap them around during the course of a piece, which seems
+unlikely.  Then there's echo and reverb that seems like it'd be better to manage in Logic.
+
+So in effect what I'm saying is a mod like uniformAccs is the *only place* I need to 
+generate both an annotation for the score (and midi too, which just ignores it) and a
+midi-tagged dynamic per note.
+
+Neither does it seem to matter what the order of attributes is, e.g. I can put an accent '>'
+before the staccatissimo and it renders fine.  And the ordering doesn't seem to matter.
+
+Note that for some controls, it really makes no sense to have multiples per note, which argues
+in favor of e.g. a unique dynamic.  But on the other hand, few notes require dynamic as it's
+sticky, which argues in favor of a list where than can easily be none.  Also I think there's a
+fair amount of boilerplate where I have to initialize a dynamic member with NoDynamic, which is
+stupid.
+
+And similarly for NoSwell and NoAccent.
+
+So the question is do I really want a flag *per-control* to indicate midi-only when the only
+current use-case is for accent, though it may be in the future I want something like the voice
+controller, maybe.  Doesn't seem like it.  Seems smarter to have two lists of controls, one 
+for the score and one for midi, or maybe just e.g. _noteControls and _noteMidiControls and ditto
+for Rhythm and Chord.  
+
+Then my implementation of uniformAccs can change to show a "sempre" annotation on the first
+note of the first segment and a single-item list of midi controls with just a CtrlAccent element,
+and maybe I can always render the midi controls first, if only for consistency.  But wait a 
+second, I certainly don't want NonEmpty for the list of midi controls, which almost always *be*
+empty.  And probably I don't want NonEmpty for the ordinary controls, either.
+
 ** TODO Control complexity for mix of durations, pitches, and accents
 For any voice type,  have a way to tie one or more voices together through
 sharing of the same configuration parameter.

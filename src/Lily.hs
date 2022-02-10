@@ -1,4 +1,6 @@
-{-# LANGUAGE QuasiQuotes  #-}
+
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE QuasiQuotes     #-}
 
 {- | Lilypond encoding and decoding.
      TBD:  String is inefficient datatype, though UTF-8, which is LilyPond char set:
@@ -7,17 +9,7 @@
      - Replace interpolator with one that works for ByteString (string-interpolate?).
 -}
 
-module Lily {--(ToLily(..)
-            ,FromLily(..)
-            ,parseNat
-            ,parseNatural
-            ,parsePitch
-            ,parseInstrument
-            ,parseDuration
-            ,parseDynamic
-            ,parseSwell
-            ,mkParseLily
-            ) --} where
+module Lily where
 
 import Control.Monad (void)
 import qualified Data.List.NonEmpty as NE
@@ -122,6 +114,12 @@ instance FromLily Duration  where
 accentSyms :: [String]
 accentSyms = ["-^", "--", "-!", "-.", "->", "-_", ""]
 
+accentNames :: [String]
+accentNames = ["marcato","tenuto","staccatissimo","staccato","accent","portato","noaccent"]
+
+accent2Name :: Accent -> String
+accent2Name accent = fromMaybe (error $ "accnet2Name: invalid accent " <> show accent) $ M.lookup accent (M.fromList (zip accentVals accentNames))
+
 accentVals :: [Accent]
 accentVals = [Marcato .. NoAccent]
 
@@ -175,16 +173,67 @@ parseSwell = choice (zipWith mkParser (init swellSyms) (init swellVals)) <|> pur
 instance FromLily Swell  where
   parseLily = mkParseLily parseSwell
 
+-------------
+-- Sustain --
+-------------
+
+sustainSyms :: [String]
+sustainSyms = ["\\sustainOn","\\sustainOff"]
+
+sustainVals :: [Sustain]
+sustainVals = [SustainOn,SustainOff]
+
+instance ToLily Sustain where
+  toLily = mkToLily "sustain" sustainVals sustainSyms
+
+parseSustain :: Parser Sustain
+parseSustain = choice (zipWith mkParser sustainSyms sustainVals)
+
+instance FromLily Sustain where
+  parseLily = mkParseLily parseSustain
+
+-------------
+-- Control --
+-------------
+
+instance ToLily Control where
+  toLily CtrlAccent{..}     = toLily _ctrlAccent
+  toLily CtrlDynamic{..}    = toLily _ctrlDynamic
+  toLily CtrlSwell{..}      = toLily _ctrlSwell
+  toLily CtrlSustain{..}    = toLily _ctrlSustain
+  toLily CtrlAnnotation{..} = mkAnnotation _ctrlAnnotation
+
+parseControl :: Parser Control
+parseControl = choice [try (CtrlAccent <$> parseAccent)
+                      ,try (CtrlDynamic <$> parseDynamic)
+                      ,try (CtrlSwell <$> parseSwell)
+                      ,try (CtrlSustain <$> parseSustain)
+                      ,try (CtrlAnnotation <$> parseAnnotation)]
+
+instance FromLily Control where
+  parseLily = mkParseLily parseControl
+
+instance ToLily MidiControl where
+  toLily MidiCtrlAccent{..}  = "\\tag #'midi " <> toLily _mctrlAccent
+  toLily MidiCtrlDynamic{..} = "\\tag #'midi " <> toLily _mctrlDynamic
+
+parseMidiControl :: Parser MidiControl
+parseMidiControl = choice [try (MidiCtrlAccent <$> (string "\\tag #'midi' " *> parseAccent))
+                          ,try (MidiCtrlDynamic <$> (string "\\tag #'midi " *> parseDynamic))]
+
+instance FromLily MidiControl where
+  parseLily = mkParseLily parseMidiControl
+
 ----------
 -- Note --
 ----------
 
 instance ToLily Note where
-  toLily (Note pit oct dur accs dyn swell ann slr) =
-    toLily pit <> toLily oct <> toLily dur <> toLilyFromNEList accs <> toLily dyn <> toLily swell <> mkAnnotation ann <> if slr then "~" else ""
+  toLily (Note pit oct dur midiCtrls ctrls slr) =
+    toLily pit <> toLily oct <> toLily dur <> toLilyFromList midiCtrls <> toLilyFromList ctrls <> if slr then "~" else ""
 
 parseNote :: Parser Note
-parseNote = Note <$> parsePitch <*> parseOctave <*> parseDuration <*> parseAccents <*> parseDynamic <*> parseSwell <*> parseAnnotation <*> parseBool
+parseNote = Note <$> parsePitch <*> parseOctave <*> parseDuration <*> many parseMidiControl <*> many parseControl <*> parseBool
 
 instance FromLily Note  where
   parseLily = mkParseLily parseNote
@@ -194,10 +243,10 @@ instance FromLily Note  where
 ------------
 
 instance ToLily Rhythm where
-  toLily (Rhythm instr dur accs dyn swell ann) = instr  <> toLily dur <> toLilyFromNEList accs <> toLily dyn <> toLily swell <> mkAnnotation ann 
+  toLily (Rhythm instr dur midiCtrls ctrls) = instr  <> toLily dur <> toLilyFromList midiCtrls <> toLilyFromList ctrls
 
 parseRhythm :: Parser Rhythm
-parseRhythm = Rhythm <$> manyTill anyChar eof <*> parseDuration <*> parseAccents <*> parseDynamic <*> parseSwell <*> parseAnnotation
+parseRhythm = Rhythm <$> manyTill anyChar eof <*> parseDuration <*> many parseMidiControl <*> many parseControl
 
 instance FromLily Rhythm  where
   parseLily = mkParseLily parseRhythm
@@ -255,8 +304,8 @@ pitchOctavePairsToLily :: NE.NonEmpty (Pitch,Octave) -> String
 pitchOctavePairsToLily = unwords . NE.toList . NE.map pitchOctavePairToLily
 
 instance ToLily Chord where
-  toLily (Chord prs dur accs dyn swell ann slr) =
-    "<" <> pitchOctavePairsToLily prs <> ">" <> toLily dur <> toLilyFromNEList accs <> toLily dyn <> toLily swell <> mkAnnotation ann <> if slr then "~" else ""
+  toLily (Chord prs dur midiCtrls ctrls slr) =
+    "<" <> pitchOctavePairsToLily prs <> ">" <> toLily dur <> toLilyFromList midiCtrls <> toLilyFromList ctrls <> if slr then "~" else ""
 
 parsePair :: Parser (Pitch,Octave)
 parsePair = (,) <$> parsePitch <*> parseOctave
@@ -265,7 +314,7 @@ parsePairs :: Parser (NE.NonEmpty (Pitch,Octave))
 parsePairs = NE.fromList <$> (parsePair `sepBy` spaces)
 
 parseChord :: Parser Chord
-parseChord = Chord <$> (string "<" *> parsePairs <* string ">") <*> parseDuration <*> parseAccents <*> parseDynamic <*> parseSwell <*> parseAnnotation <*> parseBool
+parseChord = Chord <$> (string "<" *> parsePairs <* string ">") <*> parseDuration <*> many parseMidiControl <*> many parseControl <*> parseBool
 
 instance FromLily Chord  where
   parseLily = mkParseLily parseChord
@@ -313,12 +362,12 @@ instance FromLily Tempo where
 -------------
 
 instance ToLily Tremolo where
-  toLily (NoteTremolo (Note pit oct dur accs dyn swell ann slr)) =
-    [str|\repeat tremolo $:reps$ {$toLily pit <> toLily oct <> toLily barring <> toLilyFromNEList accs <> toLily dyn <> toLily swell <> mkAnnotation ann <> if slr then "~" else ""$}|]
+  toLily (NoteTremolo (Note pit oct dur midiCtrls ctrls slr)) =
+    [str|\repeat tremolo $:reps$ {$toLily pit <> toLily oct <> toLily barring <> toLilyFromList midiCtrls <> toLilyFromList ctrls <> if slr then "~" else ""$}|]
     where
       (reps,barring) = splitTremolo [dur] [SFDur, HTEDur]
-  toLily (ChordTremolo (Chord prsL durL accL dynL swellL annL slrL) (Chord prsR durR accR dynR swellR annR slrR)) =
-    [str|\repeat tremolo $:reps$ {<$prs2Lily prsL$>$toLily barring <> toLilyFromNEList accL <> toLily dynL <> toLily swellL <> mkAnnotation annL <> if slrL then "~" else ""$ <$prs2Lily prsR$>$toLily barring <> toLilyFromNEList accR <> toLily dynR <> toLily swellR <>  mkAnnotation annR <> if slrR then "~" else ""$}|]
+  toLily (ChordTremolo (Chord prsL durL midiCtrlsL ctrlsL slrL) (Chord prsR durR midiCtrlsR ctrlsR slrR)) =
+    [str|\repeat tremolo $:reps$ {<$prs2Lily prsL$>$toLily barring <> toLilyFromList midiCtrlsL <> toLilyFromList ctrlsL <> if slrL then "~" else ""$ <$prs2Lily prsR$>$toLily barring <> toLilyFromList midiCtrlsR <> toLilyFromList ctrlsR <> if slrR then "~" else ""$}|]
     where
       (reps,barring) = splitTremolo [durL,durR] [SFDur, HTEDur]
       pr2Lily (p,o) = toLily p <> toLily o
@@ -770,8 +819,8 @@ instance ToLily Score where
         <<
         $mconcat (map toLily (NE.toList voices))$>>
         }
-        \score { \structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }
-        \score { \unfoldRepeats \articulate \structure \midi {  } }
+        \score { \removeWithTag ##'midi \structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }
+        \score { \unfoldRepeats \articulate \keepWithTag ##'midi \structure \midi {  } }
         |]
 
 parseScore :: Parser Score
@@ -789,8 +838,8 @@ parseScore = Score <$> (string [str|
                        <*> (NE.fromList <$> parseVoice `endBy` newline)
                        <* string [str|>>
                                      }
-                                     \score { \structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }
-                                     \score { \unfoldRepeats \articulate \structure \midi {  } }
+                                     \score { \removeWithTag ##'midi \structure \layout { \context { \Voice \remove "Note_heads_engraver" \consists "Completion_heads_engraver" \remove "Rest_engraver" \consists "Completion_rest_engraver" } } }
+                                     \score { \unfoldRepeats \articulate \keepWithTag ##'midi \structure \midi {  } }
                                      |]
 
 instance FromLily Score where
@@ -855,4 +904,7 @@ parseQuotedIdentifier = between (symbol '"') (symbol '"') identifier
 
 toLilyFromNEList :: ToLily a => NE.NonEmpty a -> String
 toLilyFromNEList = concat . NE.toList . NE.map toLily
+
+toLilyFromList :: ToLily a => [a] -> String
+toLilyFromList = concatMap toLily
 
