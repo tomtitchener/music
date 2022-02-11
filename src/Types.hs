@@ -48,7 +48,7 @@ data Accent = Marcato | Tenuto | Staccatissimo | Staccato | Accent | Portato | N
 data Dynamic = PPPPP | PPPP | PPP | PP | Piano | MP | MF | Forte | FF | FFF | FFFF | FFFFF | FP | SF | SFF | SP | SPP | SFZ | RFZ | NoDynamic
   deriving (Eq, Ord, Show, Enum, Bounded)
 
-data Swell = Crescendo | Decrescendo | Espressivo | SwellStop | NoSwell
+data Swell = Crescendo | Decrescendo | Espressivo | SwellStop
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 data Sustain = SustainOn | SustainOff 

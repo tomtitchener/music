@@ -126,14 +126,14 @@ accentVals = [Marcato .. NoAccent]
 instance ToLily Accent where
   toLily = mkToLily "accent" accentVals accentSyms
 
+parseOnlyAccent :: Parser Accent
+parseOnlyAccent = choice (zipWith mkParser (init accentSyms) (init accentVals))
+
 parseAccent :: Parser Accent
-parseAccent = choice (zipWith mkParser (init accentSyms) (init accentVals))
+parseAccent = parseOnlyAccent <|> pure NoAccent
 
 instance FromLily Accent  where
   parseLily = mkParseLily parseAccent
-
-parseAccents :: Parser (NE.NonEmpty Accent)
-parseAccents = NE.fromList <$> many1 parseAccent <|> pure (NE.fromList [NoAccent])
 
 -------------
 -- Dynamic --
@@ -148,8 +148,11 @@ dynamicVals = [PPPPP, PPPP, PPP, PP, Piano, MP, MF, FFFFF, FFFF, FFF, FF, FP, Fo
 instance ToLily Dynamic where
   toLily = mkToLily "dynamic" dynamicVals dynamicSyms
 
+parseOnlyDynamic :: Parser Dynamic
+parseOnlyDynamic = choice (zipWith mkParser (init dynamicSyms) (init dynamicVals))
+
 parseDynamic :: Parser Dynamic
-parseDynamic = choice (zipWith mkParser (init dynamicSyms) (init dynamicVals)) <|> pure NoDynamic
+parseDynamic = parseOnlyDynamic <|> pure NoDynamic
 
 instance FromLily Dynamic  where
   parseLily = mkParseLily parseDynamic
@@ -159,16 +162,16 @@ instance FromLily Dynamic  where
 -------------
 
 swellSyms :: [String]
-swellSyms = ["\\<", "\\>", "\\espressivo", "\\!", ""]
+swellSyms = ["\\<", "\\>", "\\espressivo", "\\!"]
 
 swellVals :: [Swell]
-swellVals = [Crescendo, Decrescendo, Espressivo, SwellStop, NoSwell]
+swellVals = [Crescendo, Decrescendo, Espressivo, SwellStop]
 
 instance ToLily Swell where
   toLily = mkToLily "swell" swellVals swellSyms
 
 parseSwell :: Parser Swell
-parseSwell = choice (zipWith mkParser (init swellSyms) (init swellVals)) <|> pure NoSwell
+parseSwell = choice (zipWith mkParser swellSyms swellVals)
 
 instance FromLily Swell  where
   parseLily = mkParseLily parseSwell
@@ -204,11 +207,11 @@ instance ToLily Control where
   toLily CtrlAnnotation{..} = mkAnnotation _ctrlAnnotation
 
 parseControl :: Parser Control
-parseControl = choice [try (CtrlAccent <$> parseAccent)
-                      ,try (CtrlDynamic <$> parseDynamic)
-                      ,try (CtrlSwell <$> parseSwell)
-                      ,try (CtrlSustain <$> parseSustain)
-                      ,try (CtrlAnnotation <$> parseAnnotation)]
+parseControl = choice [try (CtrlAccent     <$> parseOnlyAccent)
+                      ,try (CtrlDynamic    <$> parseOnlyDynamic)
+                      ,try (CtrlSwell      <$> parseSwell)
+                      ,try (CtrlSustain    <$> parseSustain)
+                      ,try (CtrlAnnotation <$> parseOnlyAnnotation)]
 
 instance FromLily Control where
   parseLily = mkParseLily parseControl
@@ -218,8 +221,8 @@ instance ToLily MidiControl where
   toLily MidiCtrlDynamic{..} = "\\tag #'midi " <> toLily _mctrlDynamic
 
 parseMidiControl :: Parser MidiControl
-parseMidiControl = choice [try (MidiCtrlAccent <$> (string "\\tag #'midi' " *> parseAccent))
-                          ,try (MidiCtrlDynamic <$> (string "\\tag #'midi " *> parseDynamic))]
+parseMidiControl = choice [try (MidiCtrlAccent <$> (string "\\tag #'midi " *> parseOnlyAccent))
+                          ,try (MidiCtrlDynamic <$> (string "\\tag #'midi " *> parseOnlyDynamic))]
 
 instance FromLily MidiControl where
   parseLily = mkParseLily parseMidiControl
@@ -851,8 +854,11 @@ mkAnnotation ann
   | null ann = ""
   | otherwise = "^\\markup { \\italic \"" <> ann <> "\" }"
 
+parseOnlyAnnotation :: Parser String
+parseOnlyAnnotation = string "^\\markup { \\italic \"" *> manyTill anyChar (char '"') <* string " }"
+
 parseAnnotation :: Parser String
-parseAnnotation = try (string "^\\markup { \\italic \"" *> manyTill anyChar (char '"') <* string " }") <|> pure ""
+parseAnnotation = try parseOnlyAnnotation <|> pure ""
 
 -----------
 -- Utils --

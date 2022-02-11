@@ -88,6 +88,7 @@ deriving instance Generic Tremolo
 deriving instance Generic Duration
 deriving instance Generic Dynamic
 deriving instance Generic Swell
+deriving instance Generic Sustain
 deriving instance Generic KeySignature
 deriving instance Generic Mode
 deriving instance Generic Note
@@ -108,12 +109,11 @@ instance Arbitrary Octave where
   shrink = genericShrink
 
 instance Arbitrary Accent where
-  -- NoAccent makes extra space, fails parse
   arbitrary = elements [Marcato .. Portato]
   shrink = genericShrink
 
 instance Arbitrary Dynamic where
-  arbitrary = genericArbitrary
+  arbitrary = elements [PP .. RFZ]
   shrink = genericShrink
 
 instance Arbitrary Swell where
@@ -128,6 +128,21 @@ instance Arbitrary Pitch where
   arbitrary = genericArbitrary
   shrink = genericShrink
 
+instance Arbitrary Sustain where
+  arbitrary = genericArbitrary
+  shrink = genericShrink
+
+instance Arbitrary Control where
+  arbitrary = oneof [CtrlAccent     <$> arbitrary 
+                    ,CtrlDynamic    <$> arbitrary
+                    ,CtrlSwell      <$> arbitrary
+                    ,CtrlSustain    <$> arbitrary
+                    ,CtrlAnnotation <$> elements ["a","b","c"]]
+
+instance Arbitrary MidiControl where
+  arbitrary = oneof [MidiCtrlAccent <$> arbitrary 
+                    ,MidiCtrlDynamic <$> arbitrary]
+
 --
 -- Select one from a collection of arbitrary enums
 --
@@ -136,7 +151,7 @@ instance Arbitrary KeySignature where
   shrink = genericShrink
 
 instance Arbitrary Note where
-  arbitrary = Note <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> elements ["a","b","c"] <*> arbitrary
+  arbitrary = Note <$> arbitrary <*> arbitrary <*> arbitrary <*> listOfThree arbitrary <*> listOfThree arbitrary <*> arbitrary
   shrink = genericShrink
 
 instance Arbitrary Rest where
@@ -163,15 +178,15 @@ instance Arbitrary (NE.NonEmpty (Pitch,Octave)) where
 
 -- chord has non-empty list of (pitch,octave) pairs plus duration, accent, dynamic, swell, and slur
 instance Arbitrary Chord where
-  arbitrary = Chord . NE.fromList <$> listOfThree arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> elements ["a","b","c"] <*> arbitrary
+  arbitrary = Chord . NE.fromList <$> listOfThree arbitrary <*> arbitrary <*> pure [] <*> pure [] <*> arbitrary
   shrink = genericShrink
 
 instance Arbitrary Tuplet where
   arbitrary = do
     arbGtr :: Bool <- arbitrary --  > tuple num / denum, e.g. 1 vs. < 1, e.g. True => N + 1 / N, False => N / N + 1
     arbNum :: Int <- elements [3..7] -- tuples from [4 in the time of 3 | 3 in the time of 4 ..  7 in the time of 6 | 6 in the time of 7]
-    note <- Note <$> arbitrary <*> arbitrary <*> pure dur <*> pure (NE.fromList [NoAccent]) <*> elements [Forte,Piano,FF,MF] <*> arbitrary <*> pure "" <*> arbitrary
-    let num = if arbGtr then arbNum else arbNum - 1                                        -- hack ^^ to force not NoDynamic ^^
+    note <- Note <$> arbitrary <*> arbitrary <*> pure dur <*> pure [] <*>  pure [] <*> arbitrary
+    let num = if arbGtr then arbNum else arbNum - 1
         den = if arbGtr then arbNum - 1 else arbNum
         notes = NE.fromList $ replicate num note
     pure $ Tuplet num den dur (NE.map VeNote notes)
@@ -198,11 +213,11 @@ instance Arbitrary TimeSignature where
 instance Arbitrary Tremolo where
   arbitrary = oneof [NoteTremolo <$> arbNote, arbChordTremolo]
     where
-      arbNote = Note <$> arbitrary <*> arbitrary <*> elements [DWDur, WDur, DHDur, HDur, DQDur, QDur] <*>  arbitrary <*> arbitrary <*> arbitrary <*> elements ["a","b","c"] <*> arbitrary
+      arbNote = Note <$> arbitrary <*> arbitrary <*> elements [DWDur, WDur, DHDur, HDur, DQDur, QDur] <*>  pure [] <*> pure [] <*> arbitrary
       arbChordTremolo = do
         dur <- elements [DWDur, WDur, DHDur, HDur, DQDur, QDur]
-        arbChord1 <- (`Chord` dur) . NE.fromList <$> listOfThree arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> elements ["a","b","c"] <*> arbitrary
-        arbChord2 <- (`Chord` dur) . NE.fromList <$> listOfThree arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> elements ["a","b","c"] <*> arbitrary
+        arbChord1 <- (`Chord` dur) . NE.fromList <$> listOfThree arbitrary <*> pure [] <*> pure [] <*> arbitrary
+        arbChord2 <- (`Chord` dur) . NE.fromList <$> listOfThree arbitrary <*> pure [] <*> pure [] <*> arbitrary
         pure $ ChordTremolo arbChord1 arbChord2
   shrink = genericShrink
 
@@ -210,10 +225,10 @@ minVEvents :: NE.NonEmpty VoiceEvent
 minVEvents = VeClef Treble NE.:|
              [VeTempo (TempoDur QDur 120)
              ,VeTimeSignature (TimeSignatureSimple 4 QDur)
-             ,VeNote (Note C COct QDur (NE.fromList [Marcato,Staccato]) NoDynamic NoSwell "a" False)
-             ,VeNote (Note G COct QDur (NE.fromList [NoAccent]) Forte NoSwell "b." False)
-             ,VeNote (Note C COct QDur (NE.fromList [NoAccent]) NoDynamic NoSwell "C!" False)
-             ,VeTremolo (NoteTremolo (Note C COct QDur (NE.fromList [NoAccent]) NoDynamic NoSwell "" False))]
+             ,VeNote (Note C COct QDur [] [CtrlAccent Marcato,CtrlAnnotation "a"] False)
+             ,VeNote (Note G COct QDur [] [CtrlDynamic Forte,CtrlAnnotation "b."] False)
+             ,VeNote (Note C COct QDur [] [CtrlAnnotation "C!"] False)
+             ,VeTremolo (NoteTremolo (Note C COct QDur [] [] False))]
 
 pitchedVoice :: Voice
 pitchedVoice = PitchedVoice AcousticGrand minVEvents

@@ -182,7 +182,7 @@ pTieStr :: Parser Bool
 pTieStr = choice (zipWith mkParser slurStrs [True,False])
 
 accentStrs :: [String]
-accentStrs = ["^", "-", "!", ".", ">", "_", "~"]
+accentStrs = ["^", "-", "!", ".", ">", "_", "~", ""]
 
 pAccentStr :: Parser Accent
 pAccentStr = choice (zipWith mkParser accentStrs [Marcato .. NoAccent])
