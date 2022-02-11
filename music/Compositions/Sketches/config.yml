@@ -21,7 +21,7 @@ canon:
       fadeInAcc2:   !
       fadeInDyn1:   mf
       fadeInDyn2:   p
-      norrsmods:    (fadeInAccs,fadeInDyns)
+      vesmods:      (fadeInAccs,fadeInDyns)
       common:
         vtype:     canon
         durval:    int 512
@@ -41,7 +41,7 @@ canon:
       uniformAcc: !
       uniformDyn: f
       sectionDyns: (mf,f,ff,f)
-      norrsmods:  (uniformAccs,sectionDyns)
+      vesmods:    (uniformAccs,sectionDyns)
       common:
         vtype:    canon
         durval:   int 512
@@ -59,7 +59,7 @@ canon:
       cfgmods:     (decrRandOcts)
       uniformAcc:  ! 
       sectionDyns: (mf,mp,p,ppp)
-      norrsmods:   (uniformAccs,sectionDyns)
+      vesmods:     (uniformAccs,sectionDyns)
       common:
         vtype:    canon
         durval:   int 512
@@ -88,7 +88,7 @@ bridge:
       reps:  int 1
       uniformAcc: !
       uniformDyn: pp
-      norrsmods:  (uniformAccs,uniformDyns)
+      vesmods:    (uniformAccs,uniformDyns)
       common:
         # these are two choices from (c,0) to (d,0) and (dis,0) to (e,0),
         # so that's pretty close, whole step up, then half-step up
@@ -118,7 +118,7 @@ bridge:
       reps:  int 1
       uniformAcc: !
       uniformDyn: ff
-      norrsmods:  (uniformAccs,uniformDyns)
+      vesmods:    (uniformAccs,uniformDyns)
       common:
         # these are two choices from (c,0) to (d,0) and (dis,0) to (e,0),
         # so that's pretty close, whole step up, then half-step up
@@ -148,7 +148,7 @@ bridge:
       reps:  int 1
       uniformAcc: .
       uniformDyn: fff
-      norrsmods:  (uniformAccs,uniformDyns)
+      vesmods:    (uniformAccs,uniformDyns)
       common:
         range:      ((c,2),(c,-2))
         mPitOctsss: (((a,0),(g,0),(dis,0),r,(gis,-1)),((g,0),(a,0),r,r,(dis,0),(gis,-1)))
@@ -170,7 +170,7 @@ bridge:
       reps:  int 1
       uniformAcc: !
       uniformDyn: ff
-      norrsmods:  (uniformAccs,uniformDyns)
+      vesmods:    (uniformAccs,uniformDyns)
       common:
         mPitOctsss: (((c,0),(dis,0),r,(gis,0),(f,0)),((e,0),r,(c,0),(gis,0),(d,0),(a,0)))
         range:      ((c,-1),(c,2))
@@ -192,7 +192,7 @@ bridge:
       reps:  int 1
       uniformAcc: .
       uniformDyn: f
-      norrsmods:  (uniformAccs,uniformDyns)
+      vesmods:    (uniformAccs,uniformDyns)
       common:
         range:      ((c,2),(c,-2))
         mPitOctsss: (((g,0),(f,0),(dis,0),r,(gis,-1)),((dis,0),(g,0),r,r,(f,0),(gis,-1)))
@@ -214,7 +214,7 @@ bridge:
       reps:  int 1
       uniformAcc: .
       uniformDyn: ff
-      norrsmods:  (uniformAccs,uniformDyns)
+      vesmods:    (uniformAccs,uniformDyns)
       common:
         range:      ((c,2),(g,-2))
         mPitOctsss: (((f,0),(e,0),(dis,0),r,(gis,-1)),((dis,0),(f,0),r,(e,0),(gis,-1)))
@@ -236,7 +236,7 @@ bridge:
       reps:  int 3
       uniformAcc: .
       sectionDyns: (ff,f,mf)
-      norrsmods:  (uniformAccs,sectionDyns)
+      vesmods:    (uniformAccs,sectionDyns)
       common:
         range:      ((c,1),(g,-2))
         mPitOctsss: (((e,0),((d,0),(ais,-1)),r,(gis,-1)),((d,0),r,((e,0),(c,0)),(gis,-1)))
@@ -259,7 +259,7 @@ bridge:
       reps:  int 20
       uniformAcc: !
       uniformDyn: ppppp
-      norrsmods:  (uniformAccs,uniformDyns)
+      vesmods:    (uniformAccs,uniformDyns)
       showVType:  int 0
       common:
         vtype:      canon
@@ -295,7 +295,7 @@ bridge:
       stype: neutral
       reps:  int 10
       uniformDyn: ppppp
-      norrsmods:  (uniformDyns)
+      vesmods:    (uniformDyns)
       showVType:  int 0
       common:
         vtype:      canon
@@ -337,7 +337,7 @@ bridge:
       uniformDyn: ppppp
       dblCfgMod:  int 1
       cfgmods:    (doubleDurs)
-      norrsmods:  (uniformDyns)
+      vesmods:    (uniformDyns)
       common:
         vtype:      canon
         durval:     int 128
@@ -376,7 +376,7 @@ bridge:
     #   reps:  int 10
     #   uniformAcc: !
     #   uniformDyn: pppp
-    #   norrsmods:  (uniformAccs,uniformDyns)
+    #   vesmods:    (uniformAccs,uniformDyns)
     #   common:
     #     vtype:      cell
     #     durval:     int 64
@@ -452,7 +452,7 @@ homophony:
     reps:       int 4
     uniformAcc: !
     uniformDyn: mp
-    norrsmods:  (uniformAccs,uniformDyns)
+    vesmods:    (uniformAccs,uniformDyns)
     common:
       vtype:    canon
       durval:   int 512

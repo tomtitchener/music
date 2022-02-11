@@ -40,7 +40,7 @@ data SectionConfig =
                       ,_scnReps        :: Int
                       ,_scnMName       :: Maybe String
                       ,_scnMConfigMods :: Maybe (NE.NonEmpty String)
-                      ,_scnMNOrRsMods  :: Maybe (NE.NonEmpty String)
+                      ,_scnMVesMods    :: Maybe (NE.NonEmpty String)
                       ,_scnVoices      :: NE.NonEmpty VoiceConfig
                  }
     -- TBD:  config with list of Bool to say flatten per voice per segment per param
@@ -49,7 +49,7 @@ data SectionConfig =
                       ,_schReps        :: Int
                       ,_schMName       :: Maybe String
                       ,_schMConfigMods :: Maybe (NE.NonEmpty String)
-                      ,_schMNOrRsMods  :: Maybe (NE.NonEmpty String)
+                      ,_schMVesMods    :: Maybe (NE.NonEmpty String)
                       ,_schVoices      :: NE.NonEmpty VoiceConfig
                  }
   | SectionConfigFadeIn {
@@ -57,7 +57,7 @@ data SectionConfig =
                       ,_scfiOrder       :: NE.NonEmpty Int
                       ,_scfiMName       :: Maybe String
                       ,_scfiMConfigMods :: Maybe (NE.NonEmpty String)
-                      ,_scfiMNOrRsMods  :: Maybe (NE.NonEmpty String)
+                      ,_scfiMVesMods    :: Maybe (NE.NonEmpty String)
                       ,_scfiVoices      :: NE.NonEmpty VoiceConfig
                       }
   | SectionConfigFadeOut {
@@ -65,7 +65,7 @@ data SectionConfig =
                       ,_scfoOrder       :: NE.NonEmpty Int
                       ,_scfoMName       :: Maybe String
                       ,_scfoMConfigMods :: Maybe (NE.NonEmpty String)
-                      ,_scfoMNOrRsMods  :: Maybe (NE.NonEmpty String)
+                      ,_scfoMVesMods    :: Maybe (NE.NonEmpty String)
                       ,_scfoVoices      :: NE.NonEmpty VoiceConfig
                       }
     deriving Show
@@ -213,7 +213,7 @@ sectionAndVoices2SectionConfigNeutral section voices =
       <$> searchConfigParam (section <> ".reps")
       <*> searchMConfigParam (section <> ".sctname")
       <*> searchMConfigParam (section <> ".cfgmods")
-      <*> searchMConfigParam (section <> ".norrsmods")
+      <*> searchMConfigParam (section <> ".vesmods")
       <*> path2VoiceConfigs section voices
       
 sectionAndVoices2SectionConfigHomophony :: SectionAndVoices2SectionConfig
@@ -222,7 +222,7 @@ sectionAndVoices2SectionConfigHomophony section voices =
       <$> searchConfigParam (section <> ".reps")
       <*> searchMConfigParam (section <> ".sctname")
       <*> searchMConfigParam (section <> ".cfgmods")
-      <*> searchMConfigParam (section <> ".norrsmods")
+      <*> searchMConfigParam (section <> ".vesmods")
       <*> path2VoiceConfigs section voices
       
 sectionAndVoices2SectionConfigFadeIn :: SectionAndVoices2SectionConfig
@@ -231,7 +231,7 @@ sectionAndVoices2SectionConfigFadeIn section voices =
       <$> searchConfigParam  (section <> ".delays")
       <*> searchMConfigParam (section <> ".sctname")
       <*> searchMConfigParam (section <> ".cfgmods")
-      <*> searchMConfigParam (section <> ".norrsmods")
+      <*> searchMConfigParam (section <> ".vesmods")
       <*> path2VoiceConfigs section voices
       
 sectionAndVoices2SectionConfigFadeOut :: SectionAndVoices2SectionConfig
@@ -240,7 +240,7 @@ sectionAndVoices2SectionConfigFadeOut section voices =
       <$> searchConfigParam  (section <> ".drops")
       <*> searchMConfigParam (section <> ".sctname")
       <*> searchMConfigParam (section <> ".cfgmods")
-      <*> searchMConfigParam (section <> ".norrsmods")
+      <*> searchMConfigParam (section <> ".vesmods")
       <*> path2VoiceConfigs section voices
 
 name2SectionConfigMap :: M.Map String SectionAndVoices2SectionConfig
