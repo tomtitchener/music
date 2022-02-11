@@ -337,7 +337,7 @@ bridge:
       uniformDyn: ppppp
       dblCfgMod:  int 1
       cfgmods:    (doubleDurs)
-      vesmods:    (uniformDyns)
+      vesmods:    (uniformDyns,sustainNotes)
       common:
         vtype:      canon
         durval:     int 128

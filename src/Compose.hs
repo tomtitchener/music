@@ -19,7 +19,7 @@ import Control.Monad (foldM)
 import Control.Monad.Extra (concatMapM)
 import Data.Foldable
 import Data.Function (on)
-import Data.List (elemIndex, findIndex, groupBy, sort, sortBy, unfoldr, (\\), transpose)
+import Data.List (elemIndex, findIndex, findIndices, groupBy, sort, sortBy, unfoldr, (\\), transpose)
 import qualified Data.List.NonEmpty as NE
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as M
@@ -27,6 +27,7 @@ import Data.Maybe (fromMaybe)
 import Data.Sequence (adjust', fromList)
 import Data.Traversable (mapAccumL)
 import Data.Tuple (swap)
+import Safe (lastMay)
 
 import ComposeData
 import Driver
@@ -54,7 +55,8 @@ name2VoiceEventsMods = M.fromList [("uniformAccs",uniformAccents)
                                   ,("fadeInDyns",fadeInDynamics)
                                   ,("uniformDyns",uniformDynamics)
                                   ,("sectionDyns",sectionDynamics)
-                                  ,("fadeOutDyns",fadeOutDynamics)]
+                                  ,("fadeOutDyns",fadeOutDynamics)
+                                  ,("sustainNotes",sustainNotes)]
 
 -- Weight, action pairs for four segment example, all voices have same weight:
 -- [[(0,-1),   (100,0),  (0,1)]      == 4,0 (((100 - (100 - (0 * (50/(4-1))))) / 2),(100 - (0 * (50/(4-1)))),((100 - (100 - (0 * (50/(4-1))))) / 2))
@@ -162,7 +164,7 @@ tagFirstSoundDynamic dyn ves = maybe ves (`tagDynForIdx` ves) $ findIndex isVeSo
     tagDyn ve@VeChord{}   = ve & veChord . chordCtrls %~ swapDyn dyn
     tagDyn (VeTremolo nt@NoteTremolo{})  = VeTremolo (nt & ntrNote . noteCtrls %~ swapDyn dyn)
     tagDyn (VeTremolo ct@ChordTremolo{})  = VeTremolo (ct & ctrLeftChord . chordCtrls %~ swapDyn dyn)
-    tagDyn ve             = error $ "tagFirstDynamicNote: unexpected VoiceEvent: " <> show ve
+    tagDyn ve             = error $ "tagFirstSoundDynamic: unexpected VoiceEvent: " <> show ve
     swapDyn dy = (:) (CtrlDynamic dy) . filter (not . isCtrlDynamic) 
 
 isCtrlDynamic :: Control -> Bool
@@ -187,6 +189,23 @@ sectionDynamics VoiceRuntimeConfig{..} ves =
 
 fadeOutDynamics :: VoiceEventsMod
 fadeOutDynamics _ = pure 
+
+-- Add SustainOn to first note, SustainOff to last note.
+sustainNotes :: VoiceEventsMod
+sustainNotes VoiceRuntimeConfig{..} ves
+ | _vrcNumSeg == 0 = pure $ maybe ves (`tagSustOnForIdx` ves) $ findIndex isVeSound ves
+ | _vrcNumSeg == _vrcCntSegs - 1 = pure $ maybe ves (`tagSustOffForIdx` ves) $ lastMay (findIndices isVeSound ves)
+ | otherwise = pure ves
+ where
+    tagSustOnForIdx idx = toList . adjust' (tagSust SustainOn) idx . fromList
+    tagSustOffForIdx idx = toList . adjust' (tagSust SustainOff) idx . fromList
+    tagSust sust ve@VeNote{}    = ve & veNote . noteCtrls %~ (CtrlSustain sust :)
+    tagSust sust ve@VeRhythm{}  = ve & veRhythm . rhythmCtrls %~ (CtrlSustain sust :)
+    tagSust sust ve@VeTuplet{}  = ve & veTuplet . tupNotes %~ (\notes -> tagSust sust (NE.head notes) NE.:| NE.tail notes)
+    tagSust sust ve@VeChord{}   = ve & veChord . chordCtrls %~ (CtrlSustain sust :)
+    tagSust sust (VeTremolo nt@NoteTremolo{})  = VeTremolo (nt & ntrNote . noteCtrls %~ (CtrlSustain sust :))
+    tagSust sust (VeTremolo ct@ChordTremolo{})  = VeTremolo (ct & ctrLeftChord . chordCtrls %~ (CtrlSustain sust :))
+    tagSust _ ve                = error $ "sustainNotes: unexpected VoiceEvent: " <> show ve
 
 -- uniform accents are specific to midi, score gets annotation
 uniformAccents :: VoiceEventsMod
