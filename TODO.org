@@ -528,7 +528,7 @@ was clipped apparently running past the border there.
 But then after lettin git rest several days I just tried doubling the unit and everything
 rendered as expected.  But all my math has to be redone though.  Or else I just have to 
 double the unit when I convert to Lilypond I guess.
-** TODO Framework for controls like sustainOn/sustainOff
+** DONE Framework for controls like sustainOn/sustainOff
 Experimenting by manually editing lilypond files shows this renders rather nicely
 in midi.  Question is how to fit it into the config file.  In terms of the type 
 hierarchy, maybe it could be another instance of VoiceEvent:  VoiceEventControl,
@@ -703,8 +703,12 @@ Consider blend possibilities:
     interleaved with other section might be a little bizarre
     could also do this horizontally for all voices at once, to make a sort
     of holographic migration
-** TODO Rhythms to reflect barring
+** TODO Accents to reflect meter
 So far it's all chaos, without respect to the bar, could be any time signature.
+What shapes a sense of meter?  Not just accents, but groupings in melodies as well.
+But this is, so far, a type of non-melodic music, and I like it like that.  And
+it's also a non-melodic music without a monotonic pulse or even a regular period
+of repetition.  
 ** TODO Voice mod for custom dynamics.
 It'd be nice to have a way to rewrite e.g. dynamics, say for when
 even-ends repeats the last section picking up dynmaics from the
