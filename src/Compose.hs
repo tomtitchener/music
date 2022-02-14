@@ -191,22 +191,27 @@ sectionDynamics VoiceRuntimeConfig{..} ves =
 fadeOutDynamics :: VoiceEventsMod
 fadeOutDynamics _ = pure 
 
--- Add SustainOn to first note, SustainOff to last note.
 sustainNotes :: VoiceEventsMod
-sustainNotes VoiceRuntimeConfig{..} ves
- | _vrcNumSeg == 0 = pure $ maybe ves (`tagSustOnForIdx` ves) $ findIndex isVeSound ves
- | _vrcNumSeg == _vrcCntSegs - 1 = pure $ maybe ves (`tagSustOffForIdx` ves) $ lastMay (findIndices isVeSound ves)
- | otherwise = pure ves
- where
-    tagSustOnForIdx idx = toList . adjust' (tagSust SustainOn) idx . fromList
-    tagSustOffForIdx idx = toList . adjust' (tagSust SustainOff) idx . fromList
-    tagSust sust ve@VeNote{}    = ve & veNote . noteCtrls %~ (CtrlSustain sust :)
-    tagSust sust ve@VeRhythm{}  = ve & veRhythm . rhythmCtrls %~ (CtrlSustain sust :)
-    tagSust sust ve@VeTuplet{}  = ve & veTuplet . tupNotes %~ (\notes -> tagSust sust (NE.head notes) NE.:| NE.tail notes)
-    tagSust sust ve@VeChord{}   = ve & veChord . chordCtrls %~ (CtrlSustain sust :)
-    tagSust sust (VeTremolo nt@NoteTremolo{})  = VeTremolo (nt & ntrNote . noteCtrls %~ (CtrlSustain sust :))
-    tagSust sust (VeTremolo ct@ChordTremolo{})  = VeTremolo (ct & ctrLeftChord . chordCtrls %~ (CtrlSustain sust :))
-    tagSust _ ve                = error $ "sustainNotes: unexpected VoiceEvent: " <> show ve
+sustainNotes vrtc@VoiceRuntimeConfig{..} ves = do
+  mIdxs::Maybe (NE.NonEmpty Int) <- searchMConfigParam (_vrcSctnPath <> ".sustainIdxs")
+  sustainNotes' mIdxs vrtc ves
+  where
+    sustainNotes' :: Maybe (NE.NonEmpty Int) -> VoiceEventsMod
+    sustainNotes' mIdxs VoiceRuntimeConfig{..} ves'
+     | _vrcNumSeg == 0 && isMElem _vrcNumVoc mIdxs               = pure $ maybe ves' (`tagSustOnForIdx` ves') $ findIndex isVeSound ves'
+     | _vrcNumSeg == _vrcCntSegs - 1 && isMElem _vrcNumVoc mIdxs = pure $ maybe ves' (`tagSustOffForIdx` ves') $ lastMay (findIndices isVeSound ves')
+     | otherwise = pure ves'
+     where
+        isMElem idx = maybe True (idx `elem`) 
+        tagSustOnForIdx idx = toList . adjust' (tagSust SustainOn) idx . fromList
+        tagSustOffForIdx idx = toList . adjust' (tagSust SustainOff) idx . fromList
+        tagSust sust ve@VeNote{}    = ve & veNote . noteCtrls %~ (CtrlSustain sust :)
+        tagSust sust ve@VeRhythm{}  = ve & veRhythm . rhythmCtrls %~ (CtrlSustain sust :)
+        tagSust sust ve@VeTuplet{}  = ve & veTuplet . tupNotes %~ (\notes -> tagSust sust (NE.head notes) NE.:| NE.tail notes)
+        tagSust sust ve@VeChord{}   = ve & veChord . chordCtrls %~ (CtrlSustain sust :)
+        tagSust sust (VeTremolo nt@NoteTremolo{})  = VeTremolo (nt & ntrNote . noteCtrls %~ (CtrlSustain sust :))
+        tagSust sust (VeTremolo ct@ChordTremolo{})  = VeTremolo (ct & ctrLeftChord . chordCtrls %~ (CtrlSustain sust :))
+        tagSust _ ve                = error $ "sustainNotes: unexpected VoiceEvent: " <> show ve
 
 -- uniform accents are specific to midi, score gets annotation
 uniformAccents :: VoiceEventsMod
@@ -265,8 +270,8 @@ genXPose path durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
     unfoldMPrOrPrss _ (prev,Nothing:mIOrIss) = Just (Nothing,(prev,mIOrIss))
     unfoldMPrOrPrss _ (prev,mIOrIss) = error $ "invalid list of steps, (" <> show prev <> "," <> show (take 10 mIOrIss) <> ")"
 
-genCell :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Scale -> (Pitch,Octave) -> Int -> Driver [VoiceEvent]
-genCell path durss acctss mPOOrPOss  _ _ maxDurVal = do
+genCell :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Scale -> Int -> Driver [VoiceEvent]
+genCell path durss acctss mPOOrPOss  _ maxDurVal = do
   showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
   manyIs <- randomIndices (maximum [length durss,length acctss, length mPOOrPOss ])
   let (manyDurs,manyAccts,manymPOOrPOss) = equalLengthLists ((durss !!) <$> manyIs,(acctss !!) <$> manyIs,(mPOOrPOss  !!) <$> manyIs)
@@ -419,7 +424,7 @@ voiceConfig2VoiceEvents path VoiceConfigXPose{..} =
 voiceConfig2VoiceEvents path VoiceConfigRepeat{..} =
   genRepeat path (nes2arrs _vcrDurss) (nes2arrs _vcrAcctss) (ness2Marrss _vcrmPOOrPOss ) _vcrDurVal
 voiceConfig2VoiceEvents path VoiceConfigCell{..} =
-  genCell path (nes2arrs _vcclDurss) (nes2arrs _vcclAcctss) (ness2Marrss _vcclmPOOrPOss ) _vcclScale _vcclRegister _vcclDurVal
+  genCell path (nes2arrs _vcclDurss) (nes2arrs _vcclAcctss) (ness2Marrss _vcclmPOOrPOss ) _vcclScale _vcclDurVal
 voiceConfig2VoiceEvents path VoiceConfigCanon{..} =
   genCanon path (nes2arrs _vccDurss) (nes2arrs _vccAcctss) (ness2Marrss _vccmPOOrPOss ) _vccDurVal _vccRotVal
 

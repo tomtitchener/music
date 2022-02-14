@@ -98,7 +98,6 @@ data VoiceConfig =
                     ,_vcclmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcclDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vcclAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vcclRegister   :: (Pitch,Octave)
                     ,_vcclDurVal     :: Int
                  } 
   | VoiceConfigCanon {
@@ -158,7 +157,6 @@ path2VoiceConfigCell' pre =
         <*> searchConfigParam  (pre <> ".mPitOctsss")
         <*> searchConfigParam  (pre <> ".durss")
         <*> searchConfigParam  (pre <> ".accentss")
-        <*> searchConfigParam  (pre <> ".register")
         <*> searchConfigParam  (pre <> ".durval")
 
 path2VoiceConfigCell :: String -> Driver VoiceConfig
