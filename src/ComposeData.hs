@@ -70,15 +70,13 @@ data SectionConfig =
                       }
     deriving Show
 
--- TBD: what are instrument, key signature, and time signature doing here?
--- Hoist to section or even group?
 data VoiceConfig =
   VoiceConfigXPose {
                  _vcxInstr       :: Instrument
                  ,_vcxKey        :: KeySignature
                  ,_vcxScale      :: Scale
                  ,_vcxTime       :: TimeSignature
-                 ,_vcxmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                 ,_vcxmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                  ,_vcxDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                  ,_vcxAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
                  ,_vcxRange      :: ((Pitch,Octave),(Pitch,Octave))
@@ -87,7 +85,7 @@ data VoiceConfig =
                     _vcrInstr       :: Instrument
                     ,_vcrKey        :: KeySignature
                     ,_vcrTime       :: TimeSignature
-                    ,_vcrmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                    ,_vcrmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcrDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vcrAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vcrDurVal     :: Int
@@ -97,7 +95,7 @@ data VoiceConfig =
                     ,_vcclKey        :: KeySignature
                     ,_vcclScale      :: Scale
                     ,_vcclTime       :: TimeSignature
-                    ,_vcclmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                    ,_vcclmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcclDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vcclAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vcclRegister   :: (Pitch,Octave)
@@ -107,7 +105,7 @@ data VoiceConfig =
                     _vccInstr       :: Instrument
                     ,_vccKey        :: KeySignature
                     ,_vccTime       :: TimeSignature
-                    ,_vccmPOOrPOsss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                    ,_vccmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vccDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vccAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vccDurVal     :: Int
@@ -170,7 +168,7 @@ path2VoiceConfigCell pre = path2VoiceConfigCell' pre <&> verifyListsLengths
       | all (== head allLengths) allLengths = vc
       | otherwise = error $ "path2VoiceConfigCell unequal length listss: " <> show allLengths
       where
-        allLengths = [NE.length _vcclmPOOrPOsss,NE.length _vcclAcctss,NE.length _vcclDurss]
+        allLengths = [NE.length _vcclmPOOrPOss,NE.length _vcclAcctss,NE.length _vcclDurss]
     verifyListsLengths vc = error $ "pagth2VoiceConfigCell unexpected VoiceConfig: " <> show vc
 
 path2VoiceConfigCanon :: String -> Driver VoiceConfig

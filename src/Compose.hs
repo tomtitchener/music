@@ -72,13 +72,14 @@ decrNormalizeMPitOctssOctaves :: ConfigMod
 decrNormalizeMPitOctssOctaves = modMPitOctssOctaves mkIdWeightsDecr 
 
 modMPitOctssOctaves :: (Int -> Int -> Int ) -> ConfigMod
--- modMPitOctssOctaves mkIdWeight vrtCfg vcx@VoiceConfigXPose{..}  = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcxmPOOrPOsss  <&> \mPitOctsss -> vcx & vcxmPOOrPOsss .~ mPitOctsss
-modMPitOctssOctaves mkIdWeight vrtCfg vcx@VoiceConfigXPose{..}  = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcxmPOOrPOsss  <&> \mPitOctsss -> vcx { _vcxmPOOrPOsss = mPitOctsss}
-modMPitOctssOctaves mkIdWeight vrtCfg vcr@VoiceConfigRepeat{..} = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcrmPOOrPOsss  <&> \mPitOctsss -> vcr { _vcrmPOOrPOsss = mPitOctsss}
-modMPitOctssOctaves mkIdWeight vrtCfg vcl@VoiceConfigCell{..}   = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcclmPOOrPOsss <&> \mPitOctsss -> vcl { _vcclmPOOrPOsss = mPitOctsss}
-modMPitOctssOctaves mkIdWeight vrtCfg vcc@VoiceConfigCanon{..}  = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vccmPOOrPOsss  <&> \mPitOctsss -> vcc { _vccmPOOrPOsss = mPitOctsss}
+modMPitOctssOctaves mkIdWeight vrtCfg vcx@VoiceConfigXPose{..}  = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcxmPOOrPOss  <&> \mPOOrPOss -> vcx { _vcxmPOOrPOss  = mPOOrPOss }
+modMPitOctssOctaves mkIdWeight vrtCfg vcr@VoiceConfigRepeat{..} = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcrmPOOrPOss  <&> \mPOOrPOss -> vcr { _vcrmPOOrPOss  = mPOOrPOss }
+modMPitOctssOctaves mkIdWeight vrtCfg vcl@VoiceConfigCell{..}   = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcclmPOOrPOss <&> \mPOOrPOss -> vcl { _vcclmPOOrPOss = mPOOrPOss }
+modMPitOctssOctaves mkIdWeight vrtCfg vcc@VoiceConfigCanon{..}  = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vccmPOOrPOss  <&> \mPOOrPOss -> vcc { _vccmPOOrPOss  = mPOOrPOss }
 
-modAnyMPitOctssOctaves :: (Int -> Int -> Int ) -> VoiceRuntimeConfig -> NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts)) -> Driver (NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts)))
+type MPitOctOrNEPitOctsss = NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+
+modAnyMPitOctssOctaves :: (Int -> Int -> Int ) -> VoiceRuntimeConfig -> MPitOctOrNEPitOctsss -> Driver MPitOctOrNEPitOctsss
 modAnyMPitOctssOctaves mkIdWeight VoiceRuntimeConfig{..} = 
   traverse (traverse randomizeMPitOcts)
   where
@@ -265,12 +266,12 @@ genXPose path durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
     unfoldMPrOrPrss _ (prev,mIOrIss) = error $ "invalid list of steps, (" <> show prev <> "," <> show (take 10 mIOrIss) <> ")"
 
 genCell :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Scale -> (Pitch,Octave) -> Int -> Driver [VoiceEvent]
-genCell path durss acctss mPOOrPOsss _ _ maxDurVal = do
+genCell path durss acctss mPOOrPOss  _ _ maxDurVal = do
   showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
-  manyIs <- randomIndices (maximum [length durss,length acctss, length mPOOrPOsss])
-  let (manyDurs,manyAccts,manyMPOOrPOss) = equalLengthLists ((durss !!) <$> manyIs,(acctss !!) <$> manyIs,(mPOOrPOsss !!) <$> manyIs)
+  manyIs <- randomIndices (maximum [length durss,length acctss, length mPOOrPOss ])
+  let (manyDurs,manyAccts,manymPOOrPOss) = equalLengthLists ((durss !!) <$> manyIs,(acctss !!) <$> manyIs,(mPOOrPOss  !!) <$> manyIs)
       allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,concat manyDurs)
-      ves             = unfoldr unfoldVEs (concat manyMPOOrPOss,allDurOrDurTups,concat manyAccts)
+      ves             = unfoldr unfoldVEs (concat manymPOOrPOss,allDurOrDurTups,concat manyAccts)
   if 0 == showVType
   then pure ves 
   else pure $ appendAnnFirstNote "cell" ves
@@ -284,23 +285,23 @@ genCell path durss acctss mPOOrPOsss _ _ maxDurVal = do
     equalLengthLists (as,bs,cs) = error $ "equalLists unexpected uneven length lists: " <> show (as,bs,cs)
                                             
 genRepeat :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Driver [VoiceEvent]
-genRepeat path durss acctss mPOOrPOsss maxDurVal = do
+genRepeat path durss acctss mPOOrPOss  maxDurVal = do
   durss'      <- freezeLists durss
   acctss'     <- freezeLists acctss
-  mPOOrPOsss' <- freezeLists mPOOrPOsss
-  genCanon path durss' acctss' mPOOrPOsss' maxDurVal 0 <&> replaceAnnFirstNote "repeat"
+  mPOOrPOss'  <- freezeLists mPOOrPOss 
+  genCanon path durss' acctss' mPOOrPOss' maxDurVal 0 <&> replaceAnnFirstNote "repeat"
 
 freezeLists :: [[a]] -> Driver [[a]]
 freezeLists xss = randomizeList xss <&> (:[]) . concat
 
 genCanon :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Int -> Driver [VoiceEvent]
-genCanon path durOrDurTupss acctss mPOOrPOsss maxDurVal rotVal = do
+genCanon path durOrDurTupss acctss mPOOrPOss  maxDurVal rotVal = do
   showVType::Int   <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
-  manyMPOOrPOss    <- randomElements mPOOrPOsss <&> concatMap (rotN rotVal)
+  manymPOOrPOss    <- randomElements mPOOrPOss  <&> concatMap (rotN rotVal)
   manyDurOrDurTups <- randomElements durOrDurTupss  <&> concat
   manyAccts        <- randomElements acctss <&> concat
   let allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,manyDurOrDurTups)
-      ves             = unfoldr unfoldVEs (manyMPOOrPOss,allDurOrDurTups,manyAccts)
+      ves             = unfoldr unfoldVEs (manymPOOrPOss,allDurOrDurTups,manyAccts)
   if 0 == showVType
   then pure ves 
   else pure $ appendAnnFirstNote "canon" ves
@@ -414,13 +415,13 @@ verifyVeTuplet ve = ve
 
 voiceConfig2VoiceEvents :: String -> VoiceConfig -> Driver [VoiceEvent]
 voiceConfig2VoiceEvents path VoiceConfigXPose{..} =
-  genXPose path (nes2arrs _vcxDurss) (nes2arrs _vcxAcctss)  (ness2Marrss _vcxmPOOrPOsss) _vcxScale (Range _vcxRange)
+  genXPose path (nes2arrs _vcxDurss) (nes2arrs _vcxAcctss)  (ness2Marrss _vcxmPOOrPOss ) _vcxScale (Range _vcxRange)
 voiceConfig2VoiceEvents path VoiceConfigRepeat{..} =
-  genRepeat path (nes2arrs _vcrDurss) (nes2arrs _vcrAcctss) (ness2Marrss _vcrmPOOrPOsss) _vcrDurVal
+  genRepeat path (nes2arrs _vcrDurss) (nes2arrs _vcrAcctss) (ness2Marrss _vcrmPOOrPOss ) _vcrDurVal
 voiceConfig2VoiceEvents path VoiceConfigCell{..} =
-  genCell path (nes2arrs _vcclDurss) (nes2arrs _vcclAcctss) (ness2Marrss _vcclmPOOrPOsss) _vcclScale _vcclRegister _vcclDurVal
+  genCell path (nes2arrs _vcclDurss) (nes2arrs _vcclAcctss) (ness2Marrss _vcclmPOOrPOss ) _vcclScale _vcclRegister _vcclDurVal
 voiceConfig2VoiceEvents path VoiceConfigCanon{..} =
-  genCanon path (nes2arrs _vccDurss) (nes2arrs _vccAcctss) (ness2Marrss _vccmPOOrPOsss) _vccDurVal _vccRotVal
+  genCanon path (nes2arrs _vccDurss) (nes2arrs _vccAcctss) (ness2Marrss _vccmPOOrPOss ) _vccDurVal _vccRotVal
 
 ves2VeRests :: [VoiceEvent] -> [VoiceEvent]
 ves2VeRests = concatMap (map dur2VeRest . ve2Durs)
@@ -707,23 +708,23 @@ freezeConfig :: VoiceConfig -> Driver VoiceConfig
 freezeConfig vcx@VoiceConfigXPose{..}  = do
   durss      <- freezeNELists _vcxDurss
   acctss     <- freezeNELists _vcxAcctss
-  mPOOrPOsss <- freezeNELists _vcxmPOOrPOsss
-  pure $ vcx & vcxDurss .~ durss & vcxAcctss .~ acctss & vcxmPOOrPOsss .~ mPOOrPOsss
+  mPOOrPOss  <- freezeNELists _vcxmPOOrPOss 
+  pure $ vcx & vcxDurss .~ durss & vcxAcctss .~ acctss & vcxmPOOrPOss  .~ mPOOrPOss 
 freezeConfig vcr@VoiceConfigRepeat{..} = do
   durss      <- freezeNELists _vcrDurss
   acctss     <- freezeNELists _vcrAcctss
-  mPOOrPOsss <- freezeNELists _vcrmPOOrPOsss
-  pure $ vcr & vcrDurss .~ durss & vcrAcctss .~ acctss & vcrmPOOrPOsss .~ mPOOrPOsss 
+  mPOOrPOss  <- freezeNELists _vcrmPOOrPOss 
+  pure $ vcr & vcrDurss .~ durss & vcrAcctss .~ acctss & vcrmPOOrPOss  .~ mPOOrPOss  
 freezeConfig vcl@VoiceConfigCell{..} = do
   durss      <- freezeNELists _vcclDurss
   acctss     <- freezeNELists _vcclAcctss
-  mPOOrPOsss <- freezeNELists _vcclmPOOrPOsss
-  pure $ vcl & vcclDurss .~ durss & vcclAcctss .~ acctss & vcclmPOOrPOsss .~ mPOOrPOsss
+  mPOOrPOss  <- freezeNELists _vcclmPOOrPOss 
+  pure $ vcl & vcclDurss .~ durss & vcclAcctss .~ acctss & vcclmPOOrPOss  .~ mPOOrPOss 
 freezeConfig vcc@VoiceConfigCanon{..}  = do
   durss      <- freezeNELists _vccDurss
   acctss     <- freezeNELists _vccAcctss
-  mPOOrPOsss <- freezeNELists _vccmPOOrPOsss
-  pure $ vcc & vccDurss .~ durss & vccAcctss .~ acctss & vccmPOOrPOsss .~ mPOOrPOsss
+  mPOOrPOss  <- freezeNELists _vccmPOOrPOss 
+  pure $ vcc & vccDurss .~ durss & vccAcctss .~ acctss & vccmPOOrPOss  .~ mPOOrPOss 
     
 sectionCfg2TimeSignature :: SectionConfig -> TimeSignature
 sectionCfg2TimeSignature SectionConfigNeutral{..}   = voiceCfg2TimeSignature (NE.head _scnVoices)
