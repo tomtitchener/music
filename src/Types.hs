@@ -138,6 +138,7 @@ makeLenses ''Tremolo
 makeLenses ''TimeSignature
 makeLenses ''VoiceEvent
 
+-- From MIDI
 data Instrument =
        AcousticGrand |           Contrabass |         LeadFfths |
        BrightAcoustic |          TremoloStrings |     LeadBassPlusLead |

@@ -649,19 +649,6 @@ isVEMeta VeKeySignature {}  = True
 isVEMeta VeTimeSignature {} = True
 isVEMeta _                  = False
 
--- TBD:  deprecate
--- Lilypond allows this very abbreviated syntax, where you don't have to create "up" and "down" staff and voice explicitly.
--- Score generation works just fine, but Midi generation creates four sequential tracks for "up" staves, then four more for
--- "down" staves.  So if you want to manage left and right hand pan settings, for example, you have to hunt for other hand.
--- So this is commented-out, to be deprecated eventually.
--- toSplitStaffVoice :: Instrument -> NE.NonEmpty VoiceEvent -> String
--- toSplitStaffVoice instr events =
---   [str|\new PianoStaff {
---       \set PianoStaff.instrumentName = ##"$shortInstrName instr$"\set PianoStaff.midiInstrument = ##"$midiName instr$"
---       \autoChange { $unwords (fmap toLily (NE.toList events))$ } \bar "|."
---       }
---       |]
-  
 toSplitStaffVoice :: Instrument -> NE.NonEmpty VoiceEvent -> String
 toSplitStaffVoice instr events =
   [str|\new PianoStaff {
@@ -680,11 +667,6 @@ toSplitStaffVoice instr events =
       >>
       }
       |]
-
--- TBD:  deprecate, see above
---parseSplitStaffVoiceEvents :: Parser (NE.NonEmpty VoiceEvent)
---parseSplitStaffVoiceEvents = NE.fromList <$> (string [str|\autoChange { |] *> parseVoiceEvent `endBy` space <* string [str|} \bar "|."
---                                                                                                                          }|])
 
 parseVoiceEventOrAutochange :: Parser (Maybe VoiceEvent)
 parseVoiceEventOrAutochange = Just <$> parseVoiceEvent <|> Nothing <$ string "\\autoChange { \\clef treble"
@@ -755,14 +737,6 @@ parseVoice = choice [
                                    |]
                         *> (NE.fromList <$> (parseVoice `endBy` newline
                             <* string ">>"))))
-  -- TBD:  deprecate, see above
-  -- ,try (SplitStaffVoice <$> (string [str|\new PianoStaff {
-  --                                       \set PianoStaff.instrumentName = ##|]
-  --                              *> parseQuotedIdentifier
-  --                              *> string [str|\set PianoStaff.midiInstrument = ##"|]
-  --                              *> parseInstrument
-  --                              <* string [str|"$endline$|])
-  --                            <*> parseSplitStaffVoiceEvents)
   ,try (SplitStaffVoice <$> (string [str|\new PianoStaff {
                                         <<
                                         \set PianoStaff.instrumentName = ##|]
@@ -848,7 +822,11 @@ parseScore = Score <$> (string [str|
 instance FromLily Score where
   parseLily = mkParseLily parseScore
 
--- TBD: always italicized, always above note.
+-- TBD: always italicized, always above note.  Lilypond lets you say ^ for above, _ for below,
+-- and - for neutral or default.  Unfortunately, what - winds up meaning seems to be the same
+-- as _, which is actually the only thing worse than always saying ^, seeing as dynamics are
+-- below the staff as well, and Lilypond will overwrite on barring between notes.  Find a way
+-- to thread Maybe (Pitch,Octave) through this routine to decide best orientation?
 mkAnnotation :: String -> String
 mkAnnotation ann
   | null ann = ""

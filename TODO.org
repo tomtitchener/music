@@ -682,6 +682,7 @@ that's promissing to explore or if maybe it'd just be good enough to do it via t
 config file.
 Except that wouldn't really work either, as there'd be no variation between sections
 or within repeats of a section.
+Or maybe not.
 It may be that capturing complexity like this isn't really feasible in the context
 of the records and routines I have so far, and I need to rethink e.g. an association
 of group/section/voice configurations that targets the possibility of replicated 
@@ -703,12 +704,20 @@ Consider blend possibilities:
     interleaved with other section might be a little bizarre
     could also do this horizontally for all voices at once, to make a sort
     of holographic migration
+Having trouble trying to force this.  Possible to add a cell voice with 
+config to force repeated patterns with regular durations.  But it's never
+quite what I had in mind, or somehow lacking.  And it seems like a  lot of
+work for the result.
+What I've had more success with in terms of experimental composing, is to 
+work on some sort of combinator where I merge two textures.  In this model,
+the final merge has all voices operating from the new config as one texture
+gradually merges into a second.  
 ** TODO Accents to reflect meter
 So far it's all chaos, without respect to the bar, could be any time signature.
 What shapes a sense of meter?  Not just accents, but groupings in melodies as well.
 But this is, so far, a type of non-melodic music, and I like it like that.  And
 it's also a non-melodic music without a monotonic pulse or even a regular period
-of repetition.  
+of repetition.
 ** TODO Voice mod for custom dynamics.
 It'd be nice to have a way to rewrite e.g. dynamics, say for when
 even-ends repeats the last section picking up dynmaics from the

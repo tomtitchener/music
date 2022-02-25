@@ -53,6 +53,7 @@ name2VoiceEventsMods :: M.Map String VoiceEventsMod
 name2VoiceEventsMods = M.fromList [("uniformAccs",uniformAccents)
                                   ,("fadeInAccs",fadeInAccents)
                                   ,("fadeInDyns",fadeInDynamics)
+                                  ,("voicesDyn",voicesDynamics)
                                   ,("uniformDyns",uniformDynamics)
                                   ,("sectionDyns",sectionDynamics)
                                   ,("fadeOutDyns",fadeOutDynamics)
@@ -188,8 +189,21 @@ sectionDynamics :: VoiceEventsMod
 sectionDynamics VoiceRuntimeConfig{..} ves = 
   searchConfigParam (_vrcSctnPath <> ".sectionDyns") <&> flip tagFirstSoundDynamic ves . (NE.!! _vrcNumSeg)
 
+voicesDynamics :: VoiceEventsMod
+voicesDynamics vrtc@VoiceRuntimeConfig{..} ves = do
+  voicesDyn <- searchMConfigParam (_vrcSctnPath <> ".vocsDyn") <&> fromMaybe MF
+  mIdxs::Maybe (NE.NonEmpty Int) <- searchMConfigParam (_vrcSctnPath <> ".vocsDynIdxs")
+  voicesDynamics' voicesDyn mIdxs vrtc ves
+  where
+    voicesDynamics' :: Dynamic -> Maybe (NE.NonEmpty Int) -> VoiceEventsMod
+    voicesDynamics' voicesDyn' mIdxs VoiceRuntimeConfig{..} ves'
+      | _vrcNumSeg == 0 && isMElem _vrcNumVoc mIdxs = pure $ tagFirstSoundDynamic voicesDyn' ves'
+      | otherwise = pure ves'
+     where
+        isMElem idx = maybe True (idx `elem`) 
+
 fadeOutDynamics :: VoiceEventsMod
-fadeOutDynamics _ = pure 
+fadeOutDynamics _ = error "fadeOutDynamics is not implemented"
 
 sustainNotes :: VoiceEventsMod
 sustainNotes vrtc@VoiceRuntimeConfig{..} ves = do

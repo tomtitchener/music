@@ -11,16 +11,6 @@ import Data.List (isPrefixOf)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
 
--- A piece is a NE.NonEmpty GroupConfig
--- where the last Section of each is extended
--- to the same length which is extended to the
--- end of the last bar and the beginning is
--- annotated with a rehearsal letter.
--- Except that probably should be optional
--- on a per sections basis, maybe with two
--- flags, one to say to extend to the same
--- length and another to say to extend to the
--- end of the last bar.
 data GroupConfig =
   GroupConfigNeutral {
                      _gcnPath    :: String
@@ -79,6 +69,7 @@ data VoiceConfig =
                  ,_vcxmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                  ,_vcxDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                  ,_vcxAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
+                 -- Dynamic?
                  ,_vcxRange      :: ((Pitch,Octave),(Pitch,Octave))
                  } 
   | VoiceConfigRepeat {
@@ -88,6 +79,7 @@ data VoiceConfig =
                     ,_vcrmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcrDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vcrAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
+                    -- Dynamic?
                     ,_vcrDurVal     :: Int
                  } 
   | VoiceConfigCell {
@@ -98,6 +90,7 @@ data VoiceConfig =
                     ,_vcclmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcclDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vcclAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
+                    -- Dynamic?
                     ,_vcclDurVal     :: Int
                  } 
   | VoiceConfigCanon {
@@ -107,6 +100,7 @@ data VoiceConfig =
                     ,_vccmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vccDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vccAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
+                    -- Dynamic?
                     ,_vccDurVal     :: Int
                     ,_vccRotVal     :: Int
                  }
@@ -282,7 +276,7 @@ cfg2GroupConfig group sections =
   where
     runConfigType cfgType =
       case M.lookup cfgType name2GroupConfigMap of
-        Nothing  -> error $ "cfg2GroupConfig no converter for \"sstype:\" " <> cfgType
+        Nothing  -> error $ "cfg2GroupConfig no converter for \"grtype:\" " <> cfgType
         Just fun -> fun group sections 
 
 -- cfg2SectionConfig :: String -> NE.NonEmpty String -> Driver SectionConfig

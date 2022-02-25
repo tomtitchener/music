@@ -216,11 +216,14 @@ bridge:
     grname:  two
     grtype:  neutral
     section1:
-      stype: neutral
-      reps:  int 10
-      uniformDyn: ppppp
-      vesmods:    (uniformDyns)
-      showVType:  int 0
+      stype:       neutral
+      reps:        int 5
+      vocsDyn:     pppp
+      uniformDyn:  ppppp
+      vesmods:     (uniformDyns,sustainNotes,voicesDyn)
+      sustainIdxs: (1,2)
+      vocsDynIdxs: (1,2)
+      showVType:   int 0
       common:
         vtype:      canon
         durval:     int 128
@@ -244,6 +247,51 @@ bridge:
         rotval:   int 1
         durss:    ((8,8,16,16),(16,16),(8.,16,16,8.))
         accentss: ((!,~,!,~,>,~),(!,>,>,!))
+    #
+    # New section here exploring regular rhythmic units matching up with same-length pitch/octave sequences.
+    # First in voice1, reverting to faster rhythms but in units to match the bar, even though they won't
+    # necessarily start at the beginning of a bar.
+    # 
+    section2:
+      stype:         neutral
+      reps:          int 10
+      # vocsDyn:       ppppp
+      uniformDyn:    ppppp
+      vesmods:       (uniformDyns) # (sustainNotes,voicesDyn)
+      showVType:     int 0
+      # vocsDynIdxs:   (1)
+      # sustainIdxs:   (1,2)
+      common:
+        vtype:      canon
+        durval:     int 224 # 16,16,16,16,8,8,8.,16,8 is 7 8ths or 7 * 16 or 112, then I want a rest for a measure but I don't have any single duration to do that, should be 4 4 4.
+      voice1:
+        rotval:   int 0
+        mPitOctsss: ((((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
+        durss:    ((16,16,16),(16,8,8),(4,16,16))
+        accentss: ((>,>,>,>),(~,!,!,~,!,!))
+      voice2:
+        vtype:    cell
+        mPitOctsss: ((((fis,0),(b,0),(cis,1)),((fis,0),(b,0),(cis,1)),((fis,0),(b,0),(cis,1)),((fis,0),(b,0),(cis,1)),((dis,2),(e,2)),((dis,1),(e,1)),((b,0),(b,1)),((b,0),(b,1)),((b,0),(b,1)),r,r,r),
+                     (((dis,2),(e,2)),((dis,1),(e,1)),((fis,0),(b,0),(cis,0)),((fis,0),(b,0),(cis,1)),((fis,0),(b,0),(cis,1)),((fis,0),(b,0),(cis,1)),((b,0),(b,1)),((b,0),(b,1)),((b,0),(b,1)),r,r,r),
+                     (((b,0),(b,1)),((b,0),(b,1)),((b,0),(b,1)),((dis,2),(e,2)),((dis,1),(e,1)),((fis,0),(b,0),(cis,0)),((fis,0),(b,0),(cis,1)),((fis,0),(b,0),(cis,1)),((fis,0),(b,0),(cis,1)),r,r,r))
+        durss:    ((16,16,16,16,8,8,8.,16,8,4,4,4.),
+                   (8,8,16,16,16,16,8.,16,8,4,4,4.),
+                   (8.,16,8,8,8,16,16,16,16,4,4,4.))
+        accentss: ((~,~,~,~,~,~,~,~,~,~),
+                   (~,~,~,~,~,~,~,~,~,~),
+                   (~,~,~,~,~,~,~,~,~,~))
+      voice3:
+        mPitOctsss: ((((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1)),(((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))))
+        rotval:   int 0
+        durss:    ((8,8,4),(8,4,8,8))
+        accentss: ((~,~,~),(~,~,~,~))
+      voice4:
+        mPitOctsss: ((((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
+        rotval:   int 1
+        durss:    ((8,8,16,16),(16,16),(8.,16,16,8.))
+        accentss: ((!,~,!,~,>,~),(!,>,>,!))
+    # 
+    # 
     # Repeated patterns with rests inbetween:  ((16,16,16,16,2.),(1,8.))
     # sixths with a second inbetween:  (cis,a),(b,gis)
     # alternating with swapping octaves (b,gis),(cis,a)
@@ -256,7 +304,7 @@ bridge:
     # Do something like voiceDyns where I can assign a dynamic to a particular voice,
     # then have sustained voice with louder dynamic?
     # 
-    section2:
+    section3:
       stype: neutral
       reps:  int 10
       uniformDyn: ppppp
@@ -294,7 +342,7 @@ bridge:
         rotval:   int 1
         durss:    ((8,8,16,16),(16,16),(8.,16,16,8.))
         accentss: ((!,~,!,~,>,~),(!,>,>,!))
-    section3:
+    section4:
       stype: neutral
       reps:  int 20
       showVType:  int 0
