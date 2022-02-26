@@ -284,24 +284,40 @@ genXPose path durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
     unfoldMPrOrPrss _ (prev,Nothing:mIOrIss) = Just (Nothing,(prev,mIOrIss))
     unfoldMPrOrPrss _ (prev,mIOrIss) = error $ "invalid list of steps, (" <> show prev <> "," <> show (take 10 mIOrIss) <> ")"
 
+-- A cell is a horizontal slice through the same subset of duration, accent, and pitch/octave motifs from the configuration.
+-- Reduce complexity by always pairing the same group of three configuration values together.
+-- Also, extend the duration, accent, or pitch/octave motif to the same length as the longest sublist by cycling.
+-- Given list of list of durations, accents and pitches/rests:
+-- 1) Verify the outer lists are all of the same length, N.
+-- 2) Generate an infinite list of indices [0..N-1]
+-- 3) Expand durations, accents, and pitches/rests sublists so they're all the same length.
+-- 4) Generate infinite length lists of durations, accents and pitches/rests sublists using infinite list of indices.
+-- 5) Clip infinite list of durations by configuration maxDurVal
+-- 6) Combine sublists to generate [VoiceEvent]
 genCell :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Scale -> Int -> Driver [VoiceEvent]
-genCell path durss acctss mPOOrPOss  _ maxDurVal = do
-  showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
-  manyIs <- randomIndices (maximum [length durss,length acctss, length mPOOrPOss ])
-  let (manyDurs,manyAccts,manymPOOrPOss) = equalLengthLists ((durss !!) <$> manyIs,(acctss !!) <$> manyIs,(mPOOrPOss  !!) <$> manyIs)
-      allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,concat manyDurs)
-      ves             = unfoldr unfoldVEs (concat manymPOOrPOss,allDurOrDurTups,concat manyAccts)
-  if 0 == showVType
-  then pure ves 
-  else pure $ appendAnnFirstNote "cell" ves
-  where
-    equalLengthLists (as:asss,bs:bss,cs:css) = (as':asss,bs':bss,cs':css)
+genCell path durss acctss mPOOrPOss  _ maxDurVal
+  | not (sameVals [length durss,length acctss,length mPOOrPOss]) = 
+    error $ "genCell unexpected uneven length lists (durss,acctss,mPOOrPOss): " <> show (length durss,length acctss,length mPOOrPOss)
+  | otherwise  = do
+      manyIs <- randomIndices (length durss)
+      let (eqLenDurss,eqLenAcctss,eqLenmPOOrPOss) = equalLengthLists (durss,acctss,mPOOrPOss)
+          (manyDurs,manyAccts,manymPOOrPOss) = ((eqLenDurss !!) <$> manyIs,(eqLenAcctss !!) <$> manyIs,(eqLenmPOOrPOss !!) <$> manyIs)
+          allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,concat manyDurs)
+          ves             = unfoldr unfoldVEs (concat manymPOOrPOss,allDurOrDurTups,concat manyAccts)
+      showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
+      pure $ if 0 == showVType then ves else appendAnnFirstNote "cell" ves
       where
-        (as',bs',cs') = equalList (as,bs,cs)
-        equalList (xs,ys,zs) = (take l (cycle xs), take l (cycle ys), take l (cycle zs))
+        equalLengthLists (as:ass,bs:bss,cs:css) = (as':ass',bs':bss',cs':css')
           where
-            l = maximum [length xs,length ys,length zs]
-    equalLengthLists (as,bs,cs) = error $ "equalLists unexpected uneven length lists: " <> show (as,bs,cs)
+            (as',bs',cs') = equalLengthSubLists (as,bs,cs)
+            (ass',bss',css') = equalLengthLists (ass,bss,css)
+            equalLengthSubLists (xs,ys,zs) = (take l (cycle xs), take l (cycle ys), take l (cycle zs))
+              where
+                l = maximum [length xs,length ys,length zs]
+        equalLengthLists (as,bs,cs) = error $ "equalLists unexpected uneven length lists (as,bs,cs): " <> show (length as,length bs,length cs)
+
+sameVals :: Eq a => [a] -> Bool
+sameVals lengths = all (== head lengths) lengths
                                             
 genRepeat :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Driver [VoiceEvent]
 genRepeat path durss acctss mPOOrPOss  maxDurVal = do
