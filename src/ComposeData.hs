@@ -58,6 +58,13 @@ data SectionConfig =
                       ,_scfoMVesMods    :: Maybe (NE.NonEmpty String)
                       ,_scfoVoices      :: NE.NonEmpty VoiceConfig
                       }
+  | SectionConfigFadeCells {
+                       _scfcPath        :: String
+                      ,_scfcMName       :: Maybe String
+                      ,_scfcMConfigMods :: Maybe (NE.NonEmpty String)
+                      ,_scfcMVesMods    :: Maybe (NE.NonEmpty String)
+                      ,_scfcVoicesAB    :: NE.NonEmpty (VoiceConfig,VoiceConfig) -- must be VoiceConfigCell
+                      }
     deriving Show
 
 data VoiceConfig =
@@ -85,7 +92,6 @@ data VoiceConfig =
   | VoiceConfigCell {
                     _vcclInstr       :: Instrument
                     ,_vcclKey        :: KeySignature
-                    ,_vcclScale      :: Scale
                     ,_vcclTime       :: TimeSignature
                     ,_vcclmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcclDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
@@ -146,7 +152,6 @@ path2VoiceConfigCell' pre =
       VoiceConfigCell
         <$> searchConfigParam  (pre <> ".instr")
         <*> searchConfigParam  (pre <> ".key")
-        <*> searchConfigParam  (pre <> ".scale")
         <*> searchConfigParam  (pre <> ".time")
         <*> searchConfigParam  (pre <> ".mPitOctsss")
         <*> searchConfigParam  (pre <> ".durss")
@@ -195,6 +200,11 @@ path2VoiceConfig path =
 path2VoiceConfigs :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty VoiceConfig)
 path2VoiceConfigs path = traverse (path2VoiceConfig . ((path <> ".") <>))
 
+path2VoiceConfigss :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty (VoiceConfig,VoiceConfig))
+path2VoiceConfigss path voices = path2VoiceConfigs path voices <&> NE.fromList . uncurry zip . list2PairLists . NE.toList
+  where
+    list2PairLists l = splitAt (length l `div` 2) l
+
 type SectionAndVoices2SectionConfig = String -> NE.NonEmpty String -> Driver SectionConfig
 
 sectionAndVoices2SectionConfigNeutral :: SectionAndVoices2SectionConfig
@@ -232,6 +242,14 @@ sectionAndVoices2SectionConfigFadeOut section voices =
       <*> searchMConfigParam (section <> ".cfgmods")
       <*> searchMConfigParam (section <> ".vesmods")
       <*> path2VoiceConfigs section voices
+
+sectionAndVoices2SectionConfigFadeCells :: SectionAndVoices2SectionConfig
+sectionAndVoices2SectionConfigFadeCells section voices = 
+      SectionConfigFadeCells section
+      <$> searchMConfigParam (section <> ".sctname")
+      <*> searchMConfigParam (section <> ".cfgmods")
+      <*> searchMConfigParam (section <> ".vesmods")
+      <*> path2VoiceConfigss section voices
 
 name2SectionConfigMap :: M.Map String SectionAndVoices2SectionConfig
 name2SectionConfigMap = M.fromList [("neutral"  ,sectionAndVoices2SectionConfigNeutral)

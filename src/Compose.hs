@@ -4,13 +4,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Compose (groupConfig2VoiceEvents
-               , alignVoiceEventsDurations
-               , mkVesTotDur
-               , genSplitStaffVoc
-               , tagTempo
-               , ve2DurVal
-               , ves2DurVal
-               )  where
+               ,alignVoiceEventsDurations
+               ,mkVesTotDur
+               ,genSplitStaffVoc
+               ,tagTempo
+               ,ve2DurVal
+               ,ves2DurVal
+               ) where
 
 import Data.Bifunctor (second)
 import Control.Lens 
@@ -284,9 +284,10 @@ genXPose path durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
     unfoldMPrOrPrss _ (prev,Nothing:mIOrIss) = Just (Nothing,(prev,mIOrIss))
     unfoldMPrOrPrss _ (prev,mIOrIss) = error $ "invalid list of steps, (" <> show prev <> "," <> show (take 10 mIOrIss) <> ")"
 
--- A cell is a horizontal slice through the same subset of duration, accent, and pitch/octave motifs from the configuration.
--- Reduce complexity by always pairing the same group of three configuration values together.
--- Also, extend the duration, accent, or pitch/octave motif to the same length as the longest sublist by cycling.
+-- A cell is a vertical slice through the same subset of duration, accent, and pitch/octave lists from the configuration.
+-- Reduce complexity by always tupling the same group of three configuration values together.
+-- Requires a configuration where all the outer list of list for the configuration params are the same length.
+-- Extend the duration, accent, or pitch/octave list to the same length as the longest sublist by cycling.
 -- Given list of list of durations, accents and pitches/rests:
 -- 1) Verify the outer lists are all of the same length, N.
 -- 2) Generate an infinite list of indices [0..N-1]
@@ -294,31 +295,32 @@ genXPose path durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
 -- 4) Generate infinite length lists of durations, accents and pitches/rests sublists using infinite list of indices.
 -- 5) Clip infinite list of durations by configuration maxDurVal
 -- 6) Combine sublists to generate [VoiceEvent]
-genCell :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Scale -> Int -> Driver [VoiceEvent]
-genCell path durss acctss mPOOrPOss  _ maxDurVal
-  | not (sameVals [length durss,length acctss,length mPOOrPOss]) = 
-    error $ "genCell unexpected uneven length lists (durss,acctss,mPOOrPOss): " <> show (length durss,length acctss,length mPOOrPOss)
-  | otherwise  = do
-      manyIs <- randomIndices (length durss)
-      let (eqLenDurss,eqLenAcctss,eqLenmPOOrPOss) = equalLengthLists (durss,acctss,mPOOrPOss)
-          (manyDurs,manyAccts,manymPOOrPOss) = ((eqLenDurss !!) <$> manyIs,(eqLenAcctss !!) <$> manyIs,(eqLenmPOOrPOss !!) <$> manyIs)
-          allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,concat manyDurs)
-          ves             = unfoldr unfoldVEs (concat manymPOOrPOss,allDurOrDurTups,concat manyAccts)
-      showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
-      pure $ if 0 == showVType then ves else appendAnnFirstNote "cell" ves
-      where
-        equalLengthLists (as:ass,bs:bss,cs:css) = (as':ass',bs':bss',cs':css')
-          where
-            (as',bs',cs') = equalLengthSubLists (as,bs,cs)
-            (ass',bss',css') = equalLengthLists (ass,bss,css)
-            equalLengthSubLists (xs,ys,zs) = (take l (cycle xs), take l (cycle ys), take l (cycle zs))
-              where
-                l = maximum [length xs,length ys,length zs]
-        equalLengthLists (as,bs,cs) = error $ "equalLists unexpected uneven length lists (as,bs,cs): " <> show (length as,length bs,length cs)
+-- Note: path2VoiceConfigCell verifies durss, acctss, mPOOrPOss all have same length.
+genCell :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Driver [VoiceEvent]
+genCell path durss acctss mPOOrPOss maxDurVal = do
+    manyIs <- randomIndices (length durss)
+    let (eqLenDurss,eqLenAcctss,eqLenmPOOrPOss) = mkEqualLengthSubLists (durss,acctss,mPOOrPOss)
+        (manyDurs,manyAccts,manymPOOrPOss) = ((eqLenDurss !!) <$> manyIs,(eqLenAcctss !!) <$> manyIs,(eqLenmPOOrPOss !!) <$> manyIs)
+        allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,concat manyDurs)
+        ves             = unfoldr unfoldVEs (concat manymPOOrPOss,allDurOrDurTups,concat manyAccts)
+    showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
+    pure $ if 0 == showVType then ves else appendAnnFirstNote "cell" ves
 
-sameVals :: Eq a => [a] -> Bool
-sameVals lengths = all (== head lengths) lengths
-                                            
+
+
+mkEqualLengthSubLists :: ([[a]],[[b]],[[c]]) -> ([[a]],[[b]],[[c]])
+mkEqualLengthSubLists (as:ass,bs:bss,cs:css) = (as':ass',bs':bss',cs':css')
+  where
+    (as',bs',cs') = mkEqualLengthLists (as,bs,cs)
+    (ass',bss',css') = mkEqualLengthSubLists (ass,bss,css)
+mkEqualLengthSubLists (as,bs,cs) = error $ "equalLists unexpected uneven length lists (as,bs,cs): " <> show (length as,length bs,length cs)
+
+mkEqualLengthLists :: ([a],[b],[c]) -> ([a],[b],[c])
+mkEqualLengthLists (xs,ys,zs) =
+  (take l (cycle xs), take l (cycle ys), take l (cycle zs))
+  where
+    l = maximum [length xs,length ys,length zs]
+
 genRepeat :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Driver [VoiceEvent]
 genRepeat path durss acctss mPOOrPOss  maxDurVal = do
   durss'      <- freezeLists durss
@@ -454,7 +456,7 @@ voiceConfig2VoiceEvents path VoiceConfigXPose{..} =
 voiceConfig2VoiceEvents path VoiceConfigRepeat{..} =
   genRepeat path (nes2arrs _vcrDurss) (nes2arrs _vcrAcctss) (ness2Marrss _vcrmPOOrPOss ) _vcrDurVal
 voiceConfig2VoiceEvents path VoiceConfigCell{..} =
-  genCell path (nes2arrs _vcclDurss) (nes2arrs _vcclAcctss) (ness2Marrss _vcclmPOOrPOss ) _vcclScale _vcclDurVal
+  genCell path (nes2arrs _vcclDurss) (nes2arrs _vcclAcctss) (ness2Marrss _vcclmPOOrPOss ) _vcclDurVal
 voiceConfig2VoiceEvents path VoiceConfigCanon{..} =
   genCanon path (nes2arrs _vccDurss) (nes2arrs _vccAcctss) (ness2Marrss _vccmPOOrPOss ) _vccDurVal _vccRotVal
 
@@ -544,6 +546,8 @@ sectionConfig2VoiceEvents (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfi
       let seenNumVocsEmpties::[(Int,[VoiceEvent])] = (,[]) <$> seenNumVocs'
           newEventss = snd <$> sort (seenNumVocsEmpties <> unseenNumVocsEventss)
       pure (seenNumVocs',zipWith (<>) prevEventss newEventss)
+sectionConfig2VoiceEvents SectionConfigFadeCells {} {-- scnPath mSctnName mConfigMods mVoiceEventsMods voiceConfigPrs --} = do
+  error "Unimplemented"
 
 applyMods :: String -> Maybe (NE.NonEmpty String) -> Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig,VoiceConfig) -> Driver (Int,[VoiceEvent])
 applyMods path mConfigMods mVoiceEventsMods pr =
@@ -558,6 +562,25 @@ genSplitStaffVoc :: Instrument -> KeySignature -> TimeSignature -> [VoiceEvent] 
 genSplitStaffVoc instr keySig timeSig ves
   = SplitStaffVoice instr (VeKeySignature keySig NE.<| VeTimeSignature timeSig NE.<| NE.fromList ves)
 
+-- TBD: regularize SectionConfigs with different counts of VoiceConfigs, fix
+-- global time and key signatures and instrument type in Main too.
+-- Going to mean pulling processing of [[[VoiceEvent]]] output from 
+-- traverse of groupConfig2VoiceEvents to NonEmpty Voice input to writeScore
+-- and pipeline from Main::cfg2Score here, dropping globals for time, key, and
+-- instrument and sourcing them from VoiceConfig, maybe in parallel lists to
+-- [[VoiceEvent]].  May want to reconsider this as it really makes no sense
+-- to always repeat same key and time signature and instrument on a voice
+-- config level.  But if something were to change, you'd want a way to slip
+-- the appropriate VoiceEvent into the stream when it did change.  Maybe a
+-- master voice list roster in a new top-level data type?  That could let you 
+-- do something dynamic like stitching together tacit voices as you travel down
+-- the list of group configs -- assuming you only change orchestration between
+-- groups anyway -- which would turn a traverse into a foldM at the top level.
+-- Note also pipeline forces genSplitStaffVoc which will need to be configurable
+-- either by VoiceConfig or SectionConfig or else associated with an instrument.
+-- But *before that* need to deal with variable choirs, instruments that sit out
+-- a section by adding rests for tacit voices when they're missing from a Section,
+-- preservation of ordering of by voice in [[VoiceEvent]].
 groupConfig2VoiceEvents :: GroupConfig -> Driver [[[VoiceEvent]]]
 groupConfig2VoiceEvents (GroupConfigNeutral _ _ secCfgs) =
   traverse sectionConfig2VoiceEvents (NE.toList secCfgs)
@@ -766,6 +789,7 @@ sectionCfg2TimeSignature SectionConfigNeutral{..}   = voiceCfg2TimeSignature (NE
 sectionCfg2TimeSignature SectionConfigHomophony{..} = voiceCfg2TimeSignature (NE.head _schVoices)
 sectionCfg2TimeSignature SectionConfigFadeIn{..}    = voiceCfg2TimeSignature (NE.head _scfiVoices)
 sectionCfg2TimeSignature SectionConfigFadeOut{..}   = voiceCfg2TimeSignature (NE.head _scfoVoices)
+sectionCfg2TimeSignature SectionConfigFadeCells{}   = error "not implemented yet"
 
 voiceCfg2TimeSignature :: VoiceConfig -> TimeSignature
 voiceCfg2TimeSignature VoiceConfigXPose{..}  = _vcxTime
