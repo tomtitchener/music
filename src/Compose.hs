@@ -13,9 +13,8 @@ module Compose (groupConfig2VoiceEvents
                ) where
 
 import Data.Bifunctor (second)
-import Control.Lens 
+import Control.Lens hiding (both)
 import Control.Monad (foldM)
--- import Control.Monad.ListM (mapAccumM)
 import Control.Monad.Extra (concatMapM)
 import Data.Foldable
 import Data.Function (on)
@@ -27,6 +26,7 @@ import Data.Maybe (fromMaybe)
 import Data.Sequence (adjust', fromList)
 import Data.Traversable (mapAccumL)
 import Data.Tuple (swap)
+import Data.Tuple.Extra (both, first, fst3, snd3, thd3)
 import Safe (lastMay)
 
 import ComposeData
@@ -484,23 +484,29 @@ applyMod m modName pr =
     Nothing -> error $ "applyMod:  no value for name " <> modName
     Just f  -> uncurry f pr
 
+-- Single vertical slice through individual lists of list of: Maybe PitOctOrNEPitOcts, DurOrDurTuplet, and Accent,
+-- used with VoiceConfigCell where sublists are guaranteed to be of the same length.  A [Slice]
+-- gives all data from three input vals in VoiceConfig but grouped vertically, for blending
+-- between VoiceConfig A and VoiceConfig B where both are VoiceConfigCell.
+type Slice = ([Maybe PitOctOrNEPitOcts],[DurOrDurTuplet],[Accent])
+
 sectionConfig2VoiceEvents :: SectionConfig -> Driver [[VoiceEvent]]
 sectionConfig2VoiceEvents (SectionConfigNeutral scnPath cntSegs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
-  traverse (traverse (applyMConfigMods mConfigMods)) prs >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
-  where
+  traverse (traverse (applyMConfigMods mConfigMods)) prss >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
+   where
     cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
     scnName = fromMaybe "neutral" mSctnName
     cntVocs = length voiceConfigs
     segRuntimeTupss = chunksOf cntSegs [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
-    prs = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss (NE.toList voiceConfigs)
+    prss = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss (NE.toList voiceConfigs)
 sectionConfig2VoiceEvents (SectionConfigHomophony scnPath cntSegs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
-  traverse (traverse (applyMConfigMods mConfigMods)) prs >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
+  traverse (traverse (applyMConfigMods mConfigMods)) prss >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
   where
     cvtAndApplyMod (rt,cfg) = freezeConfig cfg >>= voiceConfig2VoiceEvents scnPath >>= applyMVoiceEventsMods mVoiceEventsMods . (rt,)
     scnName = fromMaybe "homophony" mSctnName
     cntVocs = length voiceConfigs
     segRuntimeTupss = chunksOf cntSegs [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
-    prs = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss (NE.toList voiceConfigs)
+    prss = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss (NE.toList voiceConfigs)
 sectionConfig2VoiceEvents (SectionConfigFadeIn scnPath fadeIxs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) =
   foldM foldMf ([],replicate cntVocs []) fadeIxs <&> addSecnName scnName . snd
   where
@@ -546,8 +552,121 @@ sectionConfig2VoiceEvents (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfi
       let seenNumVocsEmpties::[(Int,[VoiceEvent])] = (,[]) <$> seenNumVocs'
           newEventss = snd <$> sort (seenNumVocsEmpties <> unseenNumVocsEventss)
       pure (seenNumVocs',zipWith (<>) prevEventss newEventss)
-sectionConfig2VoiceEvents SectionConfigFadeCells {} {-- scnPath mSctnName mConfigMods mVoiceEventsMods voiceConfigPrs --} = do
-  error "Unimplemented"
+sectionConfig2VoiceEvents (SectionConfigFadeCells scnPath mSctnName mConfigMods mVoiceEventsMods voiceConfigPrs) = do
+  let cntVocs = length voiceConfigPrs
+      slicePrs::[([Slice],[Slice])] = both voiceConfig2Slice <$> NE.toList voiceConfigPrs
+      blendedSlices::[[[Slice]]]    = transpose $ unfoldr (unfoldToSlicesRow slicePrs) (1:replicate (cntVocs - 1) 0)
+      voiceConfigss::[[VoiceConfig]] = slicess2Configs (NE.toList (fst <$> voiceConfigPrs)) <$> blendedSlices
+      cntSegs = length (head voiceConfigss)
+      segRuntimeTupss = chunksOf cntSegs [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
+      prss = zipWith zip segRuntimeTupss voiceConfigss
+  traverse (traverse (applyMConfigMods mConfigMods)) prss >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
+  where
+    cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
+    scnName = fromMaybe "fade-cells" mSctnName
+    
+voiceConfig2Slice :: VoiceConfig -> [Slice]
+voiceConfig2Slice VoiceConfigXPose{..}  = config2Slices _vcxmPOOrPOss  _vcxDurss  _vcxAcctss
+voiceConfig2Slice VoiceConfigRepeat{..} = config2Slices _vcrmPOOrPOss  _vcrDurss  _vcrAcctss
+voiceConfig2Slice VoiceConfigCell{..}   = config2Slices _vcclmPOOrPOss _vcclDurss _vcclAcctss
+voiceConfig2Slice VoiceConfigCanon{..}  = config2Slices _vccmPOOrPOss  _vccDurss  _vccAcctss
+
+config2Slices :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                 -> NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+                 -> NE.NonEmpty (NE.NonEmpty Accent)
+                 -> [Slice]
+config2Slices mPOOrPOss durss acctss =
+  unfoldr unfoldToSlicesTup (nes2arrs mPOOrPOss,nes2arrs durss,nes2arrs acctss)
+  where
+    unfoldToSlicesTup ([],[],[]) = Nothing
+    unfoldToSlicesTup (as:ass,bs:bss,cs:css) = Just ((as,bs,cs),(ass,bss,css))
+    unfoldToSlicesTup (as,bs,cs) = error $ "unfoldToSlicesTup uneven length lists: " <> show (length as,length bs, length cs)
+
+slicess2Configs :: [VoiceConfig] -> [[Slice]] -> [VoiceConfig]
+slicess2Configs voiceConfigs slicess = slices2Config <$> zip voiceConfigs slicess
+
+slices2Config :: (VoiceConfig,[Slice]) -> VoiceConfig
+slices2Config (voiceConfig,slices) = tup2VoiceConfig voiceConfig (slices2Tup slices)
+
+type ConfigTup = (NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                 ,NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+                 ,NE.NonEmpty (NE.NonEmpty Accent))
+
+slices2Tup :: [Slice] -> ConfigTup
+slices2Tup slices = (NE.fromList $ fst3 <$> sliceTups
+                    ,NE.fromList $ snd3 <$> sliceTups
+                    ,NE.fromList $ thd3 <$> sliceTups)
+  where
+    sliceTups = slice2Tup <$> slices
+
+tup2VoiceConfig :: VoiceConfig -> ConfigTup -> VoiceConfig
+tup2VoiceConfig (VoiceConfigXPose instr keySig scale timSig _ _ _ vcxRange') (mPitOrPits,durss,accents) =
+  VoiceConfigXPose instr keySig scale timSig mPitOrPits durss accents vcxRange'
+tup2VoiceConfig (VoiceConfigRepeat instr keySig timSig _ _ _ durVal) (mPitOrPits,durss,accents) =
+  VoiceConfigRepeat instr keySig timSig mPitOrPits durss accents durVal
+tup2VoiceConfig (VoiceConfigCell instr keySig timSig _ _ _ durVal) (mPitOrPits,durss,accents) =
+  VoiceConfigCell instr keySig timSig mPitOrPits durss accents durVal
+tup2VoiceConfig (VoiceConfigCanon instr keySig timSig _ _ _ durVal rotVal) (mPitOrPits,durss,accents) =
+  VoiceConfigCanon instr keySig timSig mPitOrPits durss accents durVal rotVal
+
+slice2Tup :: Slice -> (NE.NonEmpty (Maybe PitOctOrNEPitOcts),NE.NonEmpty DurOrDurTuplet,NE.NonEmpty Accent)
+slice2Tup (mPitOctss,durs,accents) = (NE.fromList mPitOctss,NE.fromList durs,NE.fromList accents)
+
+-- Tricky to keep track of nesting levels.
+-- Each iteration of list of counts [1,0,0,0] -> [2,1,0,0] -> [3,2,1,0] ...
+-- yields a [VoiceConfig] (each as a [Slice] generated from ([Slice],[Slice])), one per voice.
+-- The sum of all iterations is the equivalent of [[VoiceConfig]] where the inner [VoiceConfig]
+-- contains per-voice the gradual blend from CfgA to CfgB.
+-- Each VoiceConfig is represented by a [Slice], so a per-voice [VoiceConfig] maps from [[Slice]]
+-- and the cumulative sum across all voices is [[VoiceConfig]] or [[[Slice]]].
+-- However, each iteration adds another column in voice order, that is the resulting
+-- [[Slice]] is in voice-order and the sequence of [[Slice]] is to be accumulated in
+-- column order, which requires the concat . transpose to get back to voice order.
+
+-- Something's wrong here, because this operates on [Int] at a time, which means output
+-- should really be [[Slice]] which means result of unfoldr is [[[Slice]]], which actually
+-- would be Ok to do concat . transpose to get expected rsult of [[Slice]] which maps to
+-- [VoiceConfig] -- except what I want is [[VoiceConfig]]!  Argh.  So this really must
+-- be ([[Slice]],[Int]) for its output type, which is equivalent to ([VoiceConfig],[Int]),
+-- which accumulates to [[VoiceConfig]]?  So then it must be all I want to do is transpose
+-- without the concat to maintain [[VoiceConfig]].
+unfoldToSlicesRow :: [([Slice],[Slice])] -> [Int] -> Maybe ([[Slice]],[Int])
+unfoldToSlicesRow slicePrs is
+  | last is == cntCfgASlices = Nothing
+  | otherwise = Just (slicesCol,is')
+    where
+      cntCfgASlices = length (fst (head slicePrs))
+      slicesCol = blendSlicesForIndices <$> zip is slicePrs
+      is' = maybe (fmap succ is) (uncurry (<>) . first (fmap succ) . flip splitAt is . succ) $ elemIndex 0 is
+
+blendSlicesForIndices :: (Int,([Slice],[Slice])) -> [Slice]
+blendSlicesForIndices (i,(cfgASlices,cfgBSlices)) =
+  take i cfgBSlices <> take (length cfgASlices - i) cfgBSlices
+      
+{--
+
+Overall shape is going to yield [[VoiceConfig]] where outer list is by voice, inner list is
+per-voice per successive slice interleaving where first slice is all config a, last slice is
+all config b, and intermediate slices are successive substitutions of slices from config b
+into slices in config a, from first to last.  Note that I swap slices from config b into
+config a preserving the slice count and total duration of config a.  So if the count of slices
+and/or the duration is different for config b, that has to happen in the next section.
+
+To do that, I need to transform per-voice [(VoiceConfig,VoiceConfig)] -> [([slice],[slice])] for
+config a and config b, where slice is tuple of lists: ([<pit,oct>],[accent],[dur]), and the length 
+of [slice] maybe different between configs but the same within a config.
+
+So that requires a VoiceConfig -> Slice method and an fmap across [(VoiceConfig,VoiceConfig)] with
+Data.Tuple.Extra.both: (a -> b) -> (a, a) -> (b, b).  
+
+Next, these need to be morphed into a per-voice [slice] (for [[slice]]) that gets mapped
+to [[VoiceConfig]].
+
+At the next layer, map from [[VoiceConfig]] to [[[VoiceEvent]]] via (fmap . fmap) voiceConfig2VoiceEvents
+where I need to aggregate [[[VoiceEvent]]] to [[VoiceEvent]] via the concat <$> transpose trick
+(?, or maybe not, maybe just fmap concat).
+
+--}
 
 applyMods :: String -> Maybe (NE.NonEmpty String) -> Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig,VoiceConfig) -> Driver (Int,[VoiceEvent])
 applyMods path mConfigMods mVoiceEventsMods pr =
@@ -789,7 +908,7 @@ sectionCfg2TimeSignature SectionConfigNeutral{..}   = voiceCfg2TimeSignature (NE
 sectionCfg2TimeSignature SectionConfigHomophony{..} = voiceCfg2TimeSignature (NE.head _schVoices)
 sectionCfg2TimeSignature SectionConfigFadeIn{..}    = voiceCfg2TimeSignature (NE.head _scfiVoices)
 sectionCfg2TimeSignature SectionConfigFadeOut{..}   = voiceCfg2TimeSignature (NE.head _scfoVoices)
-sectionCfg2TimeSignature SectionConfigFadeCells{}   = error "not implemented yet"
+sectionCfg2TimeSignature SectionConfigFadeCells{..} = voiceCfg2TimeSignature (fst (NE.head _scfcVoicesAB))
 
 voiceCfg2TimeSignature :: VoiceConfig -> TimeSignature
 voiceCfg2TimeSignature VoiceConfigXPose{..}  = _vcxTime
