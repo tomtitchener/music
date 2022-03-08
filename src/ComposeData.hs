@@ -60,6 +60,7 @@ data SectionConfig =
                       }
   | SectionConfigFadeCells {
                        _scfcPath        :: String
+                      ,_scfReps         :: Int
                       ,_scfcMName       :: Maybe String
                       ,_scfcMConfigMods :: Maybe (NE.NonEmpty String)
                       ,_scfcMVesMods    :: Maybe (NE.NonEmpty String)
@@ -210,7 +211,7 @@ type SectionAndVoices2SectionConfig = String -> NE.NonEmpty String -> Driver Sec
 sectionAndVoices2SectionConfigNeutral :: SectionAndVoices2SectionConfig
 sectionAndVoices2SectionConfigNeutral section voices =
       SectionConfigNeutral section
-      <$> searchConfigParam (section <> ".reps")
+      <$> searchConfigParam  (section <> ".reps")
       <*> searchMConfigParam (section <> ".sctname")
       <*> searchMConfigParam (section <> ".cfgmods")
       <*> searchMConfigParam (section <> ".vesmods")
@@ -219,7 +220,7 @@ sectionAndVoices2SectionConfigNeutral section voices =
 sectionAndVoices2SectionConfigHomophony :: SectionAndVoices2SectionConfig
 sectionAndVoices2SectionConfigHomophony section voices =
       SectionConfigHomophony section
-      <$> searchConfigParam (section <> ".reps")
+      <$> searchConfigParam  (section <> ".reps")
       <*> searchMConfigParam (section <> ".sctname")
       <*> searchMConfigParam (section <> ".cfgmods")
       <*> searchMConfigParam (section <> ".vesmods")
@@ -246,7 +247,8 @@ sectionAndVoices2SectionConfigFadeOut section voices =
 sectionAndVoices2SectionConfigFadeCells :: SectionAndVoices2SectionConfig
 sectionAndVoices2SectionConfigFadeCells section voices = 
       SectionConfigFadeCells section
-      <$> searchMConfigParam (section <> ".sctname")
+      <$> searchConfigParam  (section <> ".reps")
+      <*> searchMConfigParam (section <> ".sctname")
       <*> searchMConfigParam (section <> ".cfgmods")
       <*> searchMConfigParam (section <> ".vesmods")
       <*> path2VoiceConfigss section voices
@@ -255,7 +257,8 @@ name2SectionConfigMap :: M.Map String SectionAndVoices2SectionConfig
 name2SectionConfigMap = M.fromList [("neutral"  ,sectionAndVoices2SectionConfigNeutral)
                                    ,("homophony",sectionAndVoices2SectionConfigHomophony)
                                    ,("fadein"   ,sectionAndVoices2SectionConfigFadeIn)
-                                   ,("fadeout"  ,sectionAndVoices2SectionConfigFadeOut)]
+                                   ,("fadeout"  ,sectionAndVoices2SectionConfigFadeOut)
+                                   ,("fadecells",sectionAndVoices2SectionConfigFadeCells)]
 
 path2SectionConfig :: String -> Driver SectionConfig
 path2SectionConfig section = do

@@ -1,5 +1,46 @@
 # Sketches
 
+blend:
+  common:
+    tempo:       (100,4)
+    key:         c major
+    changeclefs: int 3
+    instr:       acoustic grand
+    time:        (4,4)
+    scale:       (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
+  group:
+    grtype:  neutral
+    section1:
+      stype:        fadecells
+      reps:         int 4
+      common:
+        vtype:     cell
+        durval:    int 1536
+      voice1:
+        mPitOctsss:  (((c,0),(e,0)),((g,0),(b,0)))
+        durss:       ((4,4),(4,4))
+        accentss:    ((>,>),(.,.))
+      voice2:
+        mPitOctsss:  (((c,0),(e,0)),((g,0),(b,0)))
+        durss:       ((4,4),(4,4))
+        accentss:    ((>,>),(!,!))
+      voice3:
+        mPitOctsss:  (((c,0),(g,0)),((e,0),(b,0)))
+        durss:       ((4,4),(4,4))
+        accentss:    ((>,>),(-,-))
+      voice4:
+        mPitOctsss:  (((b,-1),(g,-1)),((e,-1),(c,-1)))
+        durss:       ((8,8,8,8),(8,8,8,8))
+        accentss:    ((>,~,>,~),(>,~,>,~))
+      voice5:
+        mPitOctsss:  (((b,-1),(g,-1)),((e,-1),(c,-1)))
+        durss:       ((8,8,8,8),(8,8,8,8))
+        accentss:    ((>,~,>,~),(>,~,>,~))
+      voice6:
+        mPitOctsss:  (((b,-1),(e,-1)),((g,-1),(c,-1)))
+        durss:       ((8,8,8,8),(8,8,8,8))
+        accentss:    ((>,!,>,!),(>,!,>,!))
+
 canon:
   common:
     tempo:       (100,4)
