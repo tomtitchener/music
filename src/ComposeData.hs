@@ -58,7 +58,7 @@ data SectionConfig =
                       ,_scfoMVesMods    :: Maybe (NE.NonEmpty String)
                       ,_scfoVoices      :: NE.NonEmpty VoiceConfig
                       }
-  | SectionConfigFadeCells {
+  | SectionConfigFadeAcross {
                        _scfcPath        :: String
                       ,_scfReps         :: Int
                       ,_scfcMName       :: Maybe String
@@ -244,9 +244,9 @@ sectionAndVoices2SectionConfigFadeOut section voices =
       <*> searchMConfigParam (section <> ".vesmods")
       <*> path2VoiceConfigs section voices
 
-sectionAndVoices2SectionConfigFadeCells :: SectionAndVoices2SectionConfig
-sectionAndVoices2SectionConfigFadeCells section voices = 
-      SectionConfigFadeCells section
+sectionAndVoices2SectionConfigFadeAcross :: SectionAndVoices2SectionConfig
+sectionAndVoices2SectionConfigFadeAcross section voices = 
+      SectionConfigFadeAcross section
       <$> searchConfigParam  (section <> ".reps")
       <*> searchMConfigParam (section <> ".sctname")
       <*> searchMConfigParam (section <> ".cfgmods")
@@ -254,11 +254,11 @@ sectionAndVoices2SectionConfigFadeCells section voices =
       <*> path2VoiceConfigss section voices
 
 name2SectionConfigMap :: M.Map String SectionAndVoices2SectionConfig
-name2SectionConfigMap = M.fromList [("neutral"  ,sectionAndVoices2SectionConfigNeutral)
-                                   ,("homophony",sectionAndVoices2SectionConfigHomophony)
-                                   ,("fadein"   ,sectionAndVoices2SectionConfigFadeIn)
-                                   ,("fadeout"  ,sectionAndVoices2SectionConfigFadeOut)
-                                   ,("fadecells",sectionAndVoices2SectionConfigFadeCells)]
+name2SectionConfigMap = M.fromList [("neutral"   ,sectionAndVoices2SectionConfigNeutral)
+                                   ,("homophony" ,sectionAndVoices2SectionConfigHomophony)
+                                   ,("fadein"    ,sectionAndVoices2SectionConfigFadeIn)
+                                   ,("fadeout"   ,sectionAndVoices2SectionConfigFadeOut)
+                                   ,("fadeacross",sectionAndVoices2SectionConfigFadeAcross)]
 
 path2SectionConfig :: String -> Driver SectionConfig
 path2SectionConfig section = do

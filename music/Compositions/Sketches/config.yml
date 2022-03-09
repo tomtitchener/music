@@ -4,18 +4,17 @@ blend:
   common:
     tempo:       (100,4)
     key:         c major
-    changeclefs: int 3
     instr:       acoustic grand
     time:        (4,4)
     scale:       (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
   group:
     grtype:  neutral
     section1:
-      stype:        fadecells
+      stype:        fadeacross
       reps:         int 4
       common:
         vtype:     cell
-        durval:    int 1536
+        durval:    int 512 # 4 * 32 * 4
       voice1:
         mPitOctsss:  (((c,0),(e,0)),((g,0),(b,0)))
         durss:       ((4,4),(4,4))
@@ -45,7 +44,6 @@ canon:
   common:
     tempo:       (100,4)
     key:         c major
-    changeclefs: int 3
     instr:       acoustic grand
     time:        (4,4)
     scale:       (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
@@ -116,7 +114,6 @@ canon:
 # heterogonous texture with voices of different types (proof of concept, not even a sketch)
 voicemix:
   common:
-    changeclefs: int 3
     tempo:       (120,4)
     key:         c major
     instr:       acoustic grand
@@ -150,7 +147,6 @@ homophony:
   common:
     tempo:       (100,4)
     key:         c major
-    changeclefs: int 3
     instr:       acoustic grand
     time:        (4,4)
     scale:       (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
@@ -182,7 +178,6 @@ experimental:
   common:
     tempo:       (100,4)
     key:         c major
-    changeclefs: int 3
     instr:       acoustic grand
     time:        (4,4)
     scale:       (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
