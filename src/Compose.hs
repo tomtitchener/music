@@ -12,8 +12,6 @@ module Compose (groupConfig2VoiceEvents
                ,ves2DurVal
                ) where
 
--- import Debug.Trace
-
 import Data.Bifunctor (second)
 import Control.Lens hiding (both)
 import Control.Monad (foldM)
@@ -33,7 +31,7 @@ import Safe (lastMay)
 
 import ComposeData
 import Driver
-       (Driver, randomElements, randomizeList, randomIndices, randomWeightedElement, searchConfigParam, searchMConfigParam, printIt)
+       (Driver, randomElements, randomizeList, randomIndices, randomWeightedElement, searchConfigParam, searchMConfigParam)
 import Lily (accent2Name)
 import Types
 import Utils hiding (transpose)
@@ -576,31 +574,20 @@ sectionConfig2VoiceEvents (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfi
       let seenNumVocsEmpties::[(Int,[VoiceEvent])] = (,[]) <$> seenNumVocs'
           newEventss = snd <$> sort (seenNumVocsEmpties <> unseenNumVocsEventss)
       pure (seenNumVocs',zipWith (<>) prevEventss newEventss)
-sectionConfig2VoiceEvents (SectionConfigFadeAcross scnPath nReps mSctnName mConfigMods mVoiceEventsMods voiceConfigPrs) = do
-  let cntVocs         = length voiceConfigPrs
-      slicePrs        = both voiceConfig2Slice <$> NE.toList voiceConfigPrs
-      blendedSlices   = unfoldr (unfoldToSlicesRow nReps slicePrs) (replicate cntVocs 0)
-  printIt $ "blendedSlices dims: " <> show (length (head blendedSlices)) <> " by " <> show (length blendedSlices)
-   -- blendedSlices   = transpose $ unfoldr (unfoldTxoSlicesRow nReps slicePrs) (replicate cntVocs 0)
-  let xpBlendedSlices::[[[Slice]]] = transpose blendedSlices
-  -- at this point, outer dim should be one-per-voice, e.g. 3,
-  -- then per-voice [[Slice]] should be equivalent to [[VoiceConfig]] where each
-  -- VoiceConfig gets [Slice] and outer list is still per-voice and inner list is
-  -- is sequence of blends from left to right, e.g. length 5.
-  printIt $ "xpBlendedSlices dims: " <> show (length (head (head xpBlendedSlices))) <> " by " <> show (length (head xpBlendedSlices)) <> " by " <> show (length xpBlendedSlices)
---let voiceConfigss::[[VoiceConfig]]   = slicess2Configs (NE.toList (fst <$> voiceConfigPrs)) <$> xpBlendedSlices  -- transpose blendedSlices
-  let voiceConfigs::[VoiceConfig] = NE.toList (fst <$> voiceConfigPrs)
-      voiceConfigss::[[VoiceConfig]]   = cfgSlicessPr2Configs <$> zip voiceConfigs xpBlendedSlices  -- transpose blendedSlices
-  -- Problem is here where outer length of voiceConfigss is 3 but inner length is 3 not 5.
-  printIt $ "voiceConfigss dims: " <> show (length (head voiceConfigss)) <> " by " <> show (length voiceConfigss)
-  let cntSegs         = length (head voiceConfigss)
-      voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
-      segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
-      prss = zipWith zip segRuntimeTupss voiceConfigss
+sectionConfig2VoiceEvents (SectionConfigFadeAcross scnPath nReps mSctnName mConfigMods mVoiceEventsMods voiceConfigPrs) =
   traverse (traverse (applyMConfigMods mConfigMods)) prss >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
   where
     cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
-    scnName = fromMaybe "fade-cells" mSctnName
+    cntVocs         = length voiceConfigPrs
+    slicePrs        = both voiceConfig2Slice <$> NE.toList voiceConfigPrs
+    blendedSlices   = transpose $ unfoldr (unfoldToSlicesRow nReps slicePrs) (replicate cntVocs 0)
+    voiceConfigs    = NE.toList (fst <$> voiceConfigPrs)
+    voiceConfigss   = cfgSlicessPr2Configs <$> zip voiceConfigs blendedSlices
+    cntSegs         = length (head voiceConfigss)
+    voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
+    segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
+    prss             = zipWith zip segRuntimeTupss voiceConfigss
+    scnName          = fromMaybe "fade-cells" mSctnName
     
 voiceConfig2Slice :: VoiceConfig -> [Slice]
 voiceConfig2Slice VoiceConfigXPose{..}  = config2Slices _vcxmPOOrPOss  _vcxDurss  _vcxAcctss
@@ -621,12 +608,6 @@ config2Slices mPOOrPOss durss acctss =
 
 cfgSlicessPr2Configs :: (VoiceConfig,[[Slice]]) -> [VoiceConfig]
 cfgSlicessPr2Configs (voiceConfig,slicess) = tup2VoiceConfig voiceConfig <$> (slices2Tup <$> slicess)
-
---slicess2Configs :: [VoiceConfig] -> [[Slice]] -> [VoiceConfig]
---slicess2Configs voiceConfigs slicess = trace ("vcfgs len: " <> show (length voiceConfigs) <> " slicess: " <> show (length (head slicess)) <> " by "<> show (length slicess)) $ slices2Config <$> zip voiceConfigs slicess
-
---slices2Config :: (VoiceConfig,[Slice]) -> VoiceConfig
---slices2Config (voiceConfig,slices) = tup2VoiceConfig voiceConfig (slices2Tup slices)
 
 type ConfigTup = (NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                  ,NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
