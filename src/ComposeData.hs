@@ -90,6 +90,16 @@ data VoiceConfig =
                     -- Dynamic?
                     ,_vcrDurVal     :: Int
                  } 
+  | VoiceConfigVerbatim {
+                    _vcvInstr       :: Instrument
+                    ,_vcvKey        :: KeySignature
+                    ,_vcvTime       :: TimeSignature
+                    ,_vcvmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                    ,_vcvDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+                    ,_vcvAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
+                    -- Dynamic?
+                    ,_vcvDurVal     :: Int
+                 } 
   | VoiceConfigCell {
                     _vcclInstr       :: Instrument
                     ,_vcclKey        :: KeySignature
@@ -147,6 +157,17 @@ path2VoiceConfigRepeat pre =
         <*> searchConfigParam  (pre <> ".durss")
         <*> searchConfigParam  (pre <> ".accentss")
         <*> searchConfigParam  (pre <> ".durval")
+
+path2VoiceConfigVerbatim :: String -> Driver VoiceConfig
+path2VoiceConfigVerbatim pre =
+      VoiceConfigVerbatim 
+        <$> searchConfigParam  (pre <> ".instr")
+        <*> searchConfigParam  (pre <> ".key")
+        <*> searchConfigParam  (pre <> ".time")
+        <*> searchConfigParam  (pre <> ".mPitOctsss")
+        <*> searchConfigParam  (pre <> ".durss")
+        <*> searchConfigParam  (pre <> ".accentss")
+        <*> searchConfigParam  (pre <> ".durval")
         
 path2VoiceConfigCell' :: String -> Driver VoiceConfig
 path2VoiceConfigCell' pre =
@@ -184,10 +205,11 @@ path2VoiceConfigCanon pre =
 type Path2VoiceConfig = String -> Driver VoiceConfig
 
 name2VoiceConfigMap :: M.Map String Path2VoiceConfig
-name2VoiceConfigMap = M.fromList [("xpose" ,path2VoiceConfigXPose)
-                                 ,("repeat",path2VoiceConfigRepeat)
-                                 ,("cell"  ,path2VoiceConfigCell)
-                                 ,("canon" ,path2VoiceConfigCanon)]
+name2VoiceConfigMap = M.fromList [("xpose"   ,path2VoiceConfigXPose)
+                                 ,("repeat"  ,path2VoiceConfigRepeat)
+                                 ,("verbatim",path2VoiceConfigVerbatim)
+                                 ,("cell"    ,path2VoiceConfigCell)
+                                 ,("canon"   ,path2VoiceConfigCanon)]
 
 path2VoiceConfig :: Path2VoiceConfig
 path2VoiceConfig path =

@@ -73,10 +73,11 @@ decrNormalizeMPitOctssOctaves :: ConfigMod
 decrNormalizeMPitOctssOctaves = modMPitOctssOctaves mkIdWeightsDecr 
 
 modMPitOctssOctaves :: (Int -> Int -> Int ) -> ConfigMod
-modMPitOctssOctaves mkIdWeight vrtCfg vcx@VoiceConfigXPose{..}  = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcxmPOOrPOss  <&> \mPOOrPOss -> vcx { _vcxmPOOrPOss  = mPOOrPOss }
-modMPitOctssOctaves mkIdWeight vrtCfg vcr@VoiceConfigRepeat{..} = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcrmPOOrPOss  <&> \mPOOrPOss -> vcr { _vcrmPOOrPOss  = mPOOrPOss }
-modMPitOctssOctaves mkIdWeight vrtCfg vcl@VoiceConfigCell{..}   = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcclmPOOrPOss <&> \mPOOrPOss -> vcl { _vcclmPOOrPOss = mPOOrPOss }
-modMPitOctssOctaves mkIdWeight vrtCfg vcc@VoiceConfigCanon{..}  = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vccmPOOrPOss  <&> \mPOOrPOss -> vcc { _vccmPOOrPOss  = mPOOrPOss }
+modMPitOctssOctaves mkIdWeight vrtCfg vcx@VoiceConfigXPose{..}    = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcxmPOOrPOss  <&> \mPOOrPOss -> vcx { _vcxmPOOrPOss  = mPOOrPOss }
+modMPitOctssOctaves mkIdWeight vrtCfg vcr@VoiceConfigRepeat{..}   = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcrmPOOrPOss  <&> \mPOOrPOss -> vcr { _vcrmPOOrPOss  = mPOOrPOss }
+modMPitOctssOctaves mkIdWeight vrtCfg vcv@VoiceConfigVerbatim{..} = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcvmPOOrPOss  <&> \mPOOrPOss -> vcv { _vcvmPOOrPOss  = mPOOrPOss }
+modMPitOctssOctaves mkIdWeight vrtCfg vcl@VoiceConfigCell{..}     = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vcclmPOOrPOss <&> \mPOOrPOss -> vcl { _vcclmPOOrPOss = mPOOrPOss }
+modMPitOctssOctaves mkIdWeight vrtCfg vcc@VoiceConfigCanon{..}    = modAnyMPitOctssOctaves mkIdWeight vrtCfg _vccmPOOrPOss  <&> \mPOOrPOss -> vcc { _vccmPOOrPOss  = mPOOrPOss }
 
 type MPitOctOrNEPitOctsss = NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
 
@@ -101,10 +102,11 @@ mkIdWeightsDecr      1      _  = 0
 mkIdWeightsDecr cntSegs numSeg = 100 - ((cntSegs - (1 + numSeg)) * (50 `div` (cntSegs - 1))) -- TBD: magic constant 50% of results to be modified at end)
 
 doubleCfgDurs :: ConfigMod
-doubleCfgDurs vrtCfg vcx@VoiceConfigXPose{}  = mRunMod (vcx & vcxDurss  %~ doubleDurs) vrtCfg vcx
-doubleCfgDurs vrtCfg vcr@VoiceConfigRepeat{} = mRunMod (vcr & vcrDurss  %~ doubleDurs) vrtCfg vcr
-doubleCfgDurs vrtCfg vcc@VoiceConfigCell{}   = mRunMod (vcc & vcclDurss %~ doubleDurs) vrtCfg vcc
-doubleCfgDurs vrtCfg vcc@VoiceConfigCanon{}  = mRunMod (vcc & vccDurss  %~ doubleDurs) vrtCfg vcc
+doubleCfgDurs vrtCfg vcx@VoiceConfigXPose{}    = mRunMod (vcx & vcxDurss  %~ doubleDurs) vrtCfg vcx
+doubleCfgDurs vrtCfg vcr@VoiceConfigRepeat{}   = mRunMod (vcr & vcrDurss  %~ doubleDurs) vrtCfg vcr
+doubleCfgDurs vrtCfg vcv@VoiceConfigVerbatim{} = mRunMod (vcv & vcvDurss  %~ doubleDurs) vrtCfg vcv
+doubleCfgDurs vrtCfg vcc@VoiceConfigCell{}     = mRunMod (vcc & vcclDurss %~ doubleDurs) vrtCfg vcc
+doubleCfgDurs vrtCfg vcc@VoiceConfigCanon{}    = mRunMod (vcc & vccDurss  %~ doubleDurs) vrtCfg vcc
 
 mRunMod :: VoiceConfig -> VoiceRuntimeConfig -> VoiceConfig -> Driver VoiceConfig
 mRunMod vcMod VoiceRuntimeConfig{..} vCfg  = do
@@ -306,8 +308,6 @@ genCell path durss acctss mPOOrPOss maxDurVal = do
     showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
     pure $ if 0 == showVType then ves else appendAnnFirstNote "cell" ves
 
-
-
 mkEqualLengthSubLists :: ([[a]],[[b]],[[c]]) -> ([[a]],[[b]],[[c]])
 mkEqualLengthSubLists (as:ass,bs:bss,cs:css) = (as':ass',bs':bss',cs':css')
   where
@@ -321,26 +321,8 @@ mkEqualLengthLists (xs,ys,zs) =
   where
     l = maximum [length xs,length ys,length zs]
 
--- This generates a single randomization of the inputs for each of the three parameters,
--- then concatentates the result into a single list and wraps that in an outer list,
--- then calls genCanon, where the single item list in the list of list will always
--- answer the same output from the randomization logic, which then just repeats the
--- exact same sequence over and over.
--- Consider this as superflous, given that you could just as easily manually edit those
--- lists of lists into a single list and passed them verbatim to genCanon to get the
--- same result.
--- The only added feature here is the ease of generating that initial randomization,
--- so the question thne becomes how likely it is you're going to string together a series
--- of repeat sections with the exact same parameter data, just relying on successive
--- instances to emit a unique randomization across all three parameters.
--- Or maybe it's more complicated than that.  Consider the role of maxDurVal.
--- That's going to give the period that's probably the most reconizable, assuming
--- there aren't any repeats within the lists of lists themselves.
--- What I was initially considering was essentially refreezing the lists of lists on
--- every continuation of the overall duration beyond the length of the list of list of
--- durations in the configuration.  
 genRepeat :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Driver [VoiceEvent]
-genRepeat path durss acctss mPOOrPOss  maxDurVal = do
+genRepeat path durss acctss mPOOrPOss maxDurVal = do
   durss'      <- freezeLists durss
   acctss'     <- freezeLists acctss
   mPOOrPOss'  <- freezeLists mPOOrPOss 
@@ -349,8 +331,16 @@ genRepeat path durss acctss mPOOrPOss  maxDurVal = do
 freezeLists :: [[a]] -> Driver [[a]]
 freezeLists xss = randomizeList xss <&> (:[]) . concat
 
+genVerbatim :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Driver [VoiceEvent]
+genVerbatim path durss acctss mPOOrPOss maxDurVal = 
+  genCanon path durss' acctss' mPOOrPOss' maxDurVal 0 <&> replaceAnnFirstNote "verbatim"
+  where
+    durss'     = [concat durss]
+    acctss'    = [concat acctss]
+    mPOOrPOss' = [concat mPOOrPOss]
+
 genCanon :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Int -> Driver [VoiceEvent]
-genCanon path durOrDurTupss acctss mPOOrPOss  maxDurVal rotVal = do
+genCanon path durOrDurTupss acctss mPOOrPOss maxDurVal rotVal = do
   showVType::Int   <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
   manymPOOrPOss    <- randomElements mPOOrPOss  <&> concatMap (rotN rotVal)
   manyDurOrDurTups <- randomElements durOrDurTupss  <&> concat
@@ -473,6 +463,8 @@ voiceConfig2VoiceEvents path VoiceConfigXPose{..} =
   genXPose path (nes2arrs _vcxDurss) (nes2arrs _vcxAcctss)  (ness2Marrss _vcxmPOOrPOss ) _vcxScale (Range _vcxRange)
 voiceConfig2VoiceEvents path VoiceConfigRepeat{..} =
   genRepeat path (nes2arrs _vcrDurss) (nes2arrs _vcrAcctss) (ness2Marrss _vcrmPOOrPOss ) _vcrDurVal
+voiceConfig2VoiceEvents path VoiceConfigVerbatim{..} =
+  genVerbatim path (nes2arrs _vcvDurss) (nes2arrs _vcvAcctss) (ness2Marrss _vcvmPOOrPOss ) _vcvDurVal
 voiceConfig2VoiceEvents path VoiceConfigCell{..} =
   genCell path (nes2arrs _vcclDurss) (nes2arrs _vcclAcctss) (ness2Marrss _vcclmPOOrPOss ) _vcclDurVal
 voiceConfig2VoiceEvents path VoiceConfigCanon{..} =
@@ -590,10 +582,11 @@ sectionConfig2VoiceEvents (SectionConfigFadeAcross scnPath nReps mSctnName mConf
     scnName          = fromMaybe "fade-cells" mSctnName
     
 voiceConfig2Slice :: VoiceConfig -> [Slice]
-voiceConfig2Slice VoiceConfigXPose{..}  = config2Slices _vcxmPOOrPOss  _vcxDurss  _vcxAcctss
-voiceConfig2Slice VoiceConfigRepeat{..} = config2Slices _vcrmPOOrPOss  _vcrDurss  _vcrAcctss
-voiceConfig2Slice VoiceConfigCell{..}   = config2Slices _vcclmPOOrPOss _vcclDurss _vcclAcctss
-voiceConfig2Slice VoiceConfigCanon{..}  = config2Slices _vccmPOOrPOss  _vccDurss  _vccAcctss
+voiceConfig2Slice VoiceConfigXPose{..}    = config2Slices _vcxmPOOrPOss  _vcxDurss  _vcxAcctss
+voiceConfig2Slice VoiceConfigRepeat{..}   = config2Slices _vcrmPOOrPOss  _vcrDurss  _vcrAcctss
+voiceConfig2Slice VoiceConfigVerbatim{..} = config2Slices _vcvmPOOrPOss  _vcvDurss  _vcvAcctss
+voiceConfig2Slice VoiceConfigCell{..}     = config2Slices _vcclmPOOrPOss _vcclDurss _vcclAcctss
+voiceConfig2Slice VoiceConfigCanon{..}    = config2Slices _vccmPOOrPOss  _vccDurss  _vccAcctss
 
 config2Slices :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                  -> NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
@@ -625,6 +618,8 @@ tup2VoiceConfig (VoiceConfigXPose instr keySig scale timSig _ _ _ vcxRange') (mP
   VoiceConfigXPose instr keySig scale timSig mPitOrPits durss accents vcxRange'
 tup2VoiceConfig (VoiceConfigRepeat instr keySig timSig _ _ _ durVal) (mPitOrPits,durss,accents) =
   VoiceConfigRepeat instr keySig timSig mPitOrPits durss accents durVal
+tup2VoiceConfig (VoiceConfigVerbatim instr keySig timSig _ _ _ durVal) (mPitOrPits,durss,accents) =
+  VoiceConfigVerbatim instr keySig timSig mPitOrPits durss accents durVal
 tup2VoiceConfig (VoiceConfigCell instr keySig timSig _ _ _ durVal) (mPitOrPits,durss,accents) =
   VoiceConfigCell instr keySig timSig mPitOrPits durss accents durVal
 tup2VoiceConfig (VoiceConfigCanon instr keySig timSig _ _ _ durVal rotVal) (mPitOrPits,durss,accents) =
@@ -883,6 +878,8 @@ freezeConfig vcr@VoiceConfigRepeat{..} = do
   acctss     <- freezeNELists _vcrAcctss
   mPOOrPOss  <- freezeNELists _vcrmPOOrPOss 
   pure $ vcr & vcrDurss .~ durss & vcrAcctss .~ acctss & vcrmPOOrPOss  .~ mPOOrPOss  
+freezeConfig vcr@VoiceConfigVerbatim{} = 
+  pure vcr
 freezeConfig vcl@VoiceConfigCell{..} = do
   durss      <- freezeNELists _vcclDurss
   acctss     <- freezeNELists _vcclAcctss
@@ -902,7 +899,8 @@ sectionCfg2TimeSignature SectionConfigFadeOut{..}    = voiceCfg2TimeSignature (N
 sectionCfg2TimeSignature SectionConfigFadeAcross{..} = voiceCfg2TimeSignature (fst (NE.head _scfcVoicesAB))
 
 voiceCfg2TimeSignature :: VoiceConfig -> TimeSignature
-voiceCfg2TimeSignature VoiceConfigXPose{..}  = _vcxTime
-voiceCfg2TimeSignature VoiceConfigRepeat{..} = _vcrTime
-voiceCfg2TimeSignature VoiceConfigCell{..}   = _vcclTime
-voiceCfg2TimeSignature VoiceConfigCanon{..}  = _vccTime
+voiceCfg2TimeSignature VoiceConfigXPose{..}    = _vcxTime
+voiceCfg2TimeSignature VoiceConfigRepeat{..}   = _vcrTime
+voiceCfg2TimeSignature VoiceConfigVerbatim{..} = _vcvTime
+voiceCfg2TimeSignature VoiceConfigCell{..}     = _vcclTime
+voiceCfg2TimeSignature VoiceConfigCanon{..}    = _vccTime
