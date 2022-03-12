@@ -287,17 +287,14 @@ genXPose path durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
     unfoldMPrOrPrss _ (prev,mIOrIss) = error $ "invalid list of steps, (" <> show prev <> "," <> show (take 10 mIOrIss) <> ")"
 
 -- A cell is a vertical slice through the same subset of duration, accent, and pitch/octave lists from the configuration.
--- Reduce complexity by always tupling the same group of three configuration values together.
--- Requires a configuration where all the outer list of list for the configuration params are the same length.
--- Extend the duration, accent, or pitch/octave list to the same length as the longest sublist by cycling.
+-- Reduce complexity by always tupling the same group of three configuration values together, but randomly from list of list.
 -- Given list of list of durations, accents and pitches/rests:
--- 1) Verify the outer lists are all of the same length, N.
+-- 1) Verify the outer lists are all of the same length, N (skip this, already happens in path2VoiceConfigCell)
 -- 2) Generate an infinite list of indices [0..N-1]
 -- 3) Expand durations, accents, and pitches/rests sublists so they're all the same length.
 -- 4) Generate infinite length lists of durations, accents and pitches/rests sublists using infinite list of indices.
--- 5) Clip infinite list of durations by configuration maxDurVal
--- 6) Combine sublists to generate [VoiceEvent]
--- Note: path2VoiceConfigCell verifies durss, acctss, mPOOrPOss all have same length.
+-- 5) Unfold infinite list of list of durations to finite list of durations, stop when at maxDurVal
+-- 6) Unfold tuple of lists of pithes, durations, and accents to [VoiceEvent], stop when list of durations is empty
 genCell :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Driver [VoiceEvent]
 genCell path durss acctss mPOOrPOss maxDurVal = do
     manyIs <- randomIndices (length durss)
@@ -501,15 +498,22 @@ applyMod m modName pr =
 type Slice = ([Maybe PitOctOrNEPitOcts],[DurOrDurTuplet],[Accent])
 
 sectionConfig2VoiceEvents :: SectionConfig -> Driver [[VoiceEvent]]
+-- No section-level manipulation beyond segement repetition, and section and voice event mods from configuration.
 sectionConfig2VoiceEvents (SectionConfigNeutral scnPath cntSegs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
   traverse (traverse (applyMConfigMods mConfigMods)) prss >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
    where
     cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
-    scnName = fromMaybe "neutral" mSctnName
-    cntVocs = length voiceConfigs
-    voiceRTConfigs = [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
+    scnName         = fromMaybe "neutral" mSctnName
+    cntVocs         = length voiceConfigs
+    voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
     segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
     prss = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss (NE.toList voiceConfigs)
+-- Freeze config by generating single permutation of inner lists from list of list of pitch, duration, accent, and
+-- freezing further randomization by concatenating inner lists and wrapping whole thing in a list so there's only one
+-- inner list in the list of lists.
+-- Not actually homophony, as each segment gets a new frozen config and configs are themselves frozen independently.
+-- Repetition happens only with voice configs with durations that exceed sum of durations in configuration.
+-- TBD: can be reduced to a config mod.  
 sectionConfig2VoiceEvents (SectionConfigHomophony scnPath cntSegs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
   traverse (traverse (applyMConfigMods mConfigMods)) prss >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
   where
@@ -519,6 +523,12 @@ sectionConfig2VoiceEvents (SectionConfigHomophony scnPath cntSegs mSctnName mCon
     voiceRTConfigs = [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
     segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
     prss = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss (NE.toList voiceConfigs)
+-- Fade in from rests, voice-by-voice, voice event mods fadeinAccs and fadeinDyns background continuing voices,
+-- like start of a round.
+-- The list of indexes in fadeIxs tells the index for the [VoiceEvent] to add, one-by-one.
+-- Fold monadically over list of voice indexes to fade into texture, keeping track of the indexes seen so far
+-- and the output [[VoiceEvent]] with contains notes for the seen indexes and rests for the indexes yet to be seen.
+-- TBD: squirrelly code, refactor maybe with list of Bools with True for voices to render notes vs. rests?
 sectionConfig2VoiceEvents (SectionConfigFadeIn scnPath fadeIxs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) =
   foldM foldMf ([],replicate cntVocs []) fadeIxs <&> addSecnName scnName . snd
   where
@@ -528,20 +538,20 @@ sectionConfig2VoiceEvents (SectionConfigFadeIn scnPath fadeIxs mSctnName mConfig
     mkVocRTT nSeg nVoc =  VoiceRuntimeConfig scnPath Nothing cntVocs nVoc cntSegs nSeg
     foldMf (seenNumVocs,prevEventss) numVoc = do
       let numSeg = length seenNumVocs
-          vocCfgTup = voiceConfigs NE.!! numVoc
-          vocRTTup  = VoiceRuntimeConfig scnPath (Just numVoc) cntVocs numVoc cntSegs numSeg
-      seenVEs <- applyMConfigMods mConfigMods (vocRTTup,vocCfgTup)
-                 >>= voiceConfig2VoiceEvents scnPath . snd
-                 >>= applyMVoiceEventsMods mVoiceEventsMods . (vocRTTup,)
-      let vocRunTups = mkVocRTT numSeg <$> seenNumVocs
-          vocCfgTups = (voiceConfigs NE.!!) <$> seenNumVocs
-      seenNumVocsEventss <- traverse (applyMods scnPath  mConfigMods mVoiceEventsMods) (zip vocRunTups vocCfgTups)
-      let seenNumVocVEs      = (numVoc,seenVEs)
-          allSeenNumVocs     = numVoc:seenNumVocs
-          allUnseenNumVocs   = [0..(cntVocs - 1)] \\ allSeenNumVocs
-          unseenNumVocEventss = (,ves2VeRests seenVEs) <$> allUnseenNumVocs
+          newVocCfgTup = voiceConfigs NE.!! numVoc
+          newVocRTTup  = VoiceRuntimeConfig scnPath (Just numVoc) cntVocs numVoc cntSegs numSeg
+          seenVocRTTups = mkVocRTT numSeg <$> seenNumVocs
+          seenVocCfgTups = (voiceConfigs NE.!!) <$> seenNumVocs
+      seenNumVocVEs <- applyMods scnPath mConfigMods mVoiceEventsMods (newVocRTTup,newVocCfgTup)
+      seenNumVocsEventss <- traverse (applyMods scnPath mConfigMods mVoiceEventsMods) (zip seenVocRTTups seenVocCfgTups)
+      let allSeenNumVocs      = numVoc:seenNumVocs
+          allUnseenNumVocs    = [0..(cntVocs - 1)] \\ allSeenNumVocs
+          unseenVocRestEvents = ves2VeRests (snd seenNumVocVEs)
+          unseenNumVocEventss = (,unseenVocRestEvents) <$> allUnseenNumVocs
           newEventss          = snd <$> sort (seenNumVocVEs:seenNumVocsEventss <> unseenNumVocEventss)
       pure (allSeenNumVocs,zipWith (<>) prevEventss newEventss)
+-- Fade out to rests, voice-by-voice, like end of a round.  
+-- TBD: squirrelly code, refactor maybe with list of Bools with True for voices to render notes vs. rests?
 sectionConfig2VoiceEvents (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
   let initNumVocs = [0..cntVocs - 1]
       vocRunTups = mkVocRTT 0 <$> initNumVocs
@@ -566,6 +576,13 @@ sectionConfig2VoiceEvents (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfi
       let seenNumVocsEmpties::[(Int,[VoiceEvent])] = (,[]) <$> seenNumVocs'
           newEventss = snd <$> sort (seenNumVocsEmpties <> unseenNumVocsEventss)
       pure (seenNumVocs',zipWith (<>) prevEventss newEventss)
+-- Blend between two [VoiceConfig] by grouping pitches, durations into equal-length [Slice], then substituting slice-by-slice
+-- from [VoiceConfig] into first [VoiceConfig], starting with all voices from first [VoiceConfig] ending with all voices from
+-- second [VoiceConfig].
+-- All VoiceConfig must be sliceable, meaning outer lists in list of list of pitches, durations, and accents have to be the 
+-- same length.
+-- As the actual selection of which inner list in the list of list of pitches, durations, and accents gets rendered is
+-- randomized by the VoiceConfig, 
 sectionConfig2VoiceEvents (SectionConfigFadeAcross scnPath nReps mSctnName mConfigMods mVoiceEventsMods voiceConfigPrs) =
   traverse (traverse (applyMConfigMods mConfigMods)) prss >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
   where
