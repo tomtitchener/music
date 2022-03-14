@@ -18,7 +18,7 @@ import Control.Monad (foldM)
 import Control.Monad.Extra (concatMapM)
 import Data.Foldable
 import Data.Function (on)
-import Data.List (elemIndex, findIndex, findIndices, groupBy, sort, sortBy, unfoldr, (\\), transpose)
+import Data.List (elemIndex, findIndex, findIndices, groupBy, sortBy, unfoldr, transpose)
 import qualified Data.List.NonEmpty as NE
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as M
@@ -523,62 +523,63 @@ sectionConfig2VoiceEvents (SectionConfigHomophony scnPath cntSegs mSctnName mCon
     voiceRTConfigs = [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
     segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
     prss = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss (NE.toList voiceConfigs)
--- Fade in from rests, voice-by-voice, voice event mods fadeinAccs and fadeinDyns background continuing voices,
--- like start of a round.
+-- Fade in from rests, voice-by-voice, voice event mods fadeinAccs and fadeinDyns background continuing voices: start of a round.
 -- The list of indexes in fadeIxs tells the index for the [VoiceEvent] to add, one-by-one.
--- Fold monadically over list of voice indexes to fade into texture, keeping track of the indexes seen so far
--- and the output [[VoiceEvent]] with contains notes for the seen indexes and rests for the indexes yet to be seen.
--- TBD: squirrelly code, refactor maybe with list of Bools with True for voices to render notes vs. rests?
-sectionConfig2VoiceEvents (SectionConfigFadeIn scnPath fadeIxs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) =
-  foldM foldMf ([],replicate cntVocs []) fadeIxs <&> addSecnName scnName . snd
+-- Monadically fold over list if indexes with fade-out order from config, generating new [[VoiceEvent]] for all voices.
+sectionConfig2VoiceEvents (SectionConfigFadeIn scnPath fadeIxs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
+  foldM foldMf ([], idxVEsPrs) fadeIxs <&> addSecnName scnName . map snd . snd
   where
-    scnName = fromMaybe "fade in" mSctnName
-    cntSegs = length fadeIxs
-    cntVocs = length voiceConfigs
-    mkVocRTT nSeg nVoc =  VoiceRuntimeConfig scnPath Nothing cntVocs nVoc cntSegs nSeg
-    foldMf (seenNumVocs,prevEventss) numVoc = do
-      let numSeg = length seenNumVocs
-          newVocCfgTup = voiceConfigs NE.!! numVoc
-          newVocRTTup  = VoiceRuntimeConfig scnPath (Just numVoc) cntVocs numVoc cntSegs numSeg
-          seenVocRTTups = mkVocRTT numSeg <$> seenNumVocs
-          seenVocCfgTups = (voiceConfigs NE.!!) <$> seenNumVocs
-      seenNumVocVEs <- applyMods scnPath mConfigMods mVoiceEventsMods (newVocRTTup,newVocCfgTup)
-      seenNumVocsEventss <- traverse (applyMods scnPath mConfigMods mVoiceEventsMods) (zip seenVocRTTups seenVocCfgTups)
-      let allSeenNumVocs      = numVoc:seenNumVocs
-          allUnseenNumVocs    = [0..(cntVocs - 1)] \\ allSeenNumVocs
-          unseenVocRestEvents = ves2VeRests (snd seenNumVocVEs)
-          unseenNumVocEventss = (,unseenVocRestEvents) <$> allUnseenNumVocs
-          newEventss          = snd <$> sort (seenNumVocVEs:seenNumVocsEventss <> unseenNumVocEventss)
-      pure (allSeenNumVocs,zipWith (<>) prevEventss newEventss)
+    cntVocs    = length voiceConfigs
+    idxVEsPrs  = (,[]) <$> [0..cntVocs - 1]
+    scnName    = fromMaybe "fade in" mSctnName
+    foldMf (seenNumVocs,idxVEsPr) numVoc = do
+      newVEs <- genVEs numVoc <&> snd
+      let restVEs = ves2VeRests newVEs
+      traverse (appendVEs newVEs restVEs) idxVEsPr <&> (numVoc:seenNumVocs,)
+      where
+        cntSegs = length fadeIxs
+        numSeg = length seenNumVocs
+        appendVEs newVEs' restVEs' (idxVoc,ves)
+          | idxVoc == numVoc = pure (idxVoc,ves <> newVEs')
+          | idxVoc `elem` seenNumVocs = genVEs idxVoc <&> second (ves <>)
+          | otherwise = pure  (idxVoc,ves <> restVEs')
+        genVEs idx = 
+          applyMods scnPath mConfigMods mVoiceEventsMods (rtTup,cfgTup)
+          where
+            mIdx = if idx == numVoc then Just idx else Nothing
+            rtTup  = VoiceRuntimeConfig scnPath mIdx cntVocs idx cntSegs numSeg
+            cfgTup = voiceConfigs NE.!! idx
 -- Fade out to rests, voice-by-voice, like end of a round.  
--- TBD: squirrelly code, refactor maybe with list of Bools with True for voices to render notes vs. rests?
+-- The list of indexes in fadeIxs tells the index for the [VoiceEvent] to subtract, one-by-one.
+-- Monadically fold over list if indexes with fade-out order from config, generating new [[VoiceEvent]] for all unseen voices,
+-- leaving the existing list as it is for all new and seen voices.
+-- Then expand all voices to be equal to the duration of the longest voice.
 sectionConfig2VoiceEvents (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
-  let initNumVocs = [0..cntVocs - 1]
-      vocRunTups = mkVocRTT 0 <$> initNumVocs
-      vocCfgTups = (voiceConfigs NE.!!) <$> initNumVocs
-  inits <- traverse (applyMods scnPath mConfigMods mVoiceEventsMods) (zip vocRunTups vocCfgTups)
-  ves   <- foldM foldMf ([],snd <$> inits) fadeIxs <&> addSecnName scnName . snd
-  let veDurs = ves2DurVal <$> ves
-  pure $ zipWith3 (mkVesTotDur (maximum veDurs)) veDurs timeSigs ves
+  vess <- foldM foldMf ([], idxVEsPrs) fadeIxs <&> addSecnName scnName . map snd . snd
+  let veDurs = ves2DurVal <$> vess
+  pure $ zipWith3 (mkVesTotDur (maximum veDurs)) veDurs timeSigs vess
   where
-    cntSegs = length fadeIxs
-    cntVocs = length voiceConfigs
-    scnName = fromMaybe "fade out" mSctnName
+    cntVocs   = length voiceConfigs
+    idxVEsPrs = (,[]) <$> [0..cntVocs - 1]
+    scnName   = fromMaybe "fade out" mSctnName
     timeSigs = NE.toList $ _vccTime <$> voiceConfigs
-    mkVocRTT nSeg nVoc =  VoiceRuntimeConfig scnPath Nothing cntVocs nVoc cntSegs nSeg
-    foldMf (seenNumVocs,prevEventss) numVoc = do
-      let numSeg = 1 + length seenNumVocs
-          seenNumVocs' = numVoc:seenNumVocs
-          unseenNumVocs = [0..(cntVocs - 1)] \\ seenNumVocs'
-          vocRunTups = mkVocRTT numSeg <$> unseenNumVocs
-          vocCfgTups =  (voiceConfigs NE.!!) <$> unseenNumVocs
-      unseenNumVocsEventss <- traverse (applyMods scnPath mConfigMods mVoiceEventsMods) (zip vocRunTups vocCfgTups)
-      let seenNumVocsEmpties::[(Int,[VoiceEvent])] = (,[]) <$> seenNumVocs'
-          newEventss = snd <$> sort (seenNumVocsEmpties <> unseenNumVocsEventss)
-      pure (seenNumVocs',zipWith (<>) prevEventss newEventss)
+    foldMf (seenNumVocs,idxVEsPr) numVoc = do
+      traverse appendVEs idxVEsPr <&> (numVoc:seenNumVocs,)
+      where
+        cntSegs = length fadeIxs
+        numSeg = length seenNumVocs
+        appendVEs (idxVoc,ves)
+          | idxVoc == numVoc || idxVoc `elem` seenNumVocs = pure (idxVoc,ves)
+          | otherwise = genVEs idxVoc <&> second (ves <>) 
+        genVEs idx = 
+          applyMods scnPath mConfigMods mVoiceEventsMods (rtTup,cfgTup)
+          where
+            mIdx = if idx == numVoc then Just idx else Nothing
+            rtTup  = VoiceRuntimeConfig scnPath mIdx cntVocs idx cntSegs numSeg
+            cfgTup = voiceConfigs NE.!! idx
 -- Blend between two [VoiceConfig] by grouping pitches, durations into equal-length [Slice], then substituting slice-by-slice
--- from [VoiceConfig] into first [VoiceConfig], starting with all voices from first [VoiceConfig] ending with all voices from
--- second [VoiceConfig].
+-- from second [VoiceConfig] into first [VoiceConfig], starting with all voices from first [VoiceConfig] ending with all voices 
+-- from second [VoiceConfig].
 -- All VoiceConfig must be sliceable, meaning outer lists in list of list of pitches, durations, and accents have to be the 
 -- same length.
 -- As the actual selection of which inner list in the list of list of pitches, durations, and accents gets rendered is
@@ -597,7 +598,7 @@ sectionConfig2VoiceEvents (SectionConfigFadeAcross scnPath nReps mSctnName mConf
     segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
     prss             = zipWith zip segRuntimeTupss voiceConfigss
     scnName          = fromMaybe "fade-cells" mSctnName
-    
+
 voiceConfig2Slice :: VoiceConfig -> [Slice]
 voiceConfig2Slice VoiceConfigXPose{..}    = config2Slices _vcxmPOOrPOss  _vcxDurss  _vcxAcctss
 voiceConfig2Slice VoiceConfigRepeat{..}   = config2Slices _vcrmPOOrPOss  _vcrDurss  _vcrAcctss
@@ -630,6 +631,9 @@ slices2Tup slices = (NE.fromList $ fst3 <$> sliceTups
   where
     sliceTups = slice2Tup <$> slices
 
+slice2Tup :: Slice -> (NE.NonEmpty (Maybe PitOctOrNEPitOcts),NE.NonEmpty DurOrDurTuplet,NE.NonEmpty Accent)
+slice2Tup (mPitOctss,durs,accents) = (NE.fromList mPitOctss,NE.fromList durs,NE.fromList accents)
+
 tup2VoiceConfig :: VoiceConfig -> ConfigTup -> VoiceConfig
 tup2VoiceConfig (VoiceConfigXPose instr keySig scale timSig _ _ _ vcxRange') (mPitOrPits,durss,accents) =
   VoiceConfigXPose instr keySig scale timSig mPitOrPits durss accents vcxRange'
@@ -642,9 +646,6 @@ tup2VoiceConfig (VoiceConfigCell instr keySig timSig _ _ _ durVal) (mPitOrPits,d
 tup2VoiceConfig (VoiceConfigCanon instr keySig timSig _ _ _ durVal rotVal) (mPitOrPits,durss,accents) =
   VoiceConfigCanon instr keySig timSig mPitOrPits durss accents durVal rotVal
 
-slice2Tup :: Slice -> (NE.NonEmpty (Maybe PitOctOrNEPitOcts),NE.NonEmpty DurOrDurTuplet,NE.NonEmpty Accent)
-slice2Tup (mPitOctss,durs,accents) = (NE.fromList mPitOctss,NE.fromList durs,NE.fromList accents)
-
 unfoldToSlicesRow :: Int -> [([Slice],[Slice])] -> [Int] -> Maybe ([[Slice]],[Int])
 unfoldToSlicesRow nReps slicePrs is
   | last is == 1 + cntCfgASlices = Nothing
@@ -654,17 +655,7 @@ unfoldToSlicesRow nReps slicePrs is
       cntCfgASlices = length . fst . head $ slicePrs
       slicesCol = blendSlices nReps <$> zip is slicePrs
       is' = incrBlendedIndices is
-{--      
-unfoldToSlicesRow :: Int -> [([Slice],[Slice])] -> [Int] -> Maybe ([[Slice]],[Int])
-unfoldToSlicesRow nReps slicePrs is
-  | last is == 1 + cntCfgASlices = trace ("term, last is: " <> show (last is) <> " cntCfgASlices: " <> show cntCfgASlices) Nothing
-  | otherwise = Just (slicesCol,is')
-    where
-      -- TBD: something is wrong with this end-of-iteration logic
-      cntCfgASlices = length . fst . head $ slicePrs
-      slicesCol = blendSlices nReps <$> zip is slicePrs
-      is' = trace (show cntCfgASlices <> " - " <> show (last is) <> " - " <> show is <> " - " <> show (incrBlendedIndices is)) incrBlendedIndices is
---}
+
 blendSlices :: Int -> (Int,([Slice],[Slice])) -> [Slice]
 blendSlices nReps (i,(cfgASlices,cfgBSlices)) = concat $ replicate nReps $ take i cfgBSlices <> drop i cfgASlices
 
@@ -777,7 +768,7 @@ mkVesTotDur maxLen vesLen timeSig ves =
     barLen  = timeSig2Num timeSig * beatLen
     remBar  = if maxLen `rem` barLen == 0 then 0 else barLen - (maxLen `rem` barLen)
     addLen  = if maxLen > vesLen then (maxLen - vesLen) + remBar else remBar
-    spacerOrRest = if isSpacer (last ves) then VeSpacer . (\dur -> Spacer dur NoDynamic "") else VeRest . (\dur -> Rest dur NoDynamic "")
+    spacerOrRest = if not (null ves) && isSpacer (last ves) then VeSpacer . (\dur -> Spacer dur NoDynamic "") else VeRest . (\dur -> Rest dur NoDynamic "")
 
 isSpacer :: VoiceEvent -> Bool
 isSpacer VeSpacer {} = True
