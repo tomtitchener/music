@@ -37,7 +37,7 @@ import Test.Tasty.QuickCheck (testProperty)
 import Driver (Driver, initEnv, runDriver, writeScore)
 import Lily (FromLily(..), ToLily(..))
 import Types
-import Utils (durSum2Durs, sumDurs)
+import Utils (durSum2Durs, sumDurs, duration2DurationVal)
 
 main :: IO ()
 main = defaultMain tests
@@ -103,6 +103,9 @@ deriving instance Generic TimeSignature
 instance Arbitrary Duration where
   arbitrary = genericArbitrary
   shrink = genericShrink
+
+instance Arbitrary DurationVal where
+  arbitrary = duration2DurationVal <$> elements [WDur, HDur, QDur, EDur, SDur, SFDur, HTEDur]
 
 instance Arbitrary Octave where
   arbitrary = genericArbitrary
@@ -185,7 +188,7 @@ instance Arbitrary Tuplet where
   arbitrary = do
     arbGtr :: Bool <- arbitrary --  > tuple num / denum, e.g. 1 vs. < 1, e.g. True => N + 1 / N, False => N / N + 1
     arbNum :: Int <- elements [3..7] -- tuples from [4 in the time of 3 | 3 in the time of 4 ..  7 in the time of 6 | 6 in the time of 7]
-    note <- Note <$> arbitrary <*> arbitrary <*> pure dur <*> pure [] <*>  pure [] <*> arbitrary
+    note <- Note <$> arbitrary <*> arbitrary <*> (duration2DurationVal <$> pure dur) <*> pure [] <*>  pure [] <*> arbitrary
     let num = if arbGtr then arbNum else arbNum - 1
         den = if arbGtr then arbNum - 1 else arbNum
         notes = NE.fromList $ replicate num note
@@ -213,11 +216,11 @@ instance Arbitrary TimeSignature where
 instance Arbitrary Tremolo where
   arbitrary = oneof [NoteTremolo <$> arbNote, arbChordTremolo]
     where
-      arbNote = Note <$> arbitrary <*> arbitrary <*> elements [DWDur, WDur, DHDur, HDur, DQDur, QDur] <*>  pure [] <*> pure [] <*> arbitrary
+      arbNote = Note <$> arbitrary <*> arbitrary <*> (duration2DurationVal <$> elements [DWDur, WDur, DHDur, HDur, DQDur, QDur]) <*>  pure [] <*> pure [] <*> arbitrary
       arbChordTremolo = do
         dur <- elements [DWDur, WDur, DHDur, HDur, DQDur, QDur]
-        arbChord1 <- (`Chord` dur) . NE.fromList <$> listOfThree arbitrary <*> pure [] <*> pure [] <*> arbitrary
-        arbChord2 <- (`Chord` dur) . NE.fromList <$> listOfThree arbitrary <*> pure [] <*> pure [] <*> arbitrary
+        arbChord1 <- (`Chord` (duration2DurationVal dur)) . NE.fromList <$> listOfThree arbitrary <*> pure [] <*> pure [] <*> arbitrary
+        arbChord2 <- (`Chord` (duration2DurationVal dur)) . NE.fromList <$> listOfThree arbitrary <*> pure [] <*> pure [] <*> arbitrary
         pure $ ChordTremolo arbChord1 arbChord2
   shrink = genericShrink
 
@@ -225,10 +228,10 @@ minVEvents :: NE.NonEmpty VoiceEvent
 minVEvents = VeClef Treble NE.:|
              [VeTempo (TempoDur QDur 120)
              ,VeTimeSignature (TimeSignatureSimple 4 QDur)
-             ,VeNote (Note C COct QDur [] [CtrlAccent Marcato,CtrlAnnotation "a"] False)
-             ,VeNote (Note G COct QDur [] [CtrlDynamic Forte,CtrlAnnotation "b."] False)
-             ,VeNote (Note C COct QDur [] [CtrlAnnotation "C!"] False)
-             ,VeTremolo (NoteTremolo (Note C COct QDur [] [] False))]
+             ,VeNote (Note C COct (duration2DurationVal QDur) [] [CtrlAccent Marcato,CtrlAnnotation "a"] False)
+             ,VeNote (Note G COct (duration2DurationVal QDur) [] [CtrlDynamic Forte,CtrlAnnotation "b."] False)
+             ,VeNote (Note C COct (duration2DurationVal QDur) [] [CtrlAnnotation "C!"] False)
+             ,VeTremolo (NoteTremolo (Note C COct (duration2DurationVal QDur) [] [] False))]
 
 pitchedVoice :: Voice
 pitchedVoice = PitchedVoice AcousticGrand minVEvents

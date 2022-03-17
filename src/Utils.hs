@@ -33,10 +33,10 @@ durVals = [1,      2,     2 + 1,  4,     4 + 2,  8,    8 + 4, 16,   16 + 8, 32, 
 durVal2Duration :: M.Map Int Duration
 durVal2Duration = M.fromList (zip durVals [HTEDur .. DWDur])
 
-durVal2Dur :: Int -> Duration
-durVal2Dur durVal = fromMaybe err $ M.lookup durVal durVal2Duration 
+durVal2Dur :: String -> Int -> Duration
+durVal2Dur which durVal = fromMaybe err $ M.lookup durVal durVal2Duration 
   where
-    err = error $ "durVal2Dur: could not convert durVal: " <> show durVal <> " to integral Duration"
+    err = error $ "durVal2Dur called by " <> which <> ": could not convert durVal: " <> show durVal <> " to integral Duration"
 
 dur2DurVal :: Duration -> Int
 dur2DurVal d = durVals !! fromEnum d
@@ -44,20 +44,32 @@ dur2DurVal d = durVals !! fromEnum d
 addDur :: Duration -> DurationSum -> DurationSum
 addDur d ds = DurationSum $ dur2DurVal d + getDurSum ds
 
+duration2DurationVal :: Duration -> DurationVal
+duration2DurationVal = DurationVal . dur2DurVal
+
+durationVal2Durations :: DurationVal -> [Duration]
+durationVal2Durations = durSum2Durs . DurationSum . fromVal
+
+durationVal2Duration :: DurationVal -> Duration
+durationVal2Duration = durVal2Dur "durationVal2Duration" . fromVal
+
 zDurSum :: DurationSum
 zDurSum = 0
 
 sumDurs :: [Duration] -> DurationSum
 sumDurs = Data.List.foldr addDur zDurSum
 
-composedDur :: Int -> Duration -> Duration
-composedDur reps dur =
-  durVal2Duration M.! durVal
-  where
-    denom :: Int
-    denom  = truncate (fromIntegral (128::Int) / fromIntegral (dur2DurVal dur)::Double)
-    durVal :: Int
-    durVal = truncate (128 * (fromIntegral reps / fromIntegral denom)::Double)
+--composedDur :: Int -> DurationVal -> DurationVal
+--composedDur n dv = DurationVal n * dv
+
+-- composedDur :: Int -> Duration -> Duration
+-- composedDur reps dur =
+--   durVal2Duration M.! durVal
+--   where
+--     denom :: Int
+--     denom  = truncate (fromIntegral (128::Int) / fromIntegral (dur2DurVal dur)::Double)
+--     durVal :: Int
+--     durVal = truncate (128 * (fromIntegral reps / fromIntegral denom)::Double)
 
 multDur :: Int -> Duration -> Duration
 multDur i d
@@ -68,7 +80,7 @@ multDur i d
 
 divDur :: Int -> Duration -> Duration
 divDur i dur
-  | durVal `rem` i == 0 = durVal2Dur (durVal `div` i)
+  | durVal `rem` i == 0 = durVal2Dur "divDur" (durVal `div` i)
   | otherwise = error $ "divDur: durVal " <> show durVal <> " is not evenly divisble by " <> show i
     where
       durVal = dur2DurVal dur
@@ -107,9 +119,9 @@ durSum2Durs = unfoldr f
 -- for a full-bar duration note, maybe treat the bar as though it contained three little
 -- bars, 2/8, 2/8, 3/8, trick would be for series of tied notes to tie between little bars
 -- (though that's a problem the caller has to solve)
-addEndDurs :: TimeSignature -> Int -> Int -> [Duration]
+addEndDurs :: TimeSignature -> Int -> Int -> [DurationVal]
 addEndDurs (TimeSignatureSimple numCnt denomDur) curLen addLen =
-  accum curLen addLen []
+  duration2DurationVal <$> accum curLen addLen []
   where
     accum :: Int -> Int -> [Duration] -> [Duration]
     accum cur add acc
@@ -188,17 +200,14 @@ timeSig2Denom :: TimeSignature -> Duration
 timeSig2Denom TimeSignatureSimple{..} = _tsDenom
 timeSig2Denom TimeSignatureGrouping{..} = _tsgDenom
 
-ve2Durs :: VoiceEvent -> [Duration]
-ve2Durs (VeNote   Note {..})    = [_noteDur]
-ve2Durs (VeRest   Rest {..})    = [_restDur]
-ve2Durs (VeSpacer Spacer {..})  = [_spacerDur]
-ve2Durs (VeRhythm Rhythm {..})  = [_rhythmDur]
-ve2Durs (VeTuplet t@Tuplet{..}) = replicate (_tupDenom * tup2CntTups t) _tupDur
-ve2Durs (VeChord  Chord {..})   = [_chordDur]
-ve2Durs _                       = []
-
 ve2DurVal :: VoiceEvent -> Int
-ve2DurVal ve = sum (dur2DurVal <$> ve2Durs ve)
+ve2DurVal (VeNote   Note {..})    = fromVal _noteDur
+ve2DurVal (VeRest   Rest {..})    = fromVal _restDur
+ve2DurVal (VeSpacer Spacer {..})  = fromVal _spacerDur
+ve2DurVal (VeRhythm Rhythm {..})  = fromVal _rhythmDur
+ve2DurVal (VeChord  Chord {..})   = fromVal _chordDur
+ve2DurVal (VeTuplet t@Tuplet{..}) = getDurSum . sumDurs $ replicate (_tupDenom * tup2CntTups t) _tupDur
+ve2DurVal _                       = 0
 
 ves2DurVal :: [VoiceEvent] -> Int
 ves2DurVal = sum . fmap ve2DurVal
@@ -272,21 +281,6 @@ xp (Scale scale) (p,o) off = (p',o')
 -- https://stackoverflow.com/questions/7423123/how-to-call-the-same-function-n-times
 fpow :: Int -> (a -> a) -> a -> a
 fpow n f x = iterate f x !! n
-
-genNotes :: [Maybe (Pitch,Octave)] -> [Duration] -> [Accent] -> [Dynamic] -> [VoiceEvent]
-genNotes = zipWith4 f
-  where
-    f Nothing du _ dy = VeRest $ Rest du dy ""
-    f (Just (p,o)) du a dy = VeNote (Note p o du [] [CtrlAccent a,CtrlDynamic dy] False)
-
-genNotess :: [[Maybe (Pitch,Octave)]] -> [[Duration]] -> [[Accent]] -> [[Dynamic]] -> [[VoiceEvent]]
-genNotess = zipWith4 genNotes
-
-genNotesWithTies :: NE.NonEmpty (Maybe (Pitch,Octave)) -> NE.NonEmpty Duration -> NE.NonEmpty Accent -> NE.NonEmpty Dynamic -> NE.NonEmpty Bool -> NE.NonEmpty VoiceEvent
-genNotesWithTies = neZipWith5 f
-  where
-    f Nothing du _ dy _ = VeRest $ Rest du dy ""
-    f (Just (p,o)) du a dy sl = VeNote $ Note p o du [] [CtrlAccent a,CtrlDynamic dy] sl 
 
 -- partial, panic on empty list
 -- rotate a list forward by 1 step

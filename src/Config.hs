@@ -24,7 +24,10 @@ import qualified Data.List.NonEmpty as NE
 
 import Lily
     ( parseDuration, parseInstrument, parsePitch, parseNat, parseNatural )
+
 import Types
+
+import Utils (duration2DurationVal)
 
 class FromConfig a where
   -- | Convert a config string to a Haskell value
@@ -133,10 +136,10 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)) where
   parseConfig = mkParseConfig (mkPss parseDurOrDurTup)
 
 parseDurOrDurTup :: Parser DurOrDurTuplet
-parseDurOrDurTup = try (Left <$> parseDuration) <|> (Right <$> parseDurTup)
+parseDurOrDurTup = try (Left . duration2DurationVal <$> parseDuration) <|> (Right <$> parseDurTup)
 
 parseDurTup :: Parser DurTuplet
-parseDurTup = DurTuplet <$> (char '(' *> int) <*> (char ',' *> int) <*> (char ',' *> parseDuration) <*> (char ',' *> mkPs parseDuration <* char ')')
+parseDurTup = DurTuplet <$> (char '(' *> int) <*> (char ',' *> int) <*> (char ',' *> parseDuration) <*> (char ',' *> mkPs (parseDuration <&> duration2DurationVal) <* char ')')
 
 instance FromConfig (NE.NonEmpty Int) where
   parseConfig = mkParseConfig (mkPs int)
@@ -288,4 +291,3 @@ identifier = lexeme ((:) <$> firstChar <*> many nonFirstChar)
   where
     firstChar = letter <|> char '_'
     nonFirstChar = digit <|> firstChar
-

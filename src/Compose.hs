@@ -117,10 +117,10 @@ doubleDurs :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet) -> NE.NonEmpty (NE.NonEmp
 doubleDurs = (fmap . fmap) doubleDurOrDurTup
 
 doubleDurOrDurTup :: DurOrDurTuplet -> DurOrDurTuplet
-doubleDurOrDurTup = bimap (multDur 2) (multDurTuplet 2)
+doubleDurOrDurTup = bimap (* DurationVal 2) (multDurTuplet 2)
 
 multDurTuplet :: Int -> DurTuplet -> DurTuplet
-multDurTuplet i tup = tup & durtupUnitDuration %~ multDur i & durtupDurations %~ fmap (multDur i)
+multDurTuplet i tup = tup & durtupUnitDuration %~ multDur i & durtupDurations %~ fmap (* DurationVal i)
 
 --homAnyListOfList :: NE.NonEmpty (NE.NonEmpty a) -> Driver (NE.NonEmpty (NE.NonEmpty a))
 --homAnyListOfList xss = randomizeList (NE.toList (NE.toList <$> xss)) <&> singleton . NE.fromList . concat
@@ -375,7 +375,7 @@ unfoldVEs (mPOOrPOss,Right durTup:durOrDurTups,accents)
     (veTup,mPOOrPOss',accents') = mkVeTuplet mPOOrPOss durTup accents
 unfoldVEs (_,_,_) = Nothing
 
-mkNoteChordOrRest :: Maybe PitOctOrPitOcts -> Duration -> Accent -> VoiceEvent
+mkNoteChordOrRest :: Maybe PitOctOrPitOcts -> DurationVal -> Accent -> VoiceEvent
 mkNoteChordOrRest (Just (Left (p,o))) d a = VeNote (Note p o d [] [CtrlAccent a] False)
 mkNoteChordOrRest (Just (Right pos))  d a = VeChord (Chord (NE.fromList pos) d [] [CtrlAccent a] False)
 mkNoteChordOrRest Nothing             d _ = VeRest (Rest d NoDynamic "")
@@ -386,9 +386,9 @@ unfoldDurOrDurTups maxDurVal (totDurVal,Left dur:durOrDurTups)
   | totDurVal == maxDurVal = Nothing
   | otherwise = Just (adjNextDur,(totDurVal + adjNextDurVal,durOrDurTups))
     where
-      nextDurVal = dur2DurVal dur
+      nextDurVal = fromVal dur
       adjNextDurVal = if totDurVal + nextDurVal <= maxDurVal then nextDurVal else nextDurVal - ((totDurVal + nextDurVal) - maxDurVal)
-      adjNextDur = Left $ durVal2Dur adjNextDurVal
+      adjNextDur = Left $ DurationVal adjNextDurVal
 unfoldDurOrDurTups maxDurVal (totDurVal,Right durTup:durOrDurTups)
   | totDurVal > maxDurVal = error $ "unfoldDurs totDurVal: " <> show totDurVal <> " exceeds max: " <> show maxDurVal
   | totDurVal == maxDurVal = Nothing
@@ -396,8 +396,8 @@ unfoldDurOrDurTups maxDurVal (totDurVal,Right durTup:durOrDurTups)
     where
       nextDurVal = dur2DurVal (durTup2Dur durTup)
       adjNextDurVal = if totDurVal + nextDurVal <= maxDurVal then nextDurVal else nextDurVal - ((totDurVal + nextDurVal) - maxDurVal)
-      adjNextDur = if adjNextDurVal == nextDurVal then Right durTup else Left (durVal2Dur adjNextDurVal)
-      durTup2Dur DurTuplet{..} = durVal2Dur (getDurSum (sumDurs (replicate _durtupDenominator _durtupUnitDuration)))
+      adjNextDur = if adjNextDurVal == nextDurVal then Right durTup else Left $ DurationVal adjNextDurVal
+      durTup2Dur DurTuplet{..} = durVal2Dur "3" (getDurSum (sumDurs (replicate _durtupDenominator _durtupUnitDuration)))
 unfoldDurOrDurTups _ (_,[]) = error "unfoldDurOrDurTups unexpected empty list of [DurOrDurTuplet]"
 
 appendAnnFirstNote :: String -> [VoiceEvent] -> [VoiceEvent]
@@ -468,9 +468,7 @@ voiceConfig2VoiceEvents path VoiceConfigCanon{..} =
   genCanon path (nes2arrs _vccDurss) (nes2arrs _vccAcctss) (ness2Marrss _vccmPOOrPOss ) _vccDurVal _vccRotVal
 
 ves2VeRests :: [VoiceEvent] -> [VoiceEvent]
-ves2VeRests = concatMap (map dur2VeRest . ve2Durs)
-  where
-    dur2VeRest dur = VeRest (Rest dur NoDynamic [])
+ves2VeRests ves = [VeRest (Rest (DurationVal (ves2DurVal ves)) NoDynamic [])]
 
 applyMConfigMods :: Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig, VoiceConfig) -> Driver (VoiceRuntimeConfig,VoiceConfig)
 applyMConfigMods mNames pr = applyMMods mNames pr (applyMod name2VoiceConfigMods) <&> (fst pr,)
@@ -615,7 +613,7 @@ config2Slices mPOOrPOss durss acctss =
   where
     unfoldToSlicesTup ([],[],[]) = Nothing
     unfoldToSlicesTup (as:ass,bs:bss,cs:css) = Just ((as,bs,cs),(ass,bss,css))
-    unfoldToSlicesTup (as,bs,cs) = error $ "unfoldToSlicesTup uneven length lists: " <> show (length as,length bs, length cs)
+    unfoldToSlicesTup (as,bs,cs) = error $ "unfoldToSlicesTup uneven length lists: " <> show (length as,length bs, length cs) <> show (as,bs,cs)
 
 cfgSlicessPr2Configs :: (VoiceConfig,[[Slice]]) -> [VoiceConfig]
 cfgSlicessPr2Configs (voiceConfig,slicess) = tup2VoiceConfig voiceConfig <$> (slices2Tup <$> slicess)
@@ -755,7 +753,7 @@ maybeTrimVes lenDiff vesIn
           n'     = if n >= veLen then n - veLen else 0
           veLen' = if n >= veLen then veLen else n
           -- swapVeLens squashes Tuplet to Rest:  only swap when needed
-          ve'    = if veLen == veLen' then ve else swapVeLens (durVal2Dur veLen') ve
+          ve'    = if veLen == veLen' then ve else swapVeLens (durVal2Dur "maybeTrimVes" veLen') ve
 
 -- maxLen and vesLen are in 128th notes
 -- maxLen is target length so all voices are equal length
@@ -810,7 +808,7 @@ alignVoiceEventsDurations timeSig ves =
         addLen = ves2DurVal rests
         durs = addEndDurs timeSig curLen addLen
         newRests = VeRest . (\dur -> Rest dur NoDynamic "") <$> durs
-    -- for notes and chords (eventually rhythms), add ties 
+    -- for notes and chords (eventually rhythms, tuplets?), add ties 
     adjVEsDurs curLen allVes =
       second concat $ mapAccumL adjVEDur curLen allVes
       where
@@ -818,15 +816,17 @@ alignVoiceEventsDurations timeSig ves =
         adjVEDur curLen' (VeNote note@Note{..}) =
           (curLen' + addLen,stripTiedEventsCtrls . fixTies $ newNotes)
           where
-            addLen = dur2DurVal _noteDur
+            addLen = fromVal _noteDur
             durs = addEndDurs timeSig curLen' addLen
             newNotes = VeNote . (\dur -> note {_noteDur = dur}) <$> durs
         adjVEDur curLen' (VeChord chord@Chord{..}) =
           (curLen' + addLen,stripTiedEventsCtrls . fixTies $ newChords)
           where
-            addLen = dur2DurVal _chordDur
+            addLen = fromVal _chordDur
             durs = addEndDurs timeSig curLen' addLen
             newChords = VeChord . (\dur -> chord {_chordDur = dur}) <$> durs
+        -- VeTuplet
+        -- VeRhythm
         adjVEDur curLen' ve = (curLen' + ve2DurVal ve,[ve])
 
 fixTies :: [VoiceEvent] -> [VoiceEvent]
@@ -864,12 +864,12 @@ fixVoiceEventTie False _     ve@VeRest{}           = ve & veRest . restDyn .~ No
 fixVoiceEventTie _     _     ve                    = ve
 
 swapVeLens :: Duration -> VoiceEvent -> VoiceEvent
-swapVeLens dur ve@VeNote{}   = ve & veNote   . noteDur   .~ dur
-swapVeLens dur ve@VeRest{}   = ve & veRest   . restDur   .~ dur
-swapVeLens dur ve@VeChord{}  = ve & veChord  . chordDur  .~ dur
-swapVeLens dur ve@VeRhythm{} = ve & veRhythm . rhythmDur .~ dur
-swapVeLens dur ve@VeSpacer{} = ve & veSpacer . spacerDur .~ dur
-swapVeLens dur VeTuplet{}    = VeRest $ Rest dur NoDynamic ""
+swapVeLens dur ve@VeNote{}   = ve & veNote   . noteDur   .~ duration2DurationVal dur
+swapVeLens dur ve@VeRest{}   = ve & veRest   . restDur   .~ duration2DurationVal dur
+swapVeLens dur ve@VeChord{}  = ve & veChord  . chordDur  .~ duration2DurationVal dur
+swapVeLens dur ve@VeRhythm{} = ve & veRhythm . rhythmDur .~ duration2DurationVal dur
+swapVeLens dur ve@VeSpacer{} = ve & veSpacer . spacerDur .~ duration2DurationVal dur
+swapVeLens dur VeTuplet{}    = VeRest $ Rest (duration2DurationVal dur) NoDynamic ""
 swapVeLens _   ve            = ve
 
 freezeNELists :: NE.NonEmpty (NE.NonEmpty a) -> Driver (NE.NonEmpty (NE.NonEmpty a))

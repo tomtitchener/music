@@ -20,8 +20,10 @@ import Data.Natural (Natural)
 import Data.String.Interpolation (endline, str)
 import Text.Parsec
 import Text.Parsec.String (Parser)
+import Safe (headMay)
+
 import Types
-import Utils (composedDur, getDurSum, sumDurs, multDur, divDur)
+import Utils (getDurSum, sumDurs, multDur, divDur, duration2DurationVal, durationVal2Durations)
 
 class ToLily a where
   -- | Convert a Haskell value to a Lilypond string
@@ -104,9 +106,18 @@ instance ToLily Duration where
 parseDuration :: Parser Duration
 parseDuration = choice $ zipWith mkParser durationSyms durationVals
 
-instance FromLily Duration  where
+instance FromLily Duration where
   parseLily = mkParseLily parseDuration
 
+parseDurationVal :: Parser DurationVal
+parseDurationVal = duration2DurationVal <$> parseDuration
+
+-- DurationVal must represent one of integral Duration
+instance ToLily DurationVal where
+  toLily dv = maybe err toLily (headMay durs)
+    where
+      durs = durationVal2Durations dv
+      err  = error $ "toLily for DurationVal " <> show dv <> " is not integral Duration " <> show durs
 ------------
 -- Accent --
 ------------
@@ -236,7 +247,7 @@ instance ToLily Note where
     toLily pit <> toLily oct <> toLily dur <> toLilyFromList midiCtrls <> toLilyFromList ctrls <> if slr then "~" else ""
 
 parseNote :: Parser Note
-parseNote = Note <$> parsePitch <*> parseOctave <*> parseDuration <*> many parseMidiControl <*> many parseControl <*> parseBool
+parseNote = Note <$> parsePitch <*> parseOctave <*> parseDurationVal <*> many parseMidiControl <*> many parseControl <*> parseBool
 
 instance FromLily Note  where
   parseLily = mkParseLily parseNote
@@ -249,7 +260,7 @@ instance ToLily Rhythm where
   toLily (Rhythm instr dur midiCtrls ctrls) = instr  <> toLily dur <> toLilyFromList midiCtrls <> toLilyFromList ctrls
 
 parseRhythm :: Parser Rhythm
-parseRhythm = Rhythm <$> manyTill anyChar eof <*> parseDuration <*> many parseMidiControl <*> many parseControl
+parseRhythm = Rhythm <$> manyTill anyChar eof <*> parseDurationVal <*> many parseMidiControl <*> many parseControl
 
 instance FromLily Rhythm  where
   parseLily = mkParseLily parseRhythm
@@ -262,7 +273,7 @@ instance ToLily Rest where
   toLily (Rest dur dyn ann) = "r" <> toLily dur <> toLily dyn <> mkAnnotation ann
 
 parseRest :: Parser Rest
-parseRest = Rest <$> (char 'r' *> parseDuration) <*> parseDynamic <*> parseAnnotation
+parseRest = Rest <$> (char 'r' *> parseDurationVal) <*> parseDynamic <*> parseAnnotation
 
 instance FromLily Rest  where
   parseLily = mkParseLily parseRest
@@ -275,7 +286,7 @@ instance ToLily Spacer where
   toLily (Spacer dur dyn ann) = "s" <> toLily dur <> toLily dyn <> mkAnnotation ann
 
 parseSpacer :: Parser Spacer
-parseSpacer = Spacer <$> (char 's' *> parseDuration) <*> parseDynamic <*> parseAnnotation
+parseSpacer = Spacer <$> (char 's' *> parseDurationVal) <*> parseDynamic <*> parseAnnotation
 
 instance FromLily Spacer  where
   parseLily = mkParseLily parseSpacer
@@ -317,7 +328,7 @@ parsePairs :: Parser (NE.NonEmpty (Pitch,Octave))
 parsePairs = NE.fromList <$> (parsePair `sepBy` spaces)
 
 parseChord :: Parser Chord
-parseChord = Chord <$> (string "<" *> parsePairs <* string ">") <*> parseDuration <*> many parseMidiControl <*> many parseControl <*> parseBool
+parseChord = Chord <$> (string "<" *> parsePairs <* string ">") <*> parseDurationVal <*> many parseMidiControl <*> many parseControl <*> parseBool
 
 instance FromLily Chord  where
   parseLily = mkParseLily parseChord
@@ -368,11 +379,11 @@ instance ToLily Tremolo where
   toLily (NoteTremolo (Note pit oct dur midiCtrls ctrls slr)) =
     [str|\repeat tremolo $:reps$ {$toLily pit <> toLily oct <> toLily barring <> toLilyFromList midiCtrls <> toLilyFromList ctrls <> if slr then "~" else ""$}|]
     where
-      (reps,barring) = splitTremolo [dur] [SFDur, HTEDur]
+      (reps,barring) = splitTremolo (durationVal2Durations dur) [SFDur, HTEDur]
   toLily (ChordTremolo (Chord prsL durL midiCtrlsL ctrlsL slrL) (Chord prsR durR midiCtrlsR ctrlsR slrR)) =
     [str|\repeat tremolo $:reps$ {<$prs2Lily prsL$>$toLily barring <> toLilyFromList midiCtrlsL <> toLilyFromList ctrlsL <> if slrL then "~" else ""$ <$prs2Lily prsR$>$toLily barring <> toLilyFromList midiCtrlsR <> toLilyFromList ctrlsR <> if slrR then "~" else ""$}|]
     where
-      (reps,barring) = splitTremolo [durL,durR] [SFDur, HTEDur]
+      (reps,barring) = splitTremolo (durationVal2Durations durL <> durationVal2Durations durR) [SFDur, HTEDur]
       pr2Lily (p,o) = toLily p <> toLily o
       prs2Lily = unwords . map pr2Lily . NE.toList
 
@@ -389,7 +400,7 @@ parseNoteTremolo :: Parser Tremolo
 parseNoteTremolo = do
     reps <- string "\\repeat tremolo" *> spaces *> parseNat
     note <- spaces *> string "{" *> parseNote <* string "}"
-    pure $ NoteTremolo note { _noteDur = composedDur reps (_noteDur note) } -- lens?
+    pure $ NoteTremolo note { _noteDur = DurationVal reps * _noteDur note } -- lens?
 
 parseChordTremolo :: Parser Tremolo
 parseChordTremolo = do
@@ -399,7 +410,7 @@ parseChordTremolo = do
     pure $ ChordTremolo (setChordDur reps chordOne) (setChordDur reps chordTwo)
     where
       setChordDur :: Int -> Chord -> Chord
-      setChordDur reps chord = chord { _chordDur = composedDur reps (_chordDur chord) } -- lens?
+      setChordDur reps chord = chord { _chordDur = DurationVal reps * _chordDur chord } -- lens?
 
 parseTremolo :: Parser Tremolo
 parseTremolo = choice [try parseNoteTremolo, try parseChordTremolo]

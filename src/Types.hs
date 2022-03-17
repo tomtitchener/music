@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DerivingVia     #-}
 
 {- | Music types for translating to and from Lilypond strings.
      Atomic types (Pitch, Scale, Octave, Accent, Duration, Dynamic, etc.)
@@ -39,6 +40,11 @@ newtype Scale = Scale { _scPitches :: NonEmpty Pitch }
 data Octave = TwentyNineVBOct | TwentyTwoVBOct | FifteenVBOct | EightVBOct | COct | EightVAOct | FifteenVAOct | TwentyTwoVAOct
   deriving (Eq, Ord, Show, Enum, Bounded)
 
+-- Allows for arithmetic on durations without respect to integral values used in notation as represented by Duration type.
+newtype DurationVal = DurationVal { fromVal :: Int }
+  deriving (Eq, Ord, Show)
+  deriving Num via Int
+
 data Duration =  HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur | DEDur | QDur | DQDur | HDur | DHDur | WDur | DWDur
   deriving (Eq, Ord, Show, Enum, Bounded)
 
@@ -67,23 +73,23 @@ data MidiControl =
   | MidiCtrlDynamic { _mctrlDynamic :: Dynamic }
   deriving (Eq, Ord, Show)
 
-data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: Duration, _noteMidiCtrls :: [MidiControl], _noteCtrls :: [Control], _noteTie :: Bool}
+data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: DurationVal, _noteMidiCtrls :: [MidiControl], _noteCtrls :: [Control], _noteTie :: Bool}
   deriving (Eq, Ord, Show)
 
-data Rest = Rest { _restDur :: Duration, _restDyn :: Dynamic, _restAnn :: String }
+data Rest = Rest { _restDur :: DurationVal, _restDyn :: Dynamic, _restAnn :: String }
   deriving (Eq, Ord, Show)
 
-data Spacer = Spacer { _spacerDur :: Duration, _spacerDyn :: Dynamic, _spacerAnn :: String }
+data Spacer = Spacer { _spacerDur :: DurationVal, _spacerDyn :: Dynamic, _spacerAnn :: String }
   deriving (Eq, Ord, Show)
 
-data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: Duration, _rhythmMidiCtrls :: [MidiControl], _rhythmCtrls :: [Control] } -- TBD: _rhythmTie :: Bool
+data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: DurationVal, _rhythmMidiCtrls :: [MidiControl], _rhythmCtrls :: [Control] } -- TBD: _rhythmTie :: Bool
   deriving (Eq, Ord, Show)
 
 -- NB: when rendering, double _tupDenom for Lilypond
 data Tuplet = Tuplet { _tupNum :: Int, _tupDenom :: Int, _tupDur :: Duration, _tupNotes :: NonEmpty VoiceEvent }
   deriving (Eq, Ord, Show)
 
-data Chord = Chord { _chordPitOctPairs :: NonEmpty (Pitch, Octave) , _chordDur :: Duration, _chordMidiCtrls :: [MidiControl], _chordCtrls :: [Control], _chordTie :: Bool }
+data Chord = Chord { _chordPitOctPairs :: NonEmpty (Pitch, Octave) , _chordDur :: DurationVal, _chordMidiCtrls :: [MidiControl], _chordCtrls :: [Control], _chordTie :: Bool }
   deriving (Eq, Ord, Show)
 
 data Clef = Bass8VB | Bass | Tenor | Alto | Treble | Treble8VA
@@ -185,6 +191,7 @@ data Instrument =
        Cello |                   LeadVoice
   deriving (Eq, Ord, Show, Enum, Bounded)
 
+-- Lilypond formats:
 data Voice =
   PitchedVoice      { _ptvInstrument :: Instrument, _ptvVoiceEvents :: NonEmpty VoiceEvent }
   | PercussionVoice { _pcvInstrument :: Instrument, _pcvVoiceEvents :: NonEmpty VoiceEvent }
@@ -201,10 +208,10 @@ data DurTuplet = DurTuplet {
    _durtupNumerator    :: Int
   ,_durtupDenominator  :: Int
   ,_durtupUnitDuration :: Duration
-  ,_durtupDurations    :: NonEmpty Duration
+  ,_durtupDurations    :: NonEmpty DurationVal
   } deriving Show
 
-type DurOrDurTuplet = Either Duration DurTuplet 
+type DurOrDurTuplet = Either DurationVal DurTuplet 
 
 makeLenses ''DurTuplet
 

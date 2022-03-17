@@ -89,6 +89,7 @@ test-suite tests
                     , QuickCheck
                     , random
                     , random-shuffle
+                    , safe
                     , split
                     , tasty
                     , tasty-hunit
