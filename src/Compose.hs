@@ -102,14 +102,14 @@ mkIdWeightsDecr      1      _  = 0
 mkIdWeightsDecr cntSegs numSeg = 100 - ((cntSegs - (1 + numSeg)) * (50 `div` (cntSegs - 1))) -- TBD: magic constant 50% of results to be modified at end)
 
 doubleCfgDurs :: ConfigMod
-doubleCfgDurs vrtCfg vcx@VoiceConfigXPose{}    = mRunMod (vcx & vcxDurss  %~ doubleDurs) vrtCfg vcx
-doubleCfgDurs vrtCfg vcr@VoiceConfigRepeat{}   = mRunMod (vcr & vcrDurss  %~ doubleDurs) vrtCfg vcr
-doubleCfgDurs vrtCfg vcv@VoiceConfigVerbatim{} = mRunMod (vcv & vcvDurss  %~ doubleDurs) vrtCfg vcv
-doubleCfgDurs vrtCfg vcc@VoiceConfigCell{}     = mRunMod (vcc & vcclDurss %~ doubleDurs) vrtCfg vcc
-doubleCfgDurs vrtCfg vcc@VoiceConfigCanon{}    = mRunMod (vcc & vccDurss  %~ doubleDurs) vrtCfg vcc
+doubleCfgDurs vrtCfg vcx@VoiceConfigXPose{}    = mRunDoubleCfgMod (vcx & vcxDurss  %~ doubleDurs) vrtCfg vcx
+doubleCfgDurs vrtCfg vcr@VoiceConfigRepeat{}   = mRunDoubleCfgMod (vcr & vcrDurss  %~ doubleDurs) vrtCfg vcr
+doubleCfgDurs vrtCfg vcv@VoiceConfigVerbatim{} = mRunDoubleCfgMod (vcv & vcvDurss  %~ doubleDurs) vrtCfg vcv
+doubleCfgDurs vrtCfg vcc@VoiceConfigCell{}     = mRunDoubleCfgMod (vcc & vcclDurss %~ doubleDurs) vrtCfg vcc
+doubleCfgDurs vrtCfg vcc@VoiceConfigCanon{}    = mRunDoubleCfgMod (vcc & vccDurss  %~ doubleDurs) vrtCfg vcc
 
-mRunMod :: VoiceConfig -> VoiceRuntimeConfig -> VoiceConfig -> Driver VoiceConfig
-mRunMod vcMod VoiceRuntimeConfig{..} vCfg  = do
+mRunDoubleCfgMod :: VoiceConfig -> VoiceRuntimeConfig -> VoiceConfig -> Driver VoiceConfig
+mRunDoubleCfgMod vcMod VoiceRuntimeConfig{..} vCfg  = do
   mod' <- searchMConfigParam (_vrcSctnPath <> ".dblCfgMod") <&> fromMaybe (_vrcCntSegs `div` _vrcCntVocs)
   pure $ if _vrcNumVoc * mod' <= _vrcNumSeg then vcMod else vCfg
 
@@ -213,21 +213,23 @@ sustainNotes vrtc@VoiceRuntimeConfig{..} ves = do
   sustainNotes' mIdxs vrtc ves
   where
     sustainNotes' :: Maybe (NE.NonEmpty Int) -> VoiceEventsMod
-    sustainNotes' mIdxs VoiceRuntimeConfig{..} ves'
-     | _vrcNumSeg == 0 && isMElem _vrcNumVoc mIdxs               = pure $ maybe ves' (`tagSustOnForIdx` ves') $ findIndex isVeSound ves'
-     | _vrcNumSeg == _vrcCntSegs - 1 && isMElem _vrcNumVoc mIdxs = pure $ maybe ves' (`tagSustOffForIdx` ves') $ lastMay (findIndices isVeSound ves')
+    sustainNotes' Nothing VoiceRuntimeConfig{..} ves' 
+     | _vrcNumSeg == 0               = pure $ maybe ves' (`tagSustOnForIdx` ves') $ findIndex isVeSound ves'
+     | _vrcNumSeg == _vrcCntSegs - 1 = pure $ maybe ves' (`tagSustOffForIdx` ves') $ lastMay (findIndices isVeSound ves')
      | otherwise = pure ves'
-     where
-        isMElem idx = maybe True (idx `elem`) 
-        tagSustOnForIdx idx = toList . adjust' (tagSust SustainOn) idx . fromList
-        tagSustOffForIdx idx = toList . adjust' (tagSust SustainOff) idx . fromList
-        tagSust sust ve@VeNote{}    = ve & veNote . noteCtrls %~ (CtrlSustain sust :)
-        tagSust sust ve@VeRhythm{}  = ve & veRhythm . rhythmCtrls %~ (CtrlSustain sust :)
-        tagSust sust ve@VeTuplet{}  = ve & veTuplet . tupNotes %~ (\notes -> tagSust sust (NE.head notes) NE.:| NE.tail notes)
-        tagSust sust ve@VeChord{}   = ve & veChord . chordCtrls %~ (CtrlSustain sust :)
-        tagSust sust (VeTremolo nt@NoteTremolo{})  = VeTremolo (nt & ntrNote . noteCtrls %~ (CtrlSustain sust :))
-        tagSust sust (VeTremolo ct@ChordTremolo{})  = VeTremolo (ct & ctrLeftChord . chordCtrls %~ (CtrlSustain sust :))
-        tagSust _ ve                = error $ "sustainNotes: unexpected VoiceEvent: " <> show ve
+    sustainNotes' (Just idxs) VoiceRuntimeConfig{..} ves'
+     | _vrcNumSeg == 0 && _vrcNumVoc `elem` idxs               = pure $ maybe ves' (`tagSustOnForIdx` ves') $ findIndex isVeSound ves'
+     | _vrcNumSeg == _vrcCntSegs - 1 && _vrcNumVoc `elem` idxs = pure $ maybe ves' (`tagSustOffForIdx` ves') $ lastMay (findIndices isVeSound ves')
+     | otherwise = pure ves'
+    tagSustOnForIdx idx = toList . adjust' (tagSust SustainOn) idx . fromList
+    tagSustOffForIdx idx = toList . adjust' (tagSust SustainOff) idx . fromList
+    tagSust sust ve@VeNote{}    = ve & veNote . noteCtrls %~ (CtrlSustain sust :)
+    tagSust sust ve@VeRhythm{}  = ve & veRhythm . rhythmCtrls %~ (CtrlSustain sust :)
+    tagSust sust ve@VeTuplet{}  = ve & veTuplet . tupNotes %~ (\notes -> tagSust sust (NE.head notes) NE.:| NE.tail notes)
+    tagSust sust ve@VeChord{}   = ve & veChord . chordCtrls %~ (CtrlSustain sust :)
+    tagSust sust (VeTremolo nt@NoteTremolo{})  = VeTremolo (nt & ntrNote . noteCtrls %~ (CtrlSustain sust :))
+    tagSust sust (VeTremolo ct@ChordTremolo{})  = VeTremolo (ct & ctrLeftChord . chordCtrls %~ (CtrlSustain sust :))
+    tagSust _ ve                = error $ "sustainNotes: unexpected VoiceEvent: " <> show ve
 
 -- uniform accents are specific to midi, score gets annotation
 uniformAccents :: VoiceEventsMod
