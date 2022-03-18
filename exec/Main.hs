@@ -61,7 +61,7 @@ main =  do
   config <- do
     e <- doesFileExist _optConfigYaml
     if e
-    then either (error . show) identity <$> Y.decodeFileEither _optConfigYaml
+    then either (error . Y.prettyPrintParseException) identity <$> Y.decodeFileEither _optConfigYaml
     else error $ "config file " <> _optConfigYaml <> " does not exist"
   unless (null _optRandomSeed) $ do
     case readMaybe _optRandomSeed::Maybe SMGen of

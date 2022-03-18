@@ -164,7 +164,7 @@ instance FromConfig Tempo where
   parseConfig = mkParseConfig parseTempo
 
 mkParseConfig :: Parser a -> String -> a
-mkParseConfig parser  = either (error . show) id . parse parser ""
+mkParseConfig parser input  = either (error . show) id . parse parser input $ input
 
 lexeme :: Parser a -> Parser a
 lexeme p = spaces *> p
