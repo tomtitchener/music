@@ -45,6 +45,11 @@ newtype DurationVal = DurationVal { fromVal :: Int }
   deriving (Eq, Ord, Show)
   deriving Num via Int
 
+mkDurationVal :: Int -> DurationVal
+mkDurationVal i
+  | i <= 0 = error $ "mkDurationVal negative or zero value: " <> show i
+  | otherwise = DurationVal i
+
 data Duration =  HTEDur | SFDur | DSFDur | TSDur | DTSDur | SDur | DSDur | EDur | DEDur | QDur | DQDur | HDur | DHDur | WDur | DWDur
   deriving (Eq, Ord, Show, Enum, Bounded)
 

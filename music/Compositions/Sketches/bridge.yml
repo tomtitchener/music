@@ -392,102 +392,221 @@ bridge:
         durss:    ((8,8,16,16),(16,16),(8.,16,16,8.))
         accentss: ((>,~),(~,~,~,~))
     # repeat texture staging additional sustain pedals in voices, section-by-section
+    # manually double the durations of voices 1, 3, 4 to match ending durations of doubleDurs mod in previous section
+    # start introducing ascending pattern in voice 3, rhythm: 16 16 8 4 2, pitches g g g ais ais b, to start with
+    # slow rate ascent, to be speeded up later.
+    # launch first ascending voice, #3
     section4:
       stype:       neutral
-      sctname:     "addSustainVoiceTwo"
+      sctname:     "addSustainVoiceThree"
       reps:        int 2
       showVType:   int 1
       uniformDyn:  ppppp
-      sustainIdxs: (1,2)
-      vesmods:     (uniformDyns,sustainNotes)
+      sustainIdxs: (1,3)
+      uniformDyn:  ppppp
+      vocsDyn:     ppp
+      vocsDynIdxs: (2)
+      vesmods:     (uniformDyns,voicesDyn,sustainNotes)
       common:
         vtype:      canon
         durval:     int 368 # 736 # 2 * 368
       voice1:
         mPitOctsss: ((((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-        rotval:   int 0
-        durss:    ((8,8,8),(8,4,4),(2,8,8))
-        accentss: ((~,~),(~,~))
+        rotval:     int 0
+        durss:      ((8,8,8),(8,4,4),(2,8,8))
+        accentss:   ((~,~),(~,~))
       voice2:
         vtype:      cell
         mPitOctsss: ((((b,-2),(gis,-1),(b,-1),(b,0),(b,1)),((b,-2),(gis,-1),(b,-1),(gis,0),(b,0),(b,1)),r,r),
                      (((b,-2),(b,-1),(b,0)),((b,-2),(b,-1),(gis,-1),(b,0)),r,r),
                      (((b,-3),(b,-2),(b,-1)),((b,-3),(b,-2),(gis,-2),(b,-1)),r,r))
-        durss:    ((4,1.,1,1),(4,1.,1,1),(4,1.,1,1))
-        accentss: ((>,>,~,~),(>,>,~,~),(>,>,~,~))
+        durss:      ((4,1.,1,1),(4,1.,1,1),(4,1.,1,1))
+        accentss:   ((>,>,~,~),(>,>,~,~),(>,>,~,~))
       voice3:
-        mPitOctsss: ((((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1)),(((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))))
-        rotval:   int 0
-        durss:    ((4,4,2),(4,2,4,4))
-        accentss: ((~,~,~),(~,~,~,~))
+        vtype:      verbatim
+        mPitOctsss: (((g,-1),(g,-1),(g,-1),(ais,-1),(ais,-1),(b,-1)),
+                     ((b,-1),(cis,0),(cis,0),(dis,0),(dis,0),(fis,0)),
+                     ((g,0),(gis,0),(gis,0),(b,0),(b,0),(dis,1)),
+                     ((b,-1),(cis,0),(cis,0),(dis,0),(fis,0),(fis,0),(g,0),r),
+                     ((fis,0),(g,0),(g,0),(b,0),(dis,1),(fis,1),(g,1),r),
+                     ((b,0),(dis,1),(fis,1),(g,1),(gis,1),(b,1),(b,1),r))
+        durss:      ((16,16,8,4,2,2),(16,16,8,4,2,2),(16,16,8,4,2,2),(16,16,8,16,16,4,4),(16,16,8,16,16,4,4),(16,16,8,16,16,4,4))
+        accentss:   ((~,~),(~,~),(~,~),(~,~),(~,~),(~,~))
       voice4:
         mPitOctsss: ((((dis,0),(ais,-1)),(gis,-1),((cis,0),(gis,-1))),(((dis,0),(b,-1)),((gis,-1),(e,-1))))
         rotval:   int 1
         durss:    ((4,4,8,8),(8,8),(4.,8,8,4.))
         accentss: ((>,~),(~,~,~,~))
+    # launch second ascending voice 1, speed up voice 3
     section5:
       stype:       neutral
       sctname:     "addSustainVoiceZero"
       reps:        int 2
       showVType:   int 1
       uniformDyn:  ppppp
-      sustainIdxs: (1,2,0)
-      vesmods:     (uniformDyns,sustainNotes)
+      sustainIdxs: (1,3,2)
+      uniformDyn:  pppp
+      vocsDyn:     pppp
+      vocsDynIdxs: (1,2)
+      vesmods:     (uniformDyns,voicesDyn,sustainNotes)
       common:
         vtype:      canon
-        durval:     int 368 # 736 # 2 * 368
+        durval:     int 736 # 2 * 368
       voice1:
-        mPitOctsss: ((((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-        rotval:   int 0
-        durss:    ((8,8,8),(8,4,4),(2,8,8))
-        accentss: ((~,~),(~,~))
+        vtype:      verbatim
+        mPitOctsss: (((b,-1),(cis,0),(cis,0),(dis,0),(fis,0),(fis,0),(g,0),r),
+                     ((fis,0),(g,0),(g,0),(b,0),(dis,1),(fis,1),(g,1),r),
+                     ((b,0),(dis,1),(fis,1),(g,1),(gis,1),(b,1),(b,1),r),
+                     ((g,-1),(b,-1),(cis,0),(dis,0),(fis,0),(g,0),(b,0),(dis,1)),
+                     ((b,-1),(cis,0),(dis,0),(fis,0),(g,0),(b,0),(dis,1),(fis,1)),
+                     ((cis,0),(dis,0),(fis,0),(g,0),(b,0),(dis,2),(fis,2),(g,2)))
+        durss:      ((16,16,8,16,16,4,4),(16,16,8,16,16,4,4),(16,16,8,16,16,4,4),(16,16,8,16,16,8,8),(16,16,8,16,16,8,8))
+        accentss:   ((~,~),(~,~),(~,~),(~,~),(~,~),(~,~))
       voice2:
         vtype:      cell
         mPitOctsss: ((((b,-2),(gis,-1),(b,-1),(b,0),(b,1)),((b,-2),(gis,-1),(b,-1),(gis,0),(b,0),(b,1)),r,r),
                      (((b,-2),(b,-1),(b,0)),((b,-2),(b,-1),(gis,-1),(b,0)),r,r),
                      (((b,-3),(b,-2),(b,-1)),((b,-3),(b,-2),(gis,-2),(b,-1)),r,r))
         durss:    ((4,1.,1,1),(4,1.,1,1),(4,1.,1,1))
-        accentss: ((>,>,~,~),(>,>,~,~),(>,>,~,~))
+        accentss: ((-,-,~,~),(-,-,~,~),(-,-,~,~))
       voice3:
-        mPitOctsss: ((((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1)),(((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))))
-        rotval:   int 0
-        durss:    ((4,4,2),(4,2,4,4))
-        accentss: ((~,~,~),(~,~,~,~))
+        vtype:      verbatim
+        mPitOctsss: (((g,-1),(g,-1),(g,-1),(ais,-1),(ais,-1),(b,-1)),
+                     ((b,-1),(cis,0),(cis,0),(dis,0),(dis,0),(fis,0)),
+                     ((g,0),(gis,0),(gis,0),(b,0),(b,0),(dis,1)),
+                     ((b,-1),(cis,0),(cis,0),(dis,0),(fis,0),(fis,0),(g,0),r),
+                     ((fis,0),(g,0),(g,0),(b,0),(dis,1),(fis,1),(g,1),r),
+                     ((b,0),(dis,1),(fis,1),(g,1),(gis,1),(b,1),(b,1),r))
+        durss:      ((16,16,8,8,4,4),(16,16,8,8,4,4),(16,16,8,8,8,4),(16,16,8,16,16,8,8),(16,16,8,16,16,8,8),(16,16,8,16,16,8,8))
+        accentss:   ((~,~),(~,~),(~,~),(~,~),(~,~),(~,~))
       voice4:
         mPitOctsss: ((((dis,0),(ais,-1)),(gis,-1),((cis,0),(gis,-1))),(((dis,0),(b,-1)),((gis,-1),(e,-1))))
         rotval:   int 1
         durss:    ((4,4,8,8),(8,8),(4.,8,8,4.))
         accentss: ((>,~),(~,~,~,~))
+    # spread sustains across all voices, speed up ascending voices
+    # launch third fast ascending voice 4, speed up voices 3 and 1
     section6:
       stype:       neutral
-      sctname:     "addSustainVoiceThree"
+      sctname:     "allSustain"
       reps:        int 2
       showVType:   int 0
       uniformDyn:  ppppp
-      sustainIdxs: (1,2,0,3)
       vesmods:     (uniformDyns,sustainNotes)
       common:
         vtype:      canon
-        durval:     int 368 # 736 # 2 * 368
+        durval:     int 368
       voice1:
-        mPitOctsss: ((((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-        rotval:   int 0
-        durss:    ((8,8,8),(8,4,4),(2,8,8))
-        accentss: ((~,~),(~,~))
+        vtype:      verbatim
+        mPitOctsss: (((b,-1),(cis,0),(cis,0),(dis,0),(fis,0),(fis,0),(g,0),r),
+                     ((fis,0),(g,0),(g,0),(b,0),(dis,1),(fis,1),(g,1),r),
+                     ((b,0),(dis,1),(fis,1),(g,1),(gis,1),(b,1),(b,1),r),
+                     ((g,-1),(b,-1),(cis,0),(dis,0),(fis,0),(g,0),(b,0),(dis,1)),
+                     ((b,-1),(cis,0),(dis,0),(fis,0),(g,0),(b,0),(dis,1),(fis,1)),
+                     ((cis,0),(dis,0),(fis,0),(g,0),(b,0),(dis,2),(fis,2),(g,2)))
+        durss:      ((16,16,8,16,16,8,8),
+                     (16,16,8,16,16,16,8),
+                     (16,16,8,16,16,16,16),
+                     (16,16,16,16,16,16,16,16),
+                     (16,16,16,16,16,16,8,16),
+                     (16,16,8,16,16,16,16,16))
+        accentss:   ((~,~),(~,~),(~,~),(~,~),(~,~),(~,~))
       voice2:
         vtype:      cell
         mPitOctsss: ((((b,-2),(gis,-1),(b,-1),(b,0),(b,1)),((b,-2),(gis,-1),(b,-1),(gis,0),(b,0),(b,1)),r,r),
                      (((b,-2),(b,-1),(b,0)),((b,-2),(b,-1),(gis,-1),(b,0)),r,r),
                      (((b,-3),(b,-2),(b,-1)),((b,-3),(b,-2),(gis,-2),(b,-1)),r,r))
         durss:    ((4,1.,1,1),(4,1.,1,1),(4,1.,1,1))
-        accentss: ((>,>,~,~),(>,>,~,~),(>,>,~,~))
+        accentss: ((-,-,~,~),(-,-,~,~),(-,-,~,~))
       voice3:
-        mPitOctsss: ((((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1)),(((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))))
-        rotval:   int 0
-        durss:    ((4,4,2),(4,2,4,4))
-        accentss: ((~,~,~),(~,~,~,~))
+        vtype:      verbatim
+        mPitOctsss: (((g,-1),(g,-1),(g,-1),(ais,-1),(ais,-1),(b,-1)),
+                     ((b,-1),(cis,0),(cis,0),(dis,0),(dis,0),(fis,0)),
+                     ((g,0),(gis,0),(gis,0),(b,0),(b,0),(dis,1)),
+                     ((b,-1),(cis,0),(cis,0),(dis,0),(fis,0),(fis,0),(g,0),r),
+                     ((fis,0),(g,0),(g,0),(b,0),(dis,1),(fis,1),(g,1),r),
+                     ((b,0),(dis,1),(fis,1),(g,1),(gis,1),(b,1),(b,1),r))
+        durss:      (((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     (16,16,8,16,16,8,8),
+                     (16,16,8,16,16,8,8),
+                     (16,16,8,16,16,8,8))
+        accentss:   ((~,~),(~,~),(~,~),(~,~),(~,~),(~,~))
       voice4:
-        mPitOctsss: ((((dis,0),(ais,-1)),(gis,-1),((cis,0),(gis,-1))),(((dis,0),(b,-1)),((gis,-1),(e,-1))))
-        rotval:   int 1
-        durss:    ((4,4,8,8),(8,8),(4.,8,8,4.))
-        accentss: ((>,~),(~,~,~,~))
+        vtype:      verbatim
+        mPitOctsss: (((b,-4),(gis,-3),(b,-3),(dis,-2),(g,-2),(b,-2),(dis,-1),(fis,-1)),
+                     ((b,-3),(dis,-2),(g,-2),(b,-2),(dis,-1),(fis,-1),(g,-1),(ais,-1)),
+                     ((b,-2),(gis,-2),(g,-1),(ais,-1),(fis,0),(b,0),(g,1),(dis,2)),
+                     ((b,-1),(g,0),(gis,0),(dis,1),(g,1),(cis,2),(d,2),(dis,2),(g,2)),
+                     ((gis,0),(dis,1),(g,1),(cis,2),(d,2),(dis,2),(fis,2),(gis,2),(b,2)),
+                     ((dis,1),(g,1),(cis,2),(d,2),(dis,2),(fis,2),(gis,2),(b,2),(dis,3)))
+        durss:      ((16,16,8,16,16,8,16,16),(16,16,8,16,16,8,16,16),(16,16,8,16,16,8,16,16),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))))
+        accentss:   ((~,~),(~,~),(~,~),(~,~),(~,~),(~,~))
+    # all ascending voices in triplets
+    section7:
+      stype:       neutral
+      sctname:     "allDriftUp"
+      reps:        int 2
+      showVType:   int 0
+      uniformDyn:  ppppp
+      vesmods:     (uniformDyns,sustainNotes)
+      common:
+        vtype:      canon
+        durval:     int 736 # 736 # 2 * 368
+      voice1:
+        vtype:      verbatim
+        mPitOctsss: (((b,-1),(cis,0),(cis,0),(dis,0),(fis,0),(fis,0),(g,0),r),
+                     ((fis,0),(g,0),(g,0),(b,0),(dis,1),(fis,1),(g,1),r),
+                     ((b,0),(dis,1),(fis,1),(g,1),(gis,1),(b,1),(b,1),r),
+                     ((g,-1),(b,-1),(cis,0),(dis,0),(fis,0),(g,0),(b,0),(dis,1)),
+                     ((b,-1),(cis,0),(dis,0),(fis,0),(g,0),(b,0),(dis,1),(fis,1)),
+                     ((cis,0),(dis,0),(fis,0),(g,0),(b,0),(dis,2),(fis,2),(g,2)))
+        durss:      (((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))))
+        accentss:   ((~,~),(~,~),(~,~),(~,~),(~,~),(~,~))
+      # TBD: add in flat notes as well
+      voice2:
+        vtype:      cell
+        mPitOctsss: ((((b,-2),(gis,-1),(b,-1),(b,0),(b,1)),((b,-2),(gis,-1),(b,-1),(gis,0),(b,0),(b,1)),r,r),
+                     (((b,-2),(b,-1),(b,0)),((b,-2),(b,-1),(gis,-1),(b,0)),r,r),
+                     (((b,-3),(b,-2),(b,-1)),((b,-3),(b,-2),(gis,-2),(b,-1)),r,r))
+        durss:    ((4,1.,1,1),(4,1.,1,1),(4,1.,1,1))
+        accentss: ((-,-,~,~),(-,-,~,~),(-,-,~,~))
+      voice3:
+        vtype:      verbatim
+        mPitOctsss: (((g,-1),(g,-1),(g,-1),(ais,-1),(ais,-1),(b,-1)),
+                     ((b,-1),(cis,0),(cis,0),(dis,0),(dis,0),(fis,0)),
+                     ((g,0),(gis,0),(gis,0),(b,0),(b,0),(dis,1)),
+                     ((b,-1),(cis,0),(cis,0),(dis,0),(fis,0),(fis,0),(g,0),r),
+                     ((fis,0),(g,0),(g,0),(b,0),(dis,1),(fis,1),(g,1),r),
+                     ((b,0),(dis,1),(fis,1),(g,1),(gis,1),(b,1),(b,1),r))
+        durss:      (((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))))
+        accentss:   ((~,~),(~,~),(~,~),(~,~),(~,~),(~,~))
+      voice4:
+        vtype:      verbatim
+        mPitOctsss: (((b,-4),(gis,-3),(b,-3),(dis,-2),(g,-2),(b,-2),(dis,-1),(fis,-1)),
+                     ((b,-3),(dis,-2),(g,-2),(b,-2),(dis,-1),(fis,-1),(g,-1),(ais,-1)),
+                     ((b,-2),(gis,-2),(g,-1),(ais,-1),(fis,0),(b,0),(g,1),(dis,2)),
+                     ((b,-1),(g,0),(gis,0),(dis,1),(g,1),(cis,2),(d,2),(dis,2),(g,2)),
+                     ((gis,0),(dis,1),(g,1),(cis,2),(d,2),(dis,2),(fis,2),(gis,2),(b,2)),
+                     ((dis,1),(g,1),(cis,2),(d,2),(dis,2),(fis,2),(gis,2),(b,2),(dis,3)))
+        durss:      (((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))),
+                     ((3,2,16,(16,16,16)),(3,2,16,(16,16,16)),(3,2,16,(16,16,16))))
+        accentss:   ((~,~),(~,~),(~,~),(~,~),(~,~),(~,~))

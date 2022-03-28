@@ -45,7 +45,7 @@ addDur :: Duration -> DurationSum -> DurationSum
 addDur d ds = DurationSum $ dur2DurVal d + getDurSum ds
 
 duration2DurationVal :: Duration -> DurationVal
-duration2DurationVal = DurationVal . dur2DurVal
+duration2DurationVal = mkDurationVal . dur2DurVal
 
 durationVal2Durations :: DurationVal -> [Duration]
 durationVal2Durations = durSum2Durs . DurationSum . fromVal
@@ -214,13 +214,25 @@ ves2DurVal = sum . fmap ve2DurVal
 
 -- validates _tupNotes contains integral count of tuplet, answers count
 tup2CntTups :: Tuplet -> Int
-tup2CntTups tup@Tuplet{..}
-  | 0 /= (notesDurVal `rem` (_tupNum * unitDurVal)) = error msg
-  | otherwise = notesDurVal `div` (_tupNum * unitDurVal)
+tup2CntTups Tuplet{..}
+   | 0 /= (notesDurVal `rem` (_tupNum * unitDurVal)) = 0
+   | otherwise = notesDurVal `div` (_tupNum * unitDurVal)
   where
     unitDurVal  = dur2DurVal _tupDur
     notesDurVal = ves2DurVal (NE.toList _tupNotes)
-    msg = "invalid tuplet: sum of dur vals " <> show notesDurVal <> " not divisible by num * durVal of unit: " <> show (_tupNum * unitDurVal) <> "\n" <> show tup 
+
+durTup2CntTups :: DurTuplet -> Int
+durTup2CntTups DurTuplet{..}
+   | 0 /= (dursDurVal `rem` (_durtupNumerator * unitDurVal)) = 0
+   | otherwise = dursDurVal `div` (_durtupNumerator * unitDurVal)
+  where
+    unitDurVal  = dur2DurVal _durtupUnitDuration
+    dursDurVal = fromVal $ sum (NE.toList _durtupDurations)
+
+verifyDurTuplet :: DurTuplet -> DurTuplet
+verifyDurTuplet durTup
+  | 0 == durTup2CntTups durTup = error $ "invalid DurTuplet" <> show durTup
+  | otherwise = durTup
 
 -- Why doesn't NonEmpty expose this?
 singleton :: a -> NE.NonEmpty a

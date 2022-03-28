@@ -27,7 +27,7 @@ import Lily
 
 import Types
 
-import Utils (duration2DurationVal)
+import Utils (duration2DurationVal, verifyDurTuplet)
 
 class FromConfig a where
   -- | Convert a config string to a Haskell value
@@ -139,7 +139,11 @@ parseDurOrDurTup :: Parser DurOrDurTuplet
 parseDurOrDurTup = try (Left . duration2DurationVal <$> parseDuration) <|> (Right <$> parseDurTup)
 
 parseDurTup :: Parser DurTuplet
-parseDurTup = DurTuplet <$> (char '(' *> int) <*> (char ',' *> int) <*> (char ',' *> parseDuration) <*> (char ',' *> mkPs (parseDuration <&> duration2DurationVal) <* char ')')
+parseDurTup = (DurTuplet <$> (char '(' *> int)
+                         <*> (char ',' *> int)
+                         <*> (char ',' *> parseDuration)
+                         <*> (char ',' *> mkPs (parseDuration <&> duration2DurationVal) <* char ')'))
+              <&> verifyDurTuplet
 
 instance FromConfig (NE.NonEmpty Int) where
   parseConfig = mkParseConfig (mkPs int)

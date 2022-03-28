@@ -1,4 +1,3 @@
-
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -22,7 +21,7 @@ import Data.List (elemIndex, findIndex, findIndices, groupBy, sortBy, unfoldr, t
 import qualified Data.List.NonEmpty as NE
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as M
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, catMaybes)
 import Data.Sequence (adjust', fromList)
 import Data.Traversable (mapAccumL)
 import Data.Tuple (swap)
@@ -117,10 +116,10 @@ doubleDurs :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet) -> NE.NonEmpty (NE.NonEmp
 doubleDurs = (fmap . fmap) doubleDurOrDurTup
 
 doubleDurOrDurTup :: DurOrDurTuplet -> DurOrDurTuplet
-doubleDurOrDurTup = bimap (* DurationVal 2) (multDurTuplet 2)
+doubleDurOrDurTup = bimap (* mkDurationVal 2) (multDurTuplet 2)
 
 multDurTuplet :: Int -> DurTuplet -> DurTuplet
-multDurTuplet i tup = tup & durtupUnitDuration %~ multDur i & durtupDurations %~ fmap (* DurationVal i)
+multDurTuplet i tup = tup & durtupUnitDuration %~ multDur i & durtupDurations %~ fmap (* mkDurationVal i)
 
 --homAnyListOfList :: NE.NonEmpty (NE.NonEmpty a) -> Driver (NE.NonEmpty (NE.NonEmpty a))
 --homAnyListOfList xss = randomizeList (NE.toList (NE.toList <$> xss)) <&> singleton . NE.fromList . concat
@@ -259,34 +258,61 @@ genXPose path durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
       compareOp = if stepOrd == rangeOrd && stepOrd /= EQ
                   then if stepOrd == LT then (<=) else (>=)
                   else error $ "invalid step order " <> show stepOrd <> " compared with range order " <> show rangeOrd
-      mPrOrPrss = unfoldr (unfoldMPrOrPrss compareOp) (Left start,manyMIOrIssDiffs)
-      ves       = unfoldr unfoldVEs (mPrOrPrss,manyDurOrDurTups,manyAccts)
+      mPOOrPOs  = unfoldr (unfoldMPOOrPOs compareOp) (Left start,manyMIOrIssDiffs)
+      ves       = catMaybes $ unfoldr unfoldVEs (mPOOrPOs,manyDurOrDurTups,manyAccts)
   if 0 == showVType
   then pure ves 
   else pure $ appendAnnFirstNote "xpose" ves
   where
-    unfoldMPrOrPrss cmp (Left prev,Just (Left step):mIOrIss)
+    -- Be careful:  mIOrIss is infinite list.
+    unfoldMPOOrPOs cmp (Left prev,Just (Left step):mIOrIss)
       | swap next `cmp` swap stop = Nothing
       | otherwise = Just (Just (Left next),(Left next,mIOrIss))
       where
         next = xp scale prev step
-    unfoldMPrOrPrss cmp (Left prev,Just (Right steps):mIOrIss)
+    unfoldMPOOrPOs cmp (Left prev,Just (Right steps):mIOrIss)
       | swap (head nexts) `cmp` swap stop = Nothing
       | otherwise = Just (Just (Right nexts),(Right nexts,mIOrIss))
       where
         nexts = xp scale prev <$> steps
-    unfoldMPrOrPrss cmp (Right prevs,Just (Left step):mIOrIss)
+    unfoldMPOOrPOs cmp (Right prevs,Just (Left step):mIOrIss)
       | swap next `cmp` swap stop = Nothing
       | otherwise = Just (Just (Left next),(Left next,mIOrIss))
       where
         next = xp scale (head prevs) step
-    unfoldMPrOrPrss cmp (Right prevs,Just (Right steps):mIOrIss)
+    unfoldMPOOrPOs cmp (Right prevs,Just (Right steps):mIOrIss)
       | swap (head nexts) `cmp` swap stop = Nothing
       | otherwise = Just (Just (Right nexts),(Right nexts,mIOrIss))
       where
         nexts = xp scale (head prevs) <$> steps
-    unfoldMPrOrPrss _ (prev,Nothing:mIOrIss) = Just (Nothing,(prev,mIOrIss))
-    unfoldMPrOrPrss _ (prev,mIOrIss) = error $ "invalid list of steps, (" <> show prev <> "," <> show (take 10 mIOrIss) <> ")"
+    unfoldMPOOrPOs _ (prev,Nothing:mIOrIss) = Just (Nothing,(prev,mIOrIss))
+    unfoldMPOOrPOs _ (prev,mIOrIss) = error $ "invalid list of steps, (" <> show prev <> "," <> show (take 10 mIOrIss) <> ")"
+
+mPrOrPrss2MIOrIsDiffs:: Scale -> [Maybe PitOctOrPitOcts] -> [Maybe (Either Int [Int])]
+mPrOrPrss2MIOrIsDiffs scale =
+  mIOrIs2MIOrIsDiffs . mPrOrPrss2MIOrIss . map (fmap (orderChords . bimap po2pi (fmap po2pi)))
+  where
+    po2pi = second octave2Int
+    octaveInts = [-4,-3,-2,-1,0,1,2,3]
+    octave2Int oct = maybe (error $ "octave2Int unrecognized octave: " <> show oct) (octaveInts !!) $ elemIndex oct [TwentyNineVBOct .. TwentyTwoVAOct]
+    orderChords = second (sortBy (compare `on` swap))
+    mPrOrPrss2MIOrIss = map (fmap (bimap (pitchInt2ScaleDegree scale) (fmap (pitchInt2ScaleDegree scale))))
+    mIOrIs2MIOrIsDiffs = snd . mapAccumL accumDiff 0
+      where
+        accumDiff prev  Nothing          = (prev,Nothing)
+        accumDiff prev (Just (Left i))   = (i,Just (Left (i - prev)))
+        accumDiff prev (Just (Right is)) = (minimum is,Just (Right (flip (-) prev <$> is)))
+
+-- Be careful:  list of [DurOrDurTuplet] and [Accent] are infinite.
+unfoldVEs :: ([Maybe PitOctOrPitOcts],[DurOrDurTuplet],[Accent]) -> Maybe (Maybe VoiceEvent,([Maybe PitOctOrPitOcts],[DurOrDurTuplet],[Accent]))
+unfoldVEs (mPOOrPOs:mPOOrPOss,Left dur:durOrDurTups,accent:accents) =
+  Just (Just $ mkNoteChordOrRest mPOOrPOs dur accent,(mPOOrPOss,durOrDurTups,accents))
+unfoldVEs (mPOOrPOss,Right durTup:durOrDurTups,accents)
+ | length mPOOrPOss < length (_durtupDurations durTup) =  Nothing
+ | otherwise = Just (mVeTup,(mPOOrPOss',durOrDurTups,accents'))
+  where
+    (mVeTup,mPOOrPOss',accents') = mkMaybeVeTuplet mPOOrPOss durTup accents
+unfoldVEs (_,_,_) = Nothing
 
 -- A cell is a vertical slice through the same subset of duration, accent, and pitch/octave lists from the configuration.
 -- Reduce complexity by always tupling the same group of three configuration values together, but randomly from list of list.
@@ -299,13 +325,13 @@ genXPose path durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
 -- 6) Unfold tuple of lists of pithes, durations, and accents to [VoiceEvent], stop when list of durations is empty
 genCell :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Driver [VoiceEvent]
 genCell path durss acctss mPOOrPOss maxDurVal = do
-    manyIs <- randomIndices (length durss)
-    let (eqLenDurss,eqLenAcctss,eqLenmPOOrPOss) = mkEqualLengthSubLists (durss,acctss,mPOOrPOss)
-        (manyDurs,manyAccts,manymPOOrPOss) = ((eqLenDurss !!) <$> manyIs,(eqLenAcctss !!) <$> manyIs,(eqLenmPOOrPOss !!) <$> manyIs)
-        allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,concat manyDurs)
-        ves             = unfoldr unfoldVEs (concat manymPOOrPOss,allDurOrDurTups,concat manyAccts)
-    showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
-    pure $ if 0 == showVType then ves else appendAnnFirstNote "cell" ves
+  manyIs <- randomIndices (length durss)
+  let (eqLenDurss,eqLenAcctss,eqLenmPOOrPOss) = mkEqualLengthSubLists (durss,acctss,mPOOrPOss)
+      (manyDurs,manyAccts,manymPOOrPOss) = ((eqLenDurss !!) <$> manyIs,(eqLenAcctss !!) <$> manyIs,(eqLenmPOOrPOss !!) <$> manyIs)
+      allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,concat manyDurs)
+      ves             = catMaybes . snd $ mapAccumL accumDurOrDurTupToMVEs (concat manymPOOrPOss,concat manyAccts) allDurOrDurTups
+  showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
+  pure $ if 0 == showVType then ves else appendAnnFirstNote "cell" ves
 
 mkEqualLengthSubLists :: ([[a]],[[b]],[[c]]) -> ([[a]],[[b]],[[c]])
 mkEqualLengthSubLists (as:ass,bs:bss,cs:css) = (as':ass',bs':bss',cs':css')
@@ -331,7 +357,7 @@ freezeLists :: [[a]] -> Driver [[a]]
 freezeLists xss = randomizeList xss <&> (:[]) . concat
 
 genVerbatim :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Driver [VoiceEvent]
-genVerbatim path durss acctss mPOOrPOss maxDurVal = 
+genVerbatim path durss acctss mPOOrPOss maxDurVal = do
   genCanon path durss' acctss' mPOOrPOss' maxDurVal 0 <&> replaceAnnFirstNote "verbatim"
   where
     durss'     = [concat durss]
@@ -345,43 +371,26 @@ genCanon path durOrDurTupss acctss mPOOrPOss maxDurVal rotVal = do
   manyDurOrDurTups <- randomElements durOrDurTupss  <&> concat
   manyAccts        <- randomElements acctss <&> concat
   let allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,manyDurOrDurTups)
-      ves             = unfoldr unfoldVEs (manymPOOrPOss,allDurOrDurTups,manyAccts)
+      ves             = catMaybes . snd $ mapAccumL accumDurOrDurTupToMVEs (manymPOOrPOss,manyAccts) allDurOrDurTups
   if 0 == showVType
-  then pure ves 
+  then pure ves
   else pure $ appendAnnFirstNote "canon" ves
 
-mPrOrPrss2MIOrIsDiffs :: Scale -> [Maybe PitOctOrPitOcts] -> [Maybe (Either Int [Int])]
-mPrOrPrss2MIOrIsDiffs scale =
-  mIOrIs2MIOrIsDiffs . mPrOrPrss2MIOrIss . map (fmap (orderChords . bimap po2pi (fmap po2pi)))
+accumDurOrDurTupToMVEs :: ([Maybe PitOctOrPitOcts],[Accent]) -> DurOrDurTuplet -> (([Maybe PitOctOrPitOcts],[Accent]),Maybe VoiceEvent)
+accumDurOrDurTupToMVEs (mPitOrPitOct:mPitOrPitOcts,accent:accents) (Left dur) =
+  ((mPitOrPitOcts,accents),Just $ mkNoteChordOrRest mPitOrPitOct dur accent)
+accumDurOrDurTupToMVEs (mPitOrPitOcts,accents) (Right durTup) =
+  ((mPitOrPitOcts',accents'),mVeTup)
   where
-    po2pi = second octave2Int
-    octaveInts = [-4,-3,-2,-1,0,1,2,3]
-    octave2Int oct = maybe (error $ "octave2Int unrecognized octave: " <> show oct) (octaveInts !!) $ elemIndex oct [TwentyNineVBOct .. TwentyTwoVAOct]
-    orderChords = second (sortBy (compare `on` swap))
-    mPrOrPrss2MIOrIss = map (fmap (bimap (pitchInt2ScaleDegree scale) (fmap (pitchInt2ScaleDegree scale))))
-    mIOrIs2MIOrIsDiffs = snd . mapAccumL accumDiff 0
-      where
-        accumDiff prev  Nothing          = (prev,Nothing)
-        accumDiff prev (Just (Left i))   = (i,Just (Left (i - prev)))
-        accumDiff prev (Just (Right is)) = (minimum is,Just (Right (flip (-) prev <$> is)))
-        
-type UnfoldVETup = ([Maybe PitOctOrPitOcts],[DurOrDurTuplet],[Accent])
-
--- Check enough mPrOrOrPrss to fill all _durtupDurations to make sure to always generate full tuplet
-unfoldVEs :: UnfoldVETup -> Maybe (VoiceEvent,UnfoldVETup)
-unfoldVEs (mPOOrPOs:mPOOrPOss,Left dur:durOrDurTups,accent:accents) = Just (mkNoteChordOrRest mPOOrPOs dur accent,(mPOOrPOss,durOrDurTups,accents))
-unfoldVEs (mPOOrPOss,Right durTup:durOrDurTups,accents)
- | length mPOOrPOss < NE.length (_durtupDurations durTup) = Nothing
- | otherwise = Just (veTup,(mPOOrPOss',durOrDurTups,accents'))
-  where
-    (veTup,mPOOrPOss',accents') = mkVeTuplet mPOOrPOss durTup accents
-unfoldVEs (_,_,_) = Nothing
+    (mVeTup,mPitOrPitOcts',accents') = mkMaybeVeTuplet mPitOrPitOcts durTup accents
+accumDurOrDurTupToMVEs (mPitOrPitOcts,accents) durTup = error $ "accumDurOrDurTupToMVEs unexpected vals: " <> show mPitOrPitOcts <> ", " <> show accents <> ", " <> show durTup
 
 mkNoteChordOrRest :: Maybe PitOctOrPitOcts -> DurationVal -> Accent -> VoiceEvent
 mkNoteChordOrRest (Just (Left (p,o))) d a = VeNote (Note p o d [] [CtrlAccent a] False)
 mkNoteChordOrRest (Just (Right pos))  d a = VeChord (Chord (NE.fromList pos) d [] [CtrlAccent a] False)
 mkNoteChordOrRest Nothing             d _ = VeRest (Rest d NoDynamic "")
 
+-- Be careful:  length of [DurOrDurTuplet] is infinite.
 unfoldDurOrDurTups :: Int -> (Int, [DurOrDurTuplet]) -> Maybe (DurOrDurTuplet, (Int, [DurOrDurTuplet]))
 unfoldDurOrDurTups maxDurVal (totDurVal,Left dur:durOrDurTups)
   | totDurVal > maxDurVal = error $ "unfoldDurs totDurVal: " <> show totDurVal <> " exceeds max: " <> show maxDurVal
@@ -390,7 +399,7 @@ unfoldDurOrDurTups maxDurVal (totDurVal,Left dur:durOrDurTups)
     where
       nextDurVal = fromVal dur
       adjNextDurVal = if totDurVal + nextDurVal <= maxDurVal then nextDurVal else nextDurVal - ((totDurVal + nextDurVal) - maxDurVal)
-      adjNextDur = Left $ DurationVal adjNextDurVal
+      adjNextDur = Left $ mkDurationVal adjNextDurVal
 unfoldDurOrDurTups maxDurVal (totDurVal,Right durTup:durOrDurTups)
   | totDurVal > maxDurVal = error $ "unfoldDurs totDurVal: " <> show totDurVal <> " exceeds max: " <> show maxDurVal
   | totDurVal == maxDurVal = Nothing
@@ -398,7 +407,7 @@ unfoldDurOrDurTups maxDurVal (totDurVal,Right durTup:durOrDurTups)
     where
       nextDurVal = dur2DurVal (durTup2Dur durTup)
       adjNextDurVal = if totDurVal + nextDurVal <= maxDurVal then nextDurVal else nextDurVal - ((totDurVal + nextDurVal) - maxDurVal)
-      adjNextDur = if adjNextDurVal == nextDurVal then Right durTup else Left $ DurationVal adjNextDurVal
+      adjNextDur = if adjNextDurVal == nextDurVal then Right durTup else Left $ mkDurationVal adjNextDurVal
       durTup2Dur DurTuplet{..} = durVal2Dur "3" (getDurSum (sumDurs (replicate _durtupDenominator _durtupUnitDuration)))
 unfoldDurOrDurTups _ (_,[]) = error "unfoldDurOrDurTups unexpected empty list of [DurOrDurTuplet]"
 
@@ -444,18 +453,23 @@ pitchInt2ScaleDegree Scale{..} (pitch,octOff) =
     pitches = NE.toList _scPitches
     err = error $ "mPitch2ScaleDegree no pitch: " <> show pitch <> " in pitches for scale: " <> show pitches
 
-mkVeTuplet :: [Maybe PitOctOrPitOcts] -> DurTuplet -> [Accent] -> (VoiceEvent,[Maybe PitOctOrPitOcts],[Accent])
-mkVeTuplet mPOrPrss DurTuplet{..} accents = (verifyVeTuplet veTup,drop cntDurs mPOrPrss,drop cntDurs accents)
+-- Be careful, [Maybe PitOctOrPitOcts] and/or [Accent] maybe be infinite lengths.
+mkMaybeVeTuplet :: [Maybe PitOctOrPitOcts] -> DurTuplet -> [Accent] -> (Maybe VoiceEvent,[Maybe PitOctOrPitOcts],[Accent])
+mkMaybeVeTuplet mPOOrPOs DurTuplet{..} accents
+  | cntDurs > length accents' || cntDurs > length mPOOrPOs' = (Nothing,mPOOrPOs,accents) -- not enough left, maybe retry with next DurOrDurTuplet?
+  | otherwise = (verifyVeTuplet veTup,drop cntDurs mPOOrPOs,drop cntDurs accents)
   where
-    ves = zipWith3 mkNoteChordOrRest mPOrPrss' (NE.toList _durtupDurations) accents'
-    veTup = VeTuplet (Tuplet _durtupNumerator _durtupDenominator _durtupUnitDuration (NE.fromList ves))
-    mPOrPrss' = take cntDurs mPOrPrss
-    accents' = take cntDurs accents
-    cntDurs = length _durtupDurations
+    ves         = zipWith3 mkNoteChordOrRest mPOOrPOs' (NE.toList _durtupDurations) accents'
+    veTup       = VeTuplet (Tuplet _durtupNumerator _durtupDenominator _durtupUnitDuration (NE.fromList ves))
+    cntDurs     = length _durtupDurations
+    mPOOrPOs'   = take cntDurs mPOOrPOs
+    accents'    = take cntDurs accents
 
-verifyVeTuplet :: VoiceEvent -> VoiceEvent
-verifyVeTuplet (VeTuplet tuplet) = if tup2CntTups tuplet /= 0 then VeTuplet tuplet else error "verifyVeTuplet shouldn't get here"
-verifyVeTuplet ve = ve
+verifyVeTuplet :: VoiceEvent -> Maybe VoiceEvent
+verifyVeTuplet (VeTuplet tuplet)
+  | 0 == tup2CntTups tuplet = Nothing
+  | otherwise = Just (VeTuplet tuplet)
+verifyVeTuplet ve = Just ve
 
 voiceConfig2VoiceEvents :: String -> VoiceConfig -> Driver [VoiceEvent]
 voiceConfig2VoiceEvents path VoiceConfigXPose{..} =
@@ -470,7 +484,7 @@ voiceConfig2VoiceEvents path VoiceConfigCanon{..} =
   genCanon path (nes2arrs _vccDurss) (nes2arrs _vccAcctss) (ness2Marrss _vccmPOOrPOss ) _vccDurVal _vccRotVal
 
 ves2VeRests :: [VoiceEvent] -> [VoiceEvent]
-ves2VeRests ves = [VeRest (Rest (DurationVal (ves2DurVal ves)) NoDynamic [])]
+ves2VeRests ves = [VeRest (Rest (mkDurationVal (ves2DurVal ves)) NoDynamic [])]
 
 applyMConfigMods :: Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig, VoiceConfig) -> Driver (VoiceRuntimeConfig,VoiceConfig)
 applyMConfigMods mNames pr = applyMMods mNames pr (applyMod name2VoiceConfigMods) <&> (fst pr,)
@@ -646,12 +660,22 @@ tup2VoiceConfig (VoiceConfigCell instr keySig timSig _ _ _ durVal) (mPitOrPits,d
 tup2VoiceConfig (VoiceConfigCanon instr keySig timSig _ _ _ durVal rotVal) (mPitOrPits,durss,accents) =
   VoiceConfigCanon instr keySig timSig mPitOrPits durss accents durVal rotVal
 
+-- unfold instead of map because we don't just map over is, but rather use it to track progress of 
+-- replacing config A slices with config B slices.
+--   $ incrBlendedIndices [0,0,0,0]
+--   [1,0,0,0]
+--   $ incrBlendedIndices (incrBlendedIndices [0,0,0,0])
+--   [2,1,0,0]
+--   $ incrBlendedIndices (incrBlendedIndices (incrBlendedIndices [0,0,0,0]))
+--   [3,2,1,0]
+--   $ incrBlendedIndices (incrBlendedIndices (incrBlendedIndices (incrBlendedIndices [0,0,0,0])))
+--   [4,3,2,1]
+-- the end of the unfold is when the last element in the list reaches the count of config slices
 unfoldToSlicesRow :: Int -> [([Slice],[Slice])] -> [Int] -> Maybe ([[Slice]],[Int])
 unfoldToSlicesRow nReps slicePrs is
   | last is == 1 + cntCfgASlices = Nothing
   | otherwise = Just (slicesCol,is')
     where
-      -- TBD: something is wrong with this end-of-iteration logic
       cntCfgASlices = length . fst . head $ slicePrs
       slicesCol = blendSlices nReps <$> zip is slicePrs
       is' = incrBlendedIndices is

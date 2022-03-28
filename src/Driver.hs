@@ -35,6 +35,7 @@ import Data.HashMap.Strict (keys)
 import Data.List (intercalate, sort)
 import Data.List.Split (splitOn)
 import Data.Text (pack,unpack)
+import System.IO (hFlush,stdout)
 import System.Random.Shuffle (shuffleM)
 
 import Config (FromConfig(..))
@@ -86,7 +87,7 @@ runDriver (Free (DoActionThen act k)) =
 runDriver (Free (DoAction act k)) =
   case act of
     WriteScore fileName (Score t _ vs) -> asks _seed >>= (\s -> liftIO (writeFile fileName (toLily (Score t (showSeed s) vs))) *> runDriver k)
-    PrintLily l -> liftIO (putStrLn (toLily l)) *> runDriver k
+    PrintLily l -> liftIO (putStrLn (toLily l) >> hFlush stdout) *> runDriver k
     Print t -> liftIO (putStrLn t) *> runDriver k
 runDriver (Pure k) = pure k
 
