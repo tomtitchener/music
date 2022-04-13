@@ -9,8 +9,6 @@ import Data.List hiding (transpose)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
 import Data.Maybe
-import qualified Data.Set as S (fromList)
-import Data.Tuple
 import Data.Tuple.Extra hiding (second)
 
 import Types
@@ -58,18 +56,6 @@ zDurSum = 0
 
 sumDurs :: [Duration] -> DurationSum
 sumDurs = Data.List.foldr addDur zDurSum
-
---composedDur :: Int -> DurationVal -> DurationVal
---composedDur n dv = DurationVal n * dv
-
--- composedDur :: Int -> Duration -> Duration
--- composedDur reps dur =
---   durVal2Duration M.! durVal
---   where
---     denom :: Int
---     denom  = truncate (fromIntegral (128::Int) / fromIntegral (dur2DurVal dur)::Double)
---     durVal :: Int
---     durVal = truncate (128 * (fromIntegral reps / fromIntegral denom)::Double)
 
 multDur :: Int -> Duration -> Duration
 multDur i d
@@ -234,9 +220,40 @@ verifyDurTuplet durTup
   | 0 == durTup2CntTups durTup = error $ "invalid DurTuplet" <> show durTup
   | otherwise = durTup
 
+-- partial if Pitch from (Pitch,Octave) is not element of Scale
+xp :: Scale -> (Pitch,Octave) -> Int -> (Pitch,Octave)
+xp (Scale scale) (p,o) off = (p',o')
+  where
+    cntSteps = length scale
+    normScale = NE.sort scale -- To [C..B] or closest enharmonic to compute new octave
+    pitInt = fromMaybe (error $ "pitch " <> show p <> " not in scale " <> show scale) $ elemIndex p (NE.toList normScale)
+    cntOcts = (pitInt + off) `div` cntSteps
+    o' = if off < 0 then fpow (abs cntOcts) decrOct o; else fpow cntOcts incrOct o
+    pitIdx = (pitInt + off) `rem` cntSteps
+    p' = if pitIdx < 0 then normScale NE.!! (cntSteps + pitIdx); else normScale NE.!! pitIdx
+
+-- https://stackoverflow.com/questions/7423123/how-to-call-the-same-function-n-times
+fpow :: Int -> (a -> a) -> a -> a
+fpow n f x = iterate f x !! n
+
 -- Why doesn't NonEmpty expose this?
 singleton :: a -> NE.NonEmpty a
 singleton a = a NE.:| []
+
+nes2arrs :: NE.NonEmpty (NE.NonEmpty a) -> [[a]]
+nes2arrs = map NE.toList . NE.toList
+
+arrs2nes :: [[a]] -> NE.NonEmpty (NE.NonEmpty a)
+arrs2nes = NE.fromList . map NE.fromList 
+
+ness2Marrss :: forall a . NE.NonEmpty (NE.NonEmpty (Maybe (Either a (NE.NonEmpty a)))) -> [[Maybe (Either a [a])]]
+ness2Marrss = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
+
+{--
+
+Deprecated: no longer in use
+
+import Data.Tuple
 
 transpose :: Scale -> (Pitch,Octave) -> [Int] -> [(Pitch,Octave)]
 transpose scale pr = map (xp scale pr) . scanl1 (+)
@@ -278,21 +295,24 @@ seqMTranspose scale mIntList (start,stop)
         start' = swap start
         stop'  = swap stop
 
--- partial if Pitch from (Pitch,Octave) is not element of Scale
-xp :: Scale -> (Pitch,Octave) -> Int -> (Pitch,Octave)
-xp (Scale scale) (p,o) off = (p',o')
-  where
-    cntSteps = length scale
-    normScale = NE.sort scale -- To [C..B] or closest enharmonic to compute new octave
-    pitInt = fromMaybe (error $ "pitch " <> show p <> " not in scale " <> show scale) $ elemIndex p (NE.toList normScale)
-    cntOcts = (pitInt + off) `div` cntSteps
-    o' = if off < 0 then fpow (abs cntOcts) decrOct o; else fpow cntOcts incrOct o
-    pitIdx = (pitInt + off) `rem` cntSteps
-    p' = if pitIdx < 0 then normScale NE.!! (cntSteps + pitIdx); else normScale NE.!! pitIdx
+-- Cloned from https://hackage.haskell.org/package/base-4.14.1.0/docs/src/Data.List.NonEmpty.html#zipWith
+neZipWith3 :: (a1 -> a2 -> a3 -> a4) -> NE.NonEmpty a1 -> NE.NonEmpty a2 -> NE.NonEmpty a3 -> NE.NonEmpty a4
+neZipWith3 f ~(x1 NE.:| x1s) ~(x2 NE.:| x2s) ~(x3 NE.:| x3s) = f x1 x2 x3 NE.:| zipWith3 f x1s x2s x3s
 
--- https://stackoverflow.com/questions/7423123/how-to-call-the-same-function-n-times
-fpow :: Int -> (a -> a) -> a -> a
-fpow n f x = iterate f x !! n
+neZipWith4 :: (a1 -> a2 -> a3 -> a4 -> a5) -> NE.NonEmpty a1 -> NE.NonEmpty a2 -> NE.NonEmpty a3 -> NE.NonEmpty a4 -> NE.NonEmpty a5
+neZipWith4 f ~(x1 NE.:| x1s) ~(x2 NE.:| x2s) ~(x3 NE.:| x3s) ~(x4 NE.:| x4s) = f x1 x2 x3 x4 NE.:| zipWith4 f x1s x2s x3s x4s
+
+neZipWith5 :: (a1 -> a2 -> a3 -> a4 ->a5 -> a6) -> NE.NonEmpty a1 -> NE.NonEmpty a2 -> NE.NonEmpty a3 -> NE.NonEmpty a4 -> NE.NonEmpty a5 -> NE.NonEmpty a6
+neZipWith5 f ~(x1 NE.:| x1s) ~(x2 NE.:| x2s) ~(x3 NE.:| x3s) ~(x4 NE.:| x4s) ~(x5 NE.:| x5s) = f x1 x2 x3 x4 x5 NE.:| zipWith5 f x1s x2s x3s x4s x5s
+
+neZipWith6 :: (a1 -> a2 -> a3 -> a4 ->a5 -> a6 -> a7) -> NE.NonEmpty a1 -> NE.NonEmpty a2 -> NE.NonEmpty a3 -> NE.NonEmpty a4 -> NE.NonEmpty a5 -> NE.NonEmpty a6 -> NE.NonEmpty a7
+neZipWith6 f ~(x1 NE.:| x1s) ~(x2 NE.:| x2s) ~(x3 NE.:| x3s) ~(x4 NE.:| x4s) ~(x5 NE.:| x5s) ~(x6 NE.:| x6s) = f x1 x2 x3 x4 x5 x6 NE.:| zipWith6 f x1s x2s x3s x4s x5s x6s
+
+neZipWith7 :: (a1 -> a2 -> a3 -> a4 -> a5 -> a6 -> a7 -> a8)
+           -> NE.NonEmpty a1 -> NE.NonEmpty a2 -> NE.NonEmpty a3 -> NE.NonEmpty a4 -> NE.NonEmpty a5 -> NE.NonEmpty a6 -> NE.NonEmpty a7
+           -> NE.NonEmpty a8
+neZipWith7 f ~(x1 NE.:| x1s) ~(x2 NE.:| x2s) ~(x3 NE.:| x3s) ~(x4 NE.:| x4s) ~(x5 NE.:| x5s)  ~(x6 NE.:| x6s) ~(x7 NE.:| x7s) =
+  f x1 x2 x3 x4 x5 x6 x7 NE.:| zipWith7 f x1s x2s x3s x4s x5s x6s x7s
 
 -- partial, panic on empty list
 -- rotate a list forward by 1 step
@@ -314,33 +334,13 @@ rotNRev :: Int -> [[a]] -> [[a]]
 rotNRev _ [] = error "rotRevN empty list"
 rotNRev i xs = iterate rotRev xs !! i
 
-nes2arrs :: NE.NonEmpty (NE.NonEmpty a) -> [[a]]
-nes2arrs = map NE.toList . NE.toList
+--}
 
-arrs2nes :: [[a]] -> NE.NonEmpty (NE.NonEmpty a)
-arrs2nes = NE.fromList . map NE.fromList 
+{--
 
-ness2Marrss :: forall a . NE.NonEmpty (NE.NonEmpty (Maybe (Either a (NE.NonEmpty a)))) -> [[Maybe (Either a [a])]]
-ness2Marrss = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
+Deprecated:  move to split voice staff using Lilypond to allocate pitches between treble and bass.
 
--- Cloned from https://hackage.haskell.org/package/base-4.14.1.0/docs/src/Data.List.NonEmpty.html#zipWith
-neZipWith3 :: (a1 -> a2 -> a3 -> a4) -> NE.NonEmpty a1 -> NE.NonEmpty a2 -> NE.NonEmpty a3 -> NE.NonEmpty a4
-neZipWith3 f ~(x1 NE.:| x1s) ~(x2 NE.:| x2s) ~(x3 NE.:| x3s) = f x1 x2 x3 NE.:| zipWith3 f x1s x2s x3s
-
-neZipWith4 :: (a1 -> a2 -> a3 -> a4 -> a5) -> NE.NonEmpty a1 -> NE.NonEmpty a2 -> NE.NonEmpty a3 -> NE.NonEmpty a4 -> NE.NonEmpty a5
-neZipWith4 f ~(x1 NE.:| x1s) ~(x2 NE.:| x2s) ~(x3 NE.:| x3s) ~(x4 NE.:| x4s) = f x1 x2 x3 x4 NE.:| zipWith4 f x1s x2s x3s x4s
-
-neZipWith5 :: (a1 -> a2 -> a3 -> a4 ->a5 -> a6) -> NE.NonEmpty a1 -> NE.NonEmpty a2 -> NE.NonEmpty a3 -> NE.NonEmpty a4 -> NE.NonEmpty a5 -> NE.NonEmpty a6
-neZipWith5 f ~(x1 NE.:| x1s) ~(x2 NE.:| x2s) ~(x3 NE.:| x3s) ~(x4 NE.:| x4s) ~(x5 NE.:| x5s) = f x1 x2 x3 x4 x5 NE.:| zipWith5 f x1s x2s x3s x4s x5s
-
-neZipWith6 :: (a1 -> a2 -> a3 -> a4 ->a5 -> a6 -> a7) -> NE.NonEmpty a1 -> NE.NonEmpty a2 -> NE.NonEmpty a3 -> NE.NonEmpty a4 -> NE.NonEmpty a5 -> NE.NonEmpty a6 -> NE.NonEmpty a7
-neZipWith6 f ~(x1 NE.:| x1s) ~(x2 NE.:| x2s) ~(x3 NE.:| x3s) ~(x4 NE.:| x4s) ~(x5 NE.:| x5s) ~(x6 NE.:| x6s) = f x1 x2 x3 x4 x5 x6 NE.:| zipWith6 f x1s x2s x3s x4s x5s x6s
-
-neZipWith7 :: (a1 -> a2 -> a3 -> a4 -> a5 -> a6 -> a7 -> a8)
-           -> NE.NonEmpty a1 -> NE.NonEmpty a2 -> NE.NonEmpty a3 -> NE.NonEmpty a4 -> NE.NonEmpty a5 -> NE.NonEmpty a6 -> NE.NonEmpty a7
-           -> NE.NonEmpty a8
-neZipWith7 f ~(x1 NE.:| x1s) ~(x2 NE.:| x2s) ~(x3 NE.:| x3s) ~(x4 NE.:| x4s) ~(x5 NE.:| x5s)  ~(x6 NE.:| x6s) ~(x7 NE.:| x7s) =
-  f x1 x2 x3 x4 x5 x6 x7 NE.:| zipWith7 f x1s x2s x3s x4s x5s x6s x7s
+import qualified Data.Set as S (fromList)
 
 enharmonicPitches :: [[Pitch]]
 enharmonicPitches = [[Bs,C,Dff],[Bss,Cs,Df],[Css,D,Eff],[Ds,Ef,Fff],[Dss,E,Ff],[Es,F,Gff],[Ess,Fs,Gf],[Fss,G,Aff],[Gs,Af],[Gss,A,Bff],[As,Bf,Cff],[Ass,B,Cf]]
@@ -455,3 +455,4 @@ chunkByPairCounts counts items = chunk counts items []
       | x + y <= length as = chunk ns (drop (x + y) as) (ret <> [(take x as,take y (drop x as))])
       | x     <= length as = ret <> [splitAt x as]
       | otherwise          = ret <> [(as,[])]
+--}

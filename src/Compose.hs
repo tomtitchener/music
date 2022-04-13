@@ -33,7 +33,7 @@ import Driver
        (Driver, randomElements, randomizeList, randomIndices, randomWeightedElement, searchConfigParam, searchMConfigParam)
 import Lily (accent2Name)
 import Types
-import Utils hiding (transpose)
+import Utils
 
 type PitOctOrPitOcts = Either (Pitch,Octave) [(Pitch,Octave)]
 
