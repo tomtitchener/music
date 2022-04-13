@@ -307,9 +307,8 @@ mPrOrPrss2MIOrIsDiffs scale =
 unfoldVEs :: ([Maybe PitOctOrPitOcts],[DurOrDurTuplet],[Accent]) -> Maybe (Maybe VoiceEvent,([Maybe PitOctOrPitOcts],[DurOrDurTuplet],[Accent]))
 unfoldVEs (mPOOrPOs:mPOOrPOss,Left dur:durOrDurTups,accent:accents) =
   Just (Just $ mkNoteChordOrRest mPOOrPOs dur accent,(mPOOrPOss,durOrDurTups,accents))
-unfoldVEs (mPOOrPOss,Right durTup:durOrDurTups,accents)
- | length mPOOrPOss < length (_durtupDurations durTup) =  Nothing
- | otherwise = Just (mVeTup,(mPOOrPOss',durOrDurTups,accents'))
+unfoldVEs (mPOOrPOss,Right durTup:durOrDurTups,accents) =
+  Just (mVeTup,(mPOOrPOss',durOrDurTups,accents'))
   where
     (mVeTup,mPOOrPOss',accents') = mkMaybeVeTuplet mPOOrPOss durTup accents
 unfoldVEs (_,_,_) = Nothing
@@ -592,8 +591,8 @@ sectionConfig2VoiceEvents (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfi
             rtTup  = VoiceRuntimeConfig scnPath mIdx cntVocs idx cntSegs numSeg
             cfgTup = voiceConfigs NE.!! idx
 -- Blend between two [VoiceConfig] by grouping pitches, durations into equal-length [Slice], then substituting slice-by-slice
--- from second [VoiceConfig] into first [VoiceConfig], starting with all voices from first [VoiceConfig] ending with all voices 
--- from second [VoiceConfig].
+-- from second [VoiceConfig] into first [VoiceConfig], starting with one voice from first [VoiceConfig] ending with all voices 
+-- but one from second [VoiceConfig].
 -- All VoiceConfig must be sliceable, meaning outer lists in list of list of pitches, durations, and accents have to be the 
 -- same length.
 -- As the actual selection of which inner list in the list of list of pitches, durations, and accents gets rendered is
@@ -604,7 +603,7 @@ sectionConfig2VoiceEvents (SectionConfigFadeAcross scnPath nReps mSctnName mConf
     cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
     cntVocs         = length voiceConfigPrs
     slicePrs        = both voiceConfig2Slice <$> NE.toList voiceConfigPrs
-    blendedSlices   = transpose $ unfoldr (unfoldToSlicesRow nReps slicePrs) (replicate cntVocs 0)
+    blendedSlices   = transpose $ unfoldr (unfoldToSlicesRow nReps slicePrs) (1:replicate (cntVocs - 1) 0)
     voiceConfigs    = NE.toList (fst <$> voiceConfigPrs)
     voiceConfigss   = cfgSlicessPr2Configs <$> zip voiceConfigs blendedSlices
     cntSegs         = length (head voiceConfigss)
@@ -673,7 +672,7 @@ tup2VoiceConfig (VoiceConfigCanon instr keySig timSig _ _ _ durVal rotVal) (mPit
 -- the end of the unfold is when the last element in the list reaches the count of config slices
 unfoldToSlicesRow :: Int -> [([Slice],[Slice])] -> [Int] -> Maybe ([[Slice]],[Int])
 unfoldToSlicesRow nReps slicePrs is
-  | last is == 1 + cntCfgASlices = Nothing
+  | last is == cntCfgASlices = Nothing
   | otherwise = Just (slicesCol,is')
     where
       cntCfgASlices = length . fst . head $ slicePrs
