@@ -7,12 +7,12 @@ module Main where
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
-import Data.List (zipWith3, zipWith4)
 import qualified Data.List.NonEmpty as NE
+import Data.List.Split (splitOn)
 import qualified Data.Yaml as Y
 import Options.Applicative
-import Prelude (String, error, show)
-import Protolude hiding (option, print, show, to, second)
+import Prelude (String, error, show, head)
+import Protolude hiding (option, print, show, to, second, head)
 import System.Directory (doesFileExist)
 import System.Random
 import System.Random.Internal
@@ -72,20 +72,19 @@ main =  do
 
 cfg2Score :: String -> String -> Driver ()
 cfg2Score path gen = do
-  tempo     <- searchConfigParam  (path <> ".common.tempo")
-  voices <- config2VoiceTuples path <&> pipeline tempo
+  tempo   <- searchConfigParam  (title <> ".common.tempo")
+  timeSig <- searchConfigParam  (title <> ".common.time")
+  keySig  <- searchConfigParam  (title <> ".common.key")
+  instr   <- searchConfigParam  (title <> ".common.instr")
+  voices  <- config2VEss path timeSig <&> pipeline tempo timeSig keySig instr
   writeScore ("./" <> path <> ".ly") $ Score path gen (NE.fromList voices)
   where
-    pipeline :: Tempo -> [(Instrument, KeySignature, TimeSignature, [VoiceEvent])] -> [Voice]
-    pipeline tempo tups = 
-      zipWith alignVoiceEventsDurations timeSigs vess            -- -> [[VoiceEvent]]
-      & zipWith3 (mkVesTotDur (maximum veLens)) veLens timeSigs  -- -> [[VoiceEvent]]
-      & zipWith4 genSplitStaffVoc instrs keySigs timeSigs        -- -> [Voice]
-      & tagTempo tempo                                           -- -> [Voice]
+    title :: String = head (splitOn "." path)
+    pipeline :: Tempo -> TimeSignature -> KeySignature -> Instrument -> [[VoiceEvent]] -> [Voice]
+    pipeline tempo timeSig keySig instr vess = 
+      fmap (alignVoiceEventsDurations timeSig) vess            -- -> [[VoiceEvent]]
+      & zipWith (mkVesTotDur timeSig (maximum veLens)) veLens  -- -> [[VoiceEvent]]
+      & fmap (genSplitStaffVoc instr keySig timeSig)           -- -> [Voice]
+      & tagTempo tempo                                         -- -> [Voice]
       where
-        instrs   = (\(is,_,_,_) -> is) <$> tups
-        keySigs  = (\(_,ks,_,_) -> ks) <$> tups
-        timeSigs = (\(_,_,ts,_) -> ts) <$> tups
-        vess     = (\(_,_,_,vs) -> vs) <$> tups
         veLens   = ves2DurVal <$> vess
-

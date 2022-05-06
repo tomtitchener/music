@@ -58,6 +58,7 @@ executable music
                      , optparse-applicative
                      , protolude
                      , random
+                     , split
                      , splitmix
                      , text
                      , transformers

@@ -70,47 +70,32 @@ data SectionConfig =
 
 data VoiceConfig =
   VoiceConfigXPose {
-                 _vcxInstr       :: Instrument
-                 ,_vcxKey        :: KeySignature
-                 ,_vcxScale      :: Scale
-                 ,_vcxTime       :: TimeSignature
+                 _vcxScale      :: Scale
                  ,_vcxmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                  ,_vcxDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                  ,_vcxAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
                  ,_vcxRange      :: ((Pitch,Octave),(Pitch,Octave))
                  } 
   | VoiceConfigRepeat {
-                    _vcrInstr       :: Instrument
-                    ,_vcrKey        :: KeySignature
-                    ,_vcrTime       :: TimeSignature
-                    ,_vcrmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                    _vcrmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcrDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vcrAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vcrDurVal     :: Int
                  } 
   | VoiceConfigVerbatim {
-                    _vcvInstr       :: Instrument
-                    ,_vcvKey        :: KeySignature
-                    ,_vcvTime       :: TimeSignature
-                    ,_vcvmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                    _vcvmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcvDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vcvAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vcvDurVal     :: Int
                  } 
   | VoiceConfigCell {
-                    _vcclInstr       :: Instrument
-                    ,_vcclKey        :: KeySignature
-                    ,_vcclTime       :: TimeSignature
-                    ,_vcclmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                    _vcclmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcclDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vcclAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vcclDurVal     :: Int
                  } 
   | VoiceConfigCanon {
-                    _vccInstr       :: Instrument
-                    ,_vccKey        :: KeySignature
-                    ,_vccTime       :: TimeSignature
-                    ,_vccmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                    _vccmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vccDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vccAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vccDurVal     :: Int
@@ -134,9 +119,6 @@ data VoiceConfig =
     --
 {--    
   | VoiceConfigSelfSim {
-                    _vcsInstr       :: Instrument
-                    ,_vcsKey        :: KeySignature
-                    ,_vcsTime       :: TimeSignature
                     ,_vcsPitSSs     :: NE.NonEmpty Int
                     ,_vcsmPOOrPOs   :: NE.NonEmpty (Maybe PitOctOrNEPitOcts)
                     ,_vcsDurAcctSSs :: NE.NonEmpty Int
@@ -152,10 +134,7 @@ makeLenses ''VoiceConfig
 path2VoiceConfigXPose :: String -> Driver VoiceConfig
 path2VoiceConfigXPose pre =
       VoiceConfigXPose 
-        <$> searchConfigParam  (pre <> ".instr")
-        <*> searchConfigParam  (pre <> ".key")
-        <*> searchConfigParam  (pre <> ".scale")
-        <*> searchConfigParam  (pre <> ".time")
+        <$> searchConfigParam  (pre <> ".scale")
         <*> searchConfigParam  (pre <> ".mPitOctsss")
         <*> searchConfigParam  (pre <> ".durss")
         <*> searchConfigParam  (pre <> ".accentss")
@@ -164,10 +143,7 @@ path2VoiceConfigXPose pre =
 path2VoiceConfigRepeat :: String -> Driver VoiceConfig
 path2VoiceConfigRepeat pre =
       VoiceConfigRepeat 
-        <$> searchConfigParam  (pre <> ".instr")
-        <*> searchConfigParam  (pre <> ".key")
-        <*> searchConfigParam  (pre <> ".time")
-        <*> searchConfigParam  (pre <> ".mPitOctsss")
+        <$> searchConfigParam  (pre <> ".mPitOctsss")
         <*> searchConfigParam  (pre <> ".durss")
         <*> searchConfigParam  (pre <> ".accentss")
         <*> searchConfigParam  (pre <> ".durval")
@@ -175,10 +151,7 @@ path2VoiceConfigRepeat pre =
 path2VoiceConfigVerbatim :: String -> Driver VoiceConfig
 path2VoiceConfigVerbatim pre =
       VoiceConfigVerbatim 
-        <$> searchConfigParam  (pre <> ".instr")
-        <*> searchConfigParam  (pre <> ".key")
-        <*> searchConfigParam  (pre <> ".time")
-        <*> searchConfigParam  (pre <> ".mPitOctsss")
+        <$> searchConfigParam  (pre <> ".mPitOctsss")
         <*> searchConfigParam  (pre <> ".durss")
         <*> searchConfigParam  (pre <> ".accentss")
         <*> searchConfigParam  (pre <> ".durval")
@@ -186,10 +159,7 @@ path2VoiceConfigVerbatim pre =
 path2VoiceConfigCell' :: String -> Driver VoiceConfig
 path2VoiceConfigCell' pre =
       VoiceConfigCell
-        <$> searchConfigParam  (pre <> ".instr")
-        <*> searchConfigParam  (pre <> ".key")
-        <*> searchConfigParam  (pre <> ".time")
-        <*> searchConfigParam  (pre <> ".mPitOctsss")
+        <$> searchConfigParam  (pre <> ".mPitOctsss")
         <*> searchConfigParam  (pre <> ".durss")
         <*> searchConfigParam  (pre <> ".accentss")
         <*> searchConfigParam  (pre <> ".durval")
@@ -207,10 +177,7 @@ path2VoiceConfigCell pre = path2VoiceConfigCell' pre <&> verifyListsLengths
 path2VoiceConfigCanon :: String -> Driver VoiceConfig
 path2VoiceConfigCanon pre =
       VoiceConfigCanon 
-        <$> searchConfigParam  (pre <> ".instr")
-        <*> searchConfigParam  (pre <> ".key")
-        <*> searchConfigParam  (pre <> ".time")
-        <*> searchConfigParam  (pre <> ".mPitOctsss")
+        <$> searchConfigParam  (pre <> ".mPitOctsss")
         <*> searchConfigParam  (pre <> ".durss")
         <*> searchConfigParam  (pre <> ".accentss")
         <*> searchConfigParam  (pre <> ".durval")

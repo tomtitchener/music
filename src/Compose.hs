@@ -2,7 +2,7 @@
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Compose (config2VoiceTuples
+module Compose (config2VEss
                ,alignVoiceEventsDurations
                ,mkVesTotDur
                ,genSplitStaffVoc
@@ -515,9 +515,9 @@ applyMod m modName pr =
 -- between VoiceConfig A and VoiceConfig B where both are VoiceConfigCell.
 type Slice = ([Maybe PitOctOrNEPitOcts],[DurOrDurTuplet],[Accent])
 
-sectionConfig2VoiceEvents :: SectionConfig -> Driver [[VoiceEvent]]
+sectionConfig2VoiceEvents :: TimeSignature -> SectionConfig -> Driver [[VoiceEvent]]
 -- No section-level manipulation beyond segement repetition, and section and voice event mods from configuration.
-sectionConfig2VoiceEvents (SectionConfigNeutral scnPath cntSegs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
+sectionConfig2VoiceEvents _ (SectionConfigNeutral scnPath cntSegs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
   traverse (traverse (applyMConfigMods mConfigMods)) prss >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
    where
     cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
@@ -532,7 +532,7 @@ sectionConfig2VoiceEvents (SectionConfigNeutral scnPath cntSegs mSctnName mConfi
 -- Not actually homophony, as each segment gets a new frozen config and configs are themselves frozen independently.
 -- Repetition happens only with voice configs with durations that exceed sum of durations in configuration.
 -- TBD: can be reduced to a config mod.  
-sectionConfig2VoiceEvents (SectionConfigHomophony scnPath cntSegs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
+sectionConfig2VoiceEvents _ (SectionConfigHomophony scnPath cntSegs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
   traverse (traverse (applyMConfigMods mConfigMods)) prss >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
   where
     cvtAndApplyMod (rt,cfg) = freezeConfig cfg >>= voiceConfig2VoiceEvents scnPath >>= applyMVoiceEventsMods mVoiceEventsMods . (rt,)
@@ -544,7 +544,7 @@ sectionConfig2VoiceEvents (SectionConfigHomophony scnPath cntSegs mSctnName mCon
 -- Fade in from rests, voice-by-voice, voice event mods fadeinAccs and fadeinDyns background continuing voices: start of a round.
 -- The list of indexes in fadeIxs tells the index for the [VoiceEvent] to add, one-by-one.
 -- Monadically fold over list if indexes with fade-out order from config, generating new [[VoiceEvent]] for all voices.
-sectionConfig2VoiceEvents (SectionConfigFadeIn scnPath fadeIxs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
+sectionConfig2VoiceEvents _ (SectionConfigFadeIn scnPath fadeIxs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
   foldM foldMf ([], idxVEsPrs) fadeIxs <&> addSecnName scnName . map snd . snd
   where
     cntVocs    = length voiceConfigs
@@ -572,15 +572,14 @@ sectionConfig2VoiceEvents (SectionConfigFadeIn scnPath fadeIxs mSctnName mConfig
 -- Monadically fold over list if indexes with fade-out order from config, generating new [[VoiceEvent]] for all unseen voices,
 -- leaving the existing list as it is for all new and seen voices.
 -- Then expand all voices to be equal to the duration of the longest voice.
-sectionConfig2VoiceEvents (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
+sectionConfig2VoiceEvents timeSig (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
   vess <- foldM foldMf ([], idxVEsPrs) fadeIxs <&> addSecnName scnName . map snd . snd
   let veDurs = ves2DurVal <$> vess
-  pure $ zipWith3 (mkVesTotDur (maximum veDurs)) veDurs timeSigs vess
+  pure $ zipWith (mkVesTotDur timeSig (maximum veDurs)) veDurs vess
   where
     cntVocs   = length voiceConfigs
     idxVEsPrs = (,[]) <$> [0..cntVocs - 1]
     scnName   = fromMaybe "fade out" mSctnName
-    timeSigs = NE.toList $ _vccTime <$> voiceConfigs
     foldMf (seenNumVocs,idxVEsPr) numVoc = do
       traverse appendVEs idxVEsPr <&> (numVoc:seenNumVocs,)
       where
@@ -602,7 +601,7 @@ sectionConfig2VoiceEvents (SectionConfigFadeOut scnPath fadeIxs mSctnName mConfi
 -- same length.
 -- As the actual selection of which inner list in the list of list of pitches, durations, and accents gets rendered is
 -- randomized by the VoiceConfig, 
-sectionConfig2VoiceEvents (SectionConfigFadeAcross scnPath nReps mSctnName mConfigMods mVoiceEventsMods voiceConfigPrs) =
+sectionConfig2VoiceEvents _ (SectionConfigFadeAcross scnPath nReps mSctnName mConfigMods mVoiceEventsMods voiceConfigPrs) =
   traverse (traverse (applyMConfigMods mConfigMods)) prss >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
   where
     cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
@@ -653,16 +652,16 @@ slice2Tup :: Slice -> (NE.NonEmpty (Maybe PitOctOrNEPitOcts),NE.NonEmpty DurOrDu
 slice2Tup (mPitOctss,durs,accents) = (NE.fromList mPitOctss,NE.fromList durs,NE.fromList accents)
 
 tup2VoiceConfig :: VoiceConfig -> ConfigTup -> VoiceConfig
-tup2VoiceConfig (VoiceConfigXPose instr keySig scale timSig _ _ _ vcxRange') (mPitOrPits,durss,accents) =
-  VoiceConfigXPose instr keySig scale timSig mPitOrPits durss accents vcxRange'
-tup2VoiceConfig (VoiceConfigRepeat instr keySig timSig _ _ _ durVal) (mPitOrPits,durss,accents) =
-  VoiceConfigRepeat instr keySig timSig mPitOrPits durss accents durVal
-tup2VoiceConfig (VoiceConfigVerbatim instr keySig timSig _ _ _ durVal) (mPitOrPits,durss,accents) =
-  VoiceConfigVerbatim instr keySig timSig mPitOrPits durss accents durVal
-tup2VoiceConfig (VoiceConfigCell instr keySig timSig _ _ _ durVal) (mPitOrPits,durss,accents) =
-  VoiceConfigCell instr keySig timSig mPitOrPits durss accents durVal
-tup2VoiceConfig (VoiceConfigCanon instr keySig timSig _ _ _ durVal rotVal) (mPitOrPits,durss,accents) =
-  VoiceConfigCanon instr keySig timSig mPitOrPits durss accents durVal rotVal
+tup2VoiceConfig (VoiceConfigXPose scale _ _ _ vcxRange') (mPitOrPits,durss,accents) =
+  VoiceConfigXPose scale mPitOrPits durss accents vcxRange'
+tup2VoiceConfig (VoiceConfigRepeat _ _ _ durVal) (mPitOrPits,durss,accents) =
+  VoiceConfigRepeat mPitOrPits durss accents durVal
+tup2VoiceConfig (VoiceConfigVerbatim _ _ _ durVal) (mPitOrPits,durss,accents) =
+  VoiceConfigVerbatim mPitOrPits durss accents durVal
+tup2VoiceConfig (VoiceConfigCell _ _ _ durVal) (mPitOrPits,durss,accents) =
+  VoiceConfigCell mPitOrPits durss accents durVal
+tup2VoiceConfig (VoiceConfigCanon _ _ _ durVal rotVal) (mPitOrPits,durss,accents) =
+  VoiceConfigCanon mPitOrPits durss accents durVal rotVal
 
 -- unfold instead of map because we don't just map over is, but rather use it to track progress of 
 -- replacing config A slices with config B slices.
@@ -704,82 +703,34 @@ genSplitStaffVoc instr keySig timeSig ves
   = SplitStaffVoice instr (VeKeySignature keySig NE.<| VeTimeSignature timeSig NE.<| NE.fromList ves)
 
 --- Generalize title to path from input arg.
-groupCfgs2Tups :: [GroupConfig] -> [(Instrument, KeySignature, TimeSignature)]
-groupCfgs2Tups = fmap (checkTups "groupCfgs2Tups" . groupCfg2Tups)
-
-groupCfg2Tups :: GroupConfig -> [(Instrument, KeySignature, TimeSignature)]
-groupCfg2Tups GroupConfigNeutral{..}  = sectionCfgs2Tups (NE.toList _gcnConfigs)
-groupCfg2Tups GroupConfigEvenEnds{..} = sectionCfgs2Tups (NE.toList _gceConfigs)
-
-sectionCfgs2Tups :: [SectionConfig] -> [(Instrument, KeySignature, TimeSignature)]
-sectionCfgs2Tups = fmap (checkTups "sectionCfgs2Tups" . sectionCfg2Tups)
-
-checkTups :: String -> [(Instrument, KeySignature, TimeSignature)] -> (Instrument, KeySignature, TimeSignature)
-checkTups whence tups
-  | all (== head tups) (tail tups) = head tups
-  | otherwise = error $ whence <> " different config data: " <> show tups
-
-sectionCfg2Tups :: SectionConfig -> [(Instrument, KeySignature, TimeSignature)]
-sectionCfg2Tups SectionConfigNeutral{..}    = voiceCfg2Tup   <$> NE.toList _scnVoices
-sectionCfg2Tups SectionConfigHomophony{..}  = voiceCfg2Tup   <$> NE.toList _schVoices
-sectionCfg2Tups SectionConfigFadeIn{..}     = voiceCfg2Tup   <$> NE.toList _scfiVoices
-sectionCfg2Tups SectionConfigFadeOut{..}    = voiceCfg2Tup   <$> NE.toList _scfoVoices
-sectionCfg2Tups SectionConfigFadeAcross{..} = voiceCfgPr2Tup <$> NE.toList _scfcVoicesAB
-
-voiceCfgPr2Tup :: (VoiceConfig,VoiceConfig) -> (Instrument, KeySignature, TimeSignature)
-voiceCfgPr2Tup = checkPr . both voiceCfg2Tup
-  where
-    checkPr (t1,t2)
-      | t1 == t2 = t1
-      | otherwise = error $ "voiceCfgPr2Tup different vals " <> show t1 <> " vs. " <> show t2
-
-voiceCfg2Tup :: VoiceConfig -> (Instrument, KeySignature, TimeSignature)
-voiceCfg2Tup VoiceConfigXPose{..}    = (_vcxInstr,  _vcxKey,  _vcxTime)
-voiceCfg2Tup VoiceConfigRepeat{..}   = (_vcrInstr,  _vcrKey,  _vcrTime)
-voiceCfg2Tup VoiceConfigVerbatim{..} = (_vcvInstr,  _vcvKey,  _vcvTime)
-voiceCfg2Tup VoiceConfigCell{..}     = (_vcclInstr, _vcclKey, _vcclTime)
-voiceCfg2Tup VoiceConfigCanon{..}    = (_vccInstr,  _vccKey,  _vccTime)
-
-title2VoiceTuples :: String -> Driver [(Instrument, KeySignature, TimeSignature, [VoiceEvent])]
-title2VoiceTuples title = do
+title2VEss :: String -> TimeSignature -> Driver [[VoiceEvent]]
+title2VEss title timeSig = do
   grpNames   <- cfgPath2Keys ("group" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
   grpScnsPrs <- traverse (secondM (cfgPath2Keys ("section" `isPrefixOf`)) . dupe) grpNames
   grpCfgs    <- traverse (uncurry cfg2GroupConfig) (second NE.fromList <$> grpScnsPrs)
-  vesss      <- traverse groupConfig2VoiceEvents grpCfgs <&> concat
-  let vess = concat <$> transpose vesss
-      tups = groupCfgs2Tups grpCfgs
-  pure $ zipWith (\(i,k,t) ves -> (i,k,t,ves)) tups vess
+  vesss      <- traverse (groupConfig2VoiceEvents timeSig) grpCfgs <&> concat
+  pure $ concat <$> transpose vesss
 
-group2VoiceTuples :: String -> Driver [(Instrument, KeySignature, TimeSignature, [VoiceEvent])]
-group2VoiceTuples group = do
+group2VEss :: String -> TimeSignature -> Driver [[VoiceEvent]]
+group2VEss group timeSig = do
   grpScnsPrs <- traverse (secondM (cfgPath2Keys ("section" `isPrefixOf`)) . dupe) [group]
   grpCfgs    <- traverse (uncurry cfg2GroupConfig) (second NE.fromList <$> grpScnsPrs)
-  vesss      <- traverse groupConfig2VoiceEvents grpCfgs <&> concat
-  let vess = concat <$> transpose vesss
-      tups = groupCfgs2Tups grpCfgs
-  pure $ zipWith (\(i,k,t) ves -> (i,k,t,ves)) tups vess
+  vesss      <- traverse (groupConfig2VoiceEvents timeSig) grpCfgs <&> concat
+  pure $ concat <$> transpose vesss
 
-section2VoiceTuples :: String -> Driver [(Instrument, KeySignature, TimeSignature, [VoiceEvent])]
-section2VoiceTuples section = do
-  secCfg <- path2SectionConfig section
-  vess   <- sectionConfig2VoiceEvents secCfg
-  let tups = sectionCfg2Tups secCfg
-  pure $ zipWith (\(i,k,t) ves -> (i,k,t,ves)) tups vess
+section2VEss :: String -> TimeSignature -> Driver [[VoiceEvent]]
+section2VEss section timeSig = path2SectionConfig section >>= sectionConfig2VoiceEvents timeSig
 
-voice2VoiceTuples :: String -> Driver [(Instrument, KeySignature, TimeSignature, [VoiceEvent])]
-voice2VoiceTuples voice = do
-  vocCfg <- path2VoiceConfig voice
-  ves    <- voiceConfig2VoiceEvents voice vocCfg
-  let (i,k,t) = voiceCfg2Tup vocCfg
-  pure [(i,k,t,ves)]
+voice2VEss :: String -> Driver [[VoiceEvent]]
+voice2VEss voice = path2VoiceConfig voice >>= voiceConfig2VoiceEvents voice <&> (:[])
 
-config2VoiceTuples :: String -> Driver [(Instrument, KeySignature, TimeSignature, [VoiceEvent])]
-config2VoiceTuples path = case countKeys path of
-  1 -> title2VoiceTuples   path
-  2 -> group2VoiceTuples   path
-  3 -> section2VoiceTuples path
-  4 -> voice2VoiceTuples   path
-  n ->  error $ "config2VoicesTuple unexpected count of keys " <> show n <> " in " <> path
+config2VEss :: String -> TimeSignature -> Driver [[VoiceEvent]]
+config2VEss path timeSig = case countKeys path of
+  1 -> title2VEss   path timeSig
+  2 -> group2VEss   path timeSig
+  3 -> section2VEss path timeSig
+  4 -> voice2VEss   path
+  n ->  error $ "config2VEss unexpected count of keys " <> show n <> " in " <> path
   where
     countKeys :: String -> Int
     countKeys = length . splitOn "."
@@ -803,20 +754,20 @@ config2VoiceTuples path = case countKeys path of
 -- But *before that* need to deal with variable choirs, instruments that sit out
 -- a section by adding rests for tacit voices when they're missing from a Section,
 -- preservation of ordering of by voice in [[VoiceEvent]].
-groupConfig2VoiceEvents :: GroupConfig -> Driver [[[VoiceEvent]]]
-groupConfig2VoiceEvents (GroupConfigNeutral _ _ secCfgs) =
-  traverse sectionConfig2VoiceEvents (NE.toList secCfgs)
-groupConfig2VoiceEvents (GroupConfigEvenEnds _ _ secCfgs) =
-  traverse sectionConfig2VoiceEvents (NE.toList secCfgs) >>= extendVoicesEvents (NE.last secCfgs)
+-- XXX Thread new input TimeSignature to sectionConfig2VoiceEvents
+groupConfig2VoiceEvents :: TimeSignature -> GroupConfig -> Driver [[[VoiceEvent]]]
+groupConfig2VoiceEvents timeSig (GroupConfigNeutral _ _ secCfgs) =
+  traverse (sectionConfig2VoiceEvents timeSig) (NE.toList secCfgs)
+groupConfig2VoiceEvents timeSig (GroupConfigEvenEnds _ _ secCfgs) =
+  traverse (sectionConfig2VoiceEvents timeSig) (NE.toList secCfgs) >>= extendVoicesEvents timeSig (NE.last secCfgs)
 
 -- Repeatedly add [[VoiceEvent]] for last section to input until all [[VoiceEvent]] are the same
 -- total duration.  Tricky bit is that sectionConfig2VoiceEvents may not add [VoiceEvent] of
 -- sufficiently long sum duration to match difference in length needed, in which case, loop.
 -- To polish, trim final result to end at the bar line.
-extendVoicesEvents :: SectionConfig -> [[[VoiceEvent]]] -> Driver [[[VoiceEvent]]]
-extendVoicesEvents sectionConfig vesssIn = 
-  let timeSig = sectionCfg2TimeSignature sectionConfig
-      go vesss = do
+extendVoicesEvents :: TimeSignature -> SectionConfig -> [[[VoiceEvent]]] -> Driver [[[VoiceEvent]]]
+extendVoicesEvents timeSig sectionConfig vesssIn =
+  let go vesss = do
         let vess = concat <$> transpose vesss
             veLens = ves2DurVal <$> vess
         if sum veLens == length veLens * head veLens
@@ -825,7 +776,7 @@ extendVoicesEvents sectionConfig vesssIn =
         else do
           let maxLen = bump2FullBar timeSig $ maximum veLens
               veLenDiffs = (-) maxLen <$> veLens
-          vessNew <- sectionConfig2VoiceEvents sectionConfig <&> zipWith maybeTrimVes veLenDiffs
+          vessNew <- sectionConfig2VoiceEvents timeSig sectionConfig <&> zipWith maybeTrimVes veLenDiffs
           go $ vesss <> [vessNew]
   in 
     go vesssIn
@@ -869,8 +820,8 @@ maybeTrimVes lenDiff vesIn
 -- maxLen and vesLen are in 128th notes
 -- maxLen is target length so all voices are equal length
 -- vesLen is actual length maybe same as maxLen
-mkVesTotDur :: Int -> Int -> TimeSignature -> [VoiceEvent] -> [VoiceEvent]
-mkVesTotDur maxLen vesLen timeSig ves =
+mkVesTotDur :: TimeSignature -> Int -> Int -> [VoiceEvent] -> [VoiceEvent]
+mkVesTotDur timeSig maxLen vesLen ves =
   ves <> (spacerOrRest <$> addEndDurs timeSig vesLen addLen)
   where
     beatLen = dur2DurVal (timeSig2Denom timeSig)
@@ -1010,16 +961,16 @@ freezeConfig vcc@VoiceConfigCanon{..}  = do
   mPOOrPOss  <- freezeNELists _vccmPOOrPOss 
   pure $ vcc & vccDurss .~ durss & vccAcctss .~ acctss & vccmPOOrPOss  .~ mPOOrPOss 
     
-sectionCfg2TimeSignature :: SectionConfig -> TimeSignature
-sectionCfg2TimeSignature SectionConfigNeutral{..}    = voiceCfg2TimeSignature (NE.head _scnVoices)
-sectionCfg2TimeSignature SectionConfigHomophony{..}  = voiceCfg2TimeSignature (NE.head _schVoices)
-sectionCfg2TimeSignature SectionConfigFadeIn{..}     = voiceCfg2TimeSignature (NE.head _scfiVoices)
-sectionCfg2TimeSignature SectionConfigFadeOut{..}    = voiceCfg2TimeSignature (NE.head _scfoVoices)
-sectionCfg2TimeSignature SectionConfigFadeAcross{..} = voiceCfg2TimeSignature (fst (NE.head _scfcVoicesAB))
+-- sectionCfg2TimeSignature :: SectionConfig -> TimeSignature
+-- sectionCfg2TimeSignature SectionConfigNeutral{..}    = voiceCfg2TimeSignature (NE.head _scnVoices)
+-- sectionCfg2TimeSignature SectionConfigHomophony{..}  = voiceCfg2TimeSignature (NE.head _schVoices)
+-- sectionCfg2TimeSignature SectionConfigFadeIn{..}     = voiceCfg2TimeSignature (NE.head _scfiVoices)
+-- sectionCfg2TimeSignature SectionConfigFadeOut{..}    = voiceCfg2TimeSignature (NE.head _scfoVoices)
+-- sectionCfg2TimeSignature SectionConfigFadeAcross{..} = voiceCfg2TimeSignature (fst (NE.head _scfcVoicesAB))
 
-voiceCfg2TimeSignature :: VoiceConfig -> TimeSignature
-voiceCfg2TimeSignature VoiceConfigXPose{..}    = _vcxTime
-voiceCfg2TimeSignature VoiceConfigRepeat{..}   = _vcrTime
-voiceCfg2TimeSignature VoiceConfigVerbatim{..} = _vcvTime
-voiceCfg2TimeSignature VoiceConfigCell{..}     = _vcclTime
-voiceCfg2TimeSignature VoiceConfigCanon{..}    = _vccTime
+-- voiceCfg2TimeSignature :: VoiceConfig -> TimeSignature
+-- voiceCfg2TimeSignature VoiceConfigXPose{..}    = _vcxTime
+-- voiceCfg2TimeSignature VoiceConfigRepeat{..}   = _vcrTime
+-- voiceCfg2TimeSignature VoiceConfigVerbatim{..} = _vcvTime
+-- voiceCfg2TimeSignature VoiceConfigCell{..}     = _vcclTime
+-- voiceCfg2TimeSignature VoiceConfigCanon{..}    = _vccTime
