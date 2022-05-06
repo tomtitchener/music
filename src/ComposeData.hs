@@ -60,7 +60,7 @@ data SectionConfig =
                       }
   | SectionConfigFadeAcross {
                        _scfcPath        :: String
-                      ,_scfReps         :: Int
+                      ,_scfcReps         :: Int
                       ,_scfcMName       :: Maybe String
                       ,_scfcMConfigMods :: Maybe (NE.NonEmpty String)
                       ,_scfcMVesMods    :: Maybe (NE.NonEmpty String)
@@ -77,7 +77,6 @@ data VoiceConfig =
                  ,_vcxmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                  ,_vcxDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                  ,_vcxAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
-                 -- Dynamic?
                  ,_vcxRange      :: ((Pitch,Octave),(Pitch,Octave))
                  } 
   | VoiceConfigRepeat {
@@ -87,7 +86,6 @@ data VoiceConfig =
                     ,_vcrmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcrDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vcrAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
-                    -- Dynamic?
                     ,_vcrDurVal     :: Int
                  } 
   | VoiceConfigVerbatim {
@@ -97,7 +95,6 @@ data VoiceConfig =
                     ,_vcvmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcvDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vcvAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
-                    -- Dynamic?
                     ,_vcvDurVal     :: Int
                  } 
   | VoiceConfigCell {
@@ -107,7 +104,6 @@ data VoiceConfig =
                     ,_vcclmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcclDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vcclAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
-                    -- Dynamic?
                     ,_vcclDurVal     :: Int
                  } 
   | VoiceConfigCanon {
@@ -117,23 +113,41 @@ data VoiceConfig =
                     ,_vccmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vccDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vccAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
-                    -- Dynamic?
                     ,_vccDurVal     :: Int
                     ,_vccRotVal     :: Int
                  }
+  -- Tricky bits:  for a DurTuplet, need to have corresponding counts of pitches and accents.
+  -- But it's more complicated than that:  self-similar expansion expects integral units, but
+  -- DurTuplet is a collection.  Reduce to NE.NonEmpty DurationVal.
+  -- Going to require exceptional handling for some common VoiceConfig handlers.
+  -- PitOctOrNEPitOcts is still integral, either a single note or a chord.
+  -- Won't it be likely to pair Durs and Accts and treat them integrally with respect to
+  -- self-similar expansion?  Seems unlikely I'll want different self-similar expansions
+  -- for durations vs. accents.  That's reminiscent of uniform randomization in other
+  -- voice config types.
+  -- Note will really want equal-length lists of pitches and dur/accent pairs and equal
+  -- count expansions of self-similar integer lists.  Or rather it's more than that,
+  -- because focus of two expansions should be similar in the sense from generation
+  -- to generation there's a progression and then within a sub-generation there's
+  -- a finer-grain progression.  So e.g. if there are two progressions, one for pitches
+  -- and the other for durations and accents, how do the generations relate?
+    --
+{--    
+  | VoiceConfigSelfSim {
+                    _vcsInstr       :: Instrument
+                    ,_vcsKey        :: KeySignature
+                    ,_vcsTime       :: TimeSignature
+                    ,_vcsPitSSs     :: NE.NonEmpty Int
+                    ,_vcsmPOOrPOs   :: NE.NonEmpty (Maybe PitOctOrNEPitOcts)
+                    ,_vcsDurAcctSSs :: NE.NonEmpty Int
+                    ,_vcsDurAcctPrs :: NE.NonEmpty (DurationVal,Accent)
+                    ,_vcsDurVal     :: Int
+                    ,_vcsSSDepth    :: Int
+                 }
+--}
     deriving Show
 
 makeLenses ''VoiceConfig
-
-data VoiceRuntimeConfig =
-  VoiceRuntimeConfig {
-                   _vrcSctnPath :: String
-                   ,_vrcMNumVoc  :: Maybe Int
-                   ,_vrcCntVocs  :: Int
-                   ,_vrcNumVoc   :: Int
-                   ,_vrcCntSegs  :: Int
-                   ,_vrcNumSeg   :: Int
-                   } deriving Show
 
 path2VoiceConfigXPose :: String -> Driver VoiceConfig
 path2VoiceConfigXPose pre =

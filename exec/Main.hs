@@ -7,7 +7,6 @@ module Main where
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
-import Data.Tuple.Extra (dupe, second, secondM)
 import Data.List (zipWith3, zipWith4)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Yaml as Y
@@ -21,7 +20,6 @@ import System.Random.SplitMix
 
 import Driver
 import Compose
-import ComposeData
 import Types
 
 -- _optRandomSeed via command-line argument  -s "<string>"
@@ -73,29 +71,21 @@ main =  do
   void . liftIO $ runReaderT (runDriver (cfg2Score _optTarget (show gen))) (initEnv config (show gen))
 
 cfg2Score :: String -> String -> Driver ()
-cfg2Score title gen = do
-  tempo     <- searchConfigParam  (title <> ".common.tempo")
-  timeSig   <- searchConfigParam  (title <> ".common.time")
-  keySig    <- searchConfigParam  (title <> ".common.key")
-  instr     <- searchConfigParam  (title <> ".common.instr") -- TBD: this forces an ensemble of identical instruments only
-  grpNames   <- cfgPath2Keys ("group" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
-  grpScnsPrs <- traverse (secondM (cfgPath2Keys ("section" `isPrefixOf`)) . dupe) grpNames
-  grpCfgs    <- traverse (uncurry cfg2GroupConfig) (second NE.fromList <$> grpScnsPrs)
-  vesss      <- traverse groupConfig2VoiceEvents grpCfgs <&> concat
-  let vess = concat <$> transpose vesss
-      voices = pipeline tempo timeSig keySig instr vess
-  writeScore ("./" <> title <> ".ly") $ Score title gen (NE.fromList voices)
+cfg2Score path gen = do
+  tempo     <- searchConfigParam  (path <> ".common.tempo")
+  voices <- config2VoiceTuples path <&> pipeline tempo
+  writeScore ("./" <> path <> ".ly") $ Score path gen (NE.fromList voices)
   where
-    pipeline :: Tempo -> TimeSignature -> KeySignature -> Instrument -> [[VoiceEvent]] -> [Voice]
-    pipeline tempo timeSig keySig instr vess = --
+    pipeline :: Tempo -> [(Instrument, KeySignature, TimeSignature, [VoiceEvent])] -> [Voice]
+    pipeline tempo tups = 
       zipWith alignVoiceEventsDurations timeSigs vess            -- -> [[VoiceEvent]]
       & zipWith3 (mkVesTotDur (maximum veLens)) veLens timeSigs  -- -> [[VoiceEvent]]
       & zipWith4 genSplitStaffVoc instrs keySigs timeSigs        -- -> [Voice]
       & tagTempo tempo                                           -- -> [Voice]
       where
-        cntVoices  = length vess
-        veLens     = ves2DurVal <$> vess
-        timeSigs   = replicate cntVoices timeSig
-        keySigs    = replicate cntVoices keySig
-        instrs     = replicate cntVoices instr
+        instrs   = (\(is,_,_,_) -> is) <$> tups
+        keySigs  = (\(_,ks,_,_) -> ks) <$> tups
+        timeSigs = (\(_,_,ts,_) -> ts) <$> tups
+        vess     = (\(_,_,_,vs) -> vs) <$> tups
+        veLens   = ves2DurVal <$> vess
 

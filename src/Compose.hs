@@ -2,7 +2,7 @@
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Compose (groupConfig2VoiceEvents
+module Compose (config2VoiceTuples
                ,alignVoiceEventsDurations
                ,mkVesTotDur
                ,genSplitStaffVoc
@@ -17,20 +17,19 @@ import Control.Monad (foldM)
 import Control.Monad.Extra (concatMapM)
 import Data.Foldable
 import Data.Function (on)
-import Data.List (elemIndex, findIndex, findIndices, groupBy, sortBy, unfoldr, transpose)
+import Data.List (elemIndex, findIndex, findIndices, groupBy, isPrefixOf, sortBy, unfoldr, transpose)
 import qualified Data.List.NonEmpty as NE
-import Data.List.Split (chunksOf)
+import Data.List.Split (chunksOf, splitOn)
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe, catMaybes)
 import Data.Sequence (adjust', fromList)
 import Data.Traversable (mapAccumL)
 import Data.Tuple (swap)
-import Data.Tuple.Extra (both, first, fst3, snd3, thd3)
+import Data.Tuple.Extra (both, dupe, first, fst3, secondM, snd3, thd3)
 import Safe (lastMay)
 
 import ComposeData
 import Driver
-       (Driver, randomElements, randomizeList, randomIndices, randomWeightedElement, searchConfigParam, searchMConfigParam)
 import Lily (accent2Name)
 import Types
 import Utils
@@ -38,6 +37,16 @@ import Utils
 type PitOctOrPitOcts = Either (Pitch,Octave) [(Pitch,Octave)]
 
 newtype Range = Range ((Pitch,Octave),(Pitch,Octave)) deriving (Eq, Show)
+
+data VoiceRuntimeConfig =
+  VoiceRuntimeConfig {
+                   _vrcSctnPath :: String
+                   ,_vrcMNumVoc  :: Maybe Int
+                   ,_vrcCntVocs  :: Int
+                   ,_vrcNumVoc   :: Int
+                   ,_vrcCntSegs  :: Int
+                   ,_vrcNumSeg   :: Int
+                   } deriving Show
 
 type ConfigMod = VoiceRuntimeConfig -> VoiceConfig -> Driver VoiceConfig
 
@@ -55,7 +64,6 @@ name2VoiceEventsMods = M.fromList [("uniformAccs",uniformAccents)
                                   ,("voicesDyn",voicesDynamics)
                                   ,("uniformDyns",uniformDynamics)
                                   ,("sectionDyns",sectionDynamics)
-                                  ,("fadeOutDyns",fadeOutDynamics)
                                   ,("sustainNotes",sustainNotes)]
 
 -- Weight, action pairs for four segment example, all voices have same weight:
@@ -121,11 +129,22 @@ doubleDurOrDurTup = bimap (* mkDurationVal 2) (multDurTuplet 2)
 multDurTuplet :: Int -> DurTuplet -> DurTuplet
 multDurTuplet i tup = tup & durtupUnitDuration %~ multDur i & durtupDurations %~ fmap (* mkDurationVal i)
 
---homAnyListOfList :: NE.NonEmpty (NE.NonEmpty a) -> Driver (NE.NonEmpty (NE.NonEmpty a))
---homAnyListOfList xss = randomizeList (NE.toList (NE.toList <$> xss)) <&> singleton . NE.fromList . concat
+-- Uniform accents are specific to midi, score gets annotation
+uniformAccents :: VoiceEventsMod
+uniformAccents VoiceRuntimeConfig{..} ves = do
+  acc <- searchMConfigParam (_vrcSctnPath <> ".uniformAcc") <&> fromMaybe Staccatissimo
+  let ves' = if _vrcNumSeg == 0 then appendAnnFirstNote ("sempre " <> accent2Name acc) ves else ves
+  pure $ uniformAccent acc <$> ves'
+  where
+    uniformAccent :: Accent -> VoiceEvent -> VoiceEvent
+    uniformAccent acc ve@VeNote{} = ve & veNote . noteMidiCtrls %~ (MidiCtrlAccent acc :)
+    uniformAccent acc ve@VeChord{} = ve & veChord . chordMidiCtrls %~ (MidiCtrlAccent acc :)
+    uniformAccent acc ve@(VeTremolo NoteTremolo{}) = ve & veTremolo . ntrNote . noteMidiCtrls %~ (MidiCtrlAccent acc :)
+    uniformAccent acc ve@(VeTremolo ChordTremolo{}) = ve & veTremolo . ctrLeftChord . chordMidiCtrls %~ (MidiCtrlAccent acc :)
+    uniformAccent _   vEvent      = vEvent
 
 -- TBD: annotate first note with "sempre <accent>", would be nice not to repeat annotation for non-highlighted segments
--- uniform accents are specific to midi, score gets annotation
+-- uniform accents are specific to midi, score gets annotation.  As this is, there's no indication of accents in score.
 fadeInAccents :: VoiceEventsMod
 fadeInAccents VoiceRuntimeConfig{..} ves = do
   acc1 <- searchMConfigParam (_vrcSctnPath <> ".fadeInAcc1") <&> fromMaybe Staccato
@@ -143,6 +162,7 @@ fadeInAccents VoiceRuntimeConfig{..} ves = do
     fadeInAccent Nothing  _    acc2 ve@(VeTremolo ChordTremolo{}) = pure (ve & veTremolo . ntrNote . noteMidiCtrls %~ (MidiCtrlAccent acc2 :))
     fadeInAccent _        _    _    vEvent = pure vEvent 
 
+-- Specify one dynamic for fade-in voice vs. another dynamic for all other voices.
 fadeInDynamics :: VoiceEventsMod
 fadeInDynamics VoiceRuntimeConfig{..} ves = do
   dyn1 <- searchMConfigParam (_vrcSctnPath <> ".fadeInDyn1") <&> fromMaybe Forte
@@ -151,11 +171,30 @@ fadeInDynamics VoiceRuntimeConfig{..} ves = do
     Just _  -> tagFirstSoundDynamic dyn1 ves -- fade-in voice signaled via Just <index>
     Nothing -> tagFirstSoundDynamic dyn2 ves -- non fade-in voices get second dynamic
 
--- no need to repeat dynamic for each seg
+-- All voices get the same dynamic, no need to repeat dynamic for each seg
 uniformDynamics :: VoiceEventsMod
 uniformDynamics VoiceRuntimeConfig{..} ves
   | _vrcNumSeg == 0 = searchMConfigParam (_vrcSctnPath <> ".uniformDyn") <&> fromMaybe PPP <&> flip tagFirstSoundDynamic ves
   | otherwise = pure ves
+
+-- Spread a list of per-section dynamics across all voices, section-by-section.                     
+sectionDynamics :: VoiceEventsMod
+sectionDynamics VoiceRuntimeConfig{..} ves = 
+  searchConfigParam (_vrcSctnPath <> ".sectionDyns") <&> flip tagFirstSoundDynamic ves . (NE.!! _vrcNumSeg)
+
+-- Spread a dynamic across a list of voices by voice index, unless there's no list configured (TBD: should be an error).
+voicesDynamics :: VoiceEventsMod
+voicesDynamics vrtc@VoiceRuntimeConfig{..} ves = do
+  voicesDyn <- searchMConfigParam (_vrcSctnPath <> ".vocsDyn") <&> fromMaybe MF
+  mIdxs::Maybe (NE.NonEmpty Int) <- searchMConfigParam (_vrcSctnPath <> ".vocsDynIdxs")
+  voicesDynamics' voicesDyn mIdxs vrtc ves
+  where
+    voicesDynamics' :: Dynamic -> Maybe (NE.NonEmpty Int) -> VoiceEventsMod
+    voicesDynamics' voicesDyn' mIdxs VoiceRuntimeConfig{..} ves'
+      | _vrcNumSeg == 0 && isMElem _vrcNumVoc mIdxs = pure $ tagFirstSoundDynamic voicesDyn' ves'
+      | otherwise = pure ves'
+     where
+        isMElem idx = maybe True (idx `elem`) 
 
 tagFirstSoundDynamic :: Dynamic -> [VoiceEvent] -> [VoiceEvent]
 tagFirstSoundDynamic dyn ves = maybe ves (`tagDynForIdx` ves) $ findIndex isVeSound ves
@@ -185,26 +224,6 @@ isVeSound _            = False
 isVeRest :: VoiceEvent -> Bool
 isVeRest VeRest {} = True
 isVeRest _         = False
-    
-sectionDynamics :: VoiceEventsMod
-sectionDynamics VoiceRuntimeConfig{..} ves = 
-  searchConfigParam (_vrcSctnPath <> ".sectionDyns") <&> flip tagFirstSoundDynamic ves . (NE.!! _vrcNumSeg)
-
-voicesDynamics :: VoiceEventsMod
-voicesDynamics vrtc@VoiceRuntimeConfig{..} ves = do
-  voicesDyn <- searchMConfigParam (_vrcSctnPath <> ".vocsDyn") <&> fromMaybe MF
-  mIdxs::Maybe (NE.NonEmpty Int) <- searchMConfigParam (_vrcSctnPath <> ".vocsDynIdxs")
-  voicesDynamics' voicesDyn mIdxs vrtc ves
-  where
-    voicesDynamics' :: Dynamic -> Maybe (NE.NonEmpty Int) -> VoiceEventsMod
-    voicesDynamics' voicesDyn' mIdxs VoiceRuntimeConfig{..} ves'
-      | _vrcNumSeg == 0 && isMElem _vrcNumVoc mIdxs = pure $ tagFirstSoundDynamic voicesDyn' ves'
-      | otherwise = pure ves'
-     where
-        isMElem idx = maybe True (idx `elem`) 
-
-fadeOutDynamics :: VoiceEventsMod
-fadeOutDynamics _ = error "fadeOutDynamics is not implemented"
 
 sustainNotes :: VoiceEventsMod
 sustainNotes vrtc@VoiceRuntimeConfig{..} ves = do
@@ -229,20 +248,6 @@ sustainNotes vrtc@VoiceRuntimeConfig{..} ves = do
     tagSust sust (VeTremolo nt@NoteTremolo{})  = VeTremolo (nt & ntrNote . noteCtrls %~ (CtrlSustain sust :))
     tagSust sust (VeTremolo ct@ChordTremolo{})  = VeTremolo (ct & ctrLeftChord . chordCtrls %~ (CtrlSustain sust :))
     tagSust _ ve                = error $ "sustainNotes: unexpected VoiceEvent: " <> show ve
-
--- uniform accents are specific to midi, score gets annotation
-uniformAccents :: VoiceEventsMod
-uniformAccents VoiceRuntimeConfig{..} ves = do
-  acc <- searchMConfigParam (_vrcSctnPath <> ".uniformAcc") <&> fromMaybe Staccatissimo
-  let ves' = if _vrcNumSeg == 0 then appendAnnFirstNote ("sempre " <> accent2Name acc) ves else ves
-  pure $ uniformAccent acc <$> ves'
-  where
-    uniformAccent :: Accent -> VoiceEvent -> VoiceEvent
-    uniformAccent acc ve@VeNote{} = ve & veNote . noteMidiCtrls %~ (MidiCtrlAccent acc :)
-    uniformAccent acc ve@VeChord{} = ve & veChord . chordMidiCtrls %~ (MidiCtrlAccent acc :)
-    uniformAccent acc ve@(VeTremolo NoteTremolo{}) = ve & veTremolo . ntrNote . noteMidiCtrls %~ (MidiCtrlAccent acc :)
-    uniformAccent acc ve@(VeTremolo ChordTremolo{}) = ve & veTremolo . ctrLeftChord . chordMidiCtrls %~ (MidiCtrlAccent acc :)
-    uniformAccent _   vEvent      = vEvent
 
 -- Unfold repeated transpositions of [[Maybe Pitch]] across Range
 -- matching up with repetitions of [[Duration]] and [[Accent] to generate VoiceEvent.
@@ -697,6 +702,87 @@ addSecnName scnName voices = prependAnnFirstNote scnName <$> voices
 genSplitStaffVoc :: Instrument -> KeySignature -> TimeSignature -> [VoiceEvent] -> Voice
 genSplitStaffVoc instr keySig timeSig ves
   = SplitStaffVoice instr (VeKeySignature keySig NE.<| VeTimeSignature timeSig NE.<| NE.fromList ves)
+
+--- Generalize title to path from input arg.
+groupCfgs2Tups :: [GroupConfig] -> [(Instrument, KeySignature, TimeSignature)]
+groupCfgs2Tups = fmap (checkTups "groupCfgs2Tups" . groupCfg2Tups)
+
+groupCfg2Tups :: GroupConfig -> [(Instrument, KeySignature, TimeSignature)]
+groupCfg2Tups GroupConfigNeutral{..}  = sectionCfgs2Tups (NE.toList _gcnConfigs)
+groupCfg2Tups GroupConfigEvenEnds{..} = sectionCfgs2Tups (NE.toList _gceConfigs)
+
+sectionCfgs2Tups :: [SectionConfig] -> [(Instrument, KeySignature, TimeSignature)]
+sectionCfgs2Tups = fmap (checkTups "sectionCfgs2Tups" . sectionCfg2Tups)
+
+checkTups :: String -> [(Instrument, KeySignature, TimeSignature)] -> (Instrument, KeySignature, TimeSignature)
+checkTups whence tups
+  | all (== head tups) (tail tups) = head tups
+  | otherwise = error $ whence <> " different config data: " <> show tups
+
+sectionCfg2Tups :: SectionConfig -> [(Instrument, KeySignature, TimeSignature)]
+sectionCfg2Tups SectionConfigNeutral{..}    = voiceCfg2Tup   <$> NE.toList _scnVoices
+sectionCfg2Tups SectionConfigHomophony{..}  = voiceCfg2Tup   <$> NE.toList _schVoices
+sectionCfg2Tups SectionConfigFadeIn{..}     = voiceCfg2Tup   <$> NE.toList _scfiVoices
+sectionCfg2Tups SectionConfigFadeOut{..}    = voiceCfg2Tup   <$> NE.toList _scfoVoices
+sectionCfg2Tups SectionConfigFadeAcross{..} = voiceCfgPr2Tup <$> NE.toList _scfcVoicesAB
+
+voiceCfgPr2Tup :: (VoiceConfig,VoiceConfig) -> (Instrument, KeySignature, TimeSignature)
+voiceCfgPr2Tup = checkPr . both voiceCfg2Tup
+  where
+    checkPr (t1,t2)
+      | t1 == t2 = t1
+      | otherwise = error $ "voiceCfgPr2Tup different vals " <> show t1 <> " vs. " <> show t2
+
+voiceCfg2Tup :: VoiceConfig -> (Instrument, KeySignature, TimeSignature)
+voiceCfg2Tup VoiceConfigXPose{..}    = (_vcxInstr,  _vcxKey,  _vcxTime)
+voiceCfg2Tup VoiceConfigRepeat{..}   = (_vcrInstr,  _vcrKey,  _vcrTime)
+voiceCfg2Tup VoiceConfigVerbatim{..} = (_vcvInstr,  _vcvKey,  _vcvTime)
+voiceCfg2Tup VoiceConfigCell{..}     = (_vcclInstr, _vcclKey, _vcclTime)
+voiceCfg2Tup VoiceConfigCanon{..}    = (_vccInstr,  _vccKey,  _vccTime)
+
+title2VoiceTuples :: String -> Driver [(Instrument, KeySignature, TimeSignature, [VoiceEvent])]
+title2VoiceTuples title = do
+  grpNames   <- cfgPath2Keys ("group" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
+  grpScnsPrs <- traverse (secondM (cfgPath2Keys ("section" `isPrefixOf`)) . dupe) grpNames
+  grpCfgs    <- traverse (uncurry cfg2GroupConfig) (second NE.fromList <$> grpScnsPrs)
+  vesss      <- traverse groupConfig2VoiceEvents grpCfgs <&> concat
+  let vess = concat <$> transpose vesss
+      tups = groupCfgs2Tups grpCfgs
+  pure $ zipWith (\(i,k,t) ves -> (i,k,t,ves)) tups vess
+
+group2VoiceTuples :: String -> Driver [(Instrument, KeySignature, TimeSignature, [VoiceEvent])]
+group2VoiceTuples group = do
+  grpScnsPrs <- traverse (secondM (cfgPath2Keys ("section" `isPrefixOf`)) . dupe) [group]
+  grpCfgs    <- traverse (uncurry cfg2GroupConfig) (second NE.fromList <$> grpScnsPrs)
+  vesss      <- traverse groupConfig2VoiceEvents grpCfgs <&> concat
+  let vess = concat <$> transpose vesss
+      tups = groupCfgs2Tups grpCfgs
+  pure $ zipWith (\(i,k,t) ves -> (i,k,t,ves)) tups vess
+
+section2VoiceTuples :: String -> Driver [(Instrument, KeySignature, TimeSignature, [VoiceEvent])]
+section2VoiceTuples section = do
+  secCfg <- path2SectionConfig section
+  vess   <- sectionConfig2VoiceEvents secCfg
+  let tups = sectionCfg2Tups secCfg
+  pure $ zipWith (\(i,k,t) ves -> (i,k,t,ves)) tups vess
+
+voice2VoiceTuples :: String -> Driver [(Instrument, KeySignature, TimeSignature, [VoiceEvent])]
+voice2VoiceTuples voice = do
+  vocCfg <- path2VoiceConfig voice
+  ves    <- voiceConfig2VoiceEvents voice vocCfg
+  let (i,k,t) = voiceCfg2Tup vocCfg
+  pure [(i,k,t,ves)]
+
+config2VoiceTuples :: String -> Driver [(Instrument, KeySignature, TimeSignature, [VoiceEvent])]
+config2VoiceTuples path = case countKeys path of
+  1 -> title2VoiceTuples   path
+  2 -> group2VoiceTuples   path
+  3 -> section2VoiceTuples path
+  4 -> voice2VoiceTuples   path
+  n ->  error $ "config2VoicesTuple unexpected count of keys " <> show n <> " in " <> path
+  where
+    countKeys :: String -> Int
+    countKeys = length . splitOn "."
 
 -- TBD: regularize SectionConfigs with different counts of VoiceConfigs, fix
 -- global time and key signatures and instrument type in Main too.
