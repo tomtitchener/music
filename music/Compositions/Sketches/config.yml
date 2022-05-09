@@ -1,5 +1,6 @@
 # Sketches
 
+# experimental proof of concept
 blend:
   common:
     tempo:       (100,4)
@@ -40,6 +41,7 @@ blend:
         durss:       ((8,8,8,8),(8,8,8,8))
         accentss:    ((>,!,>,!),(>,!,>,!))
 
+# experimental demo of fade in/fade out, octave config mod
 canon:
   common:
     tempo:       (100,4)
@@ -111,38 +113,7 @@ canon:
       voice4:
         rotval:   int 10
   
-# heterogonous texture with voices of different types (proof of concept, not even a sketch)
-voicemix:
-  common:
-    tempo:       (120,4)
-    key:         c major
-    instr:       acoustic grand
-    time:        (4,4)
-    scale:       (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
-  section1:
-    stype:   neutral
-    reps:    int 1
-    voice1:
-      vtype:      xpose
-      durss:      ((8),(8.,16,16))
-      accentss:   ((>,~),(~,>))
-      mPitOctsss: (((c,0),(dis,0),r,(gis,0),(d,0)),((dis,0),r,(c,0),(gis,0),(d,0),(e,0)))
-      range :     ((c,-2),(c,2))
-    voice2:
-      vtype:      xpose
-      range:      ((c,2),(c,-2))
-      mPitOctsss: (((a,0),(g,0),(dis,0),r,(gis,-1)),((a,0),(g,0),r,r,(dis,0),(gis,-1)))
-      durss:      ((8,16,16),(8.,16),(8,8,8))
-      accentss:   ((>,~,~))
-    voice3:
-      vtype:      repeat
-      mPitOctsss: (((a,0),(g,0),(dis,0),r,(gis,-1)),((a,0),(g,0),r,r,(dis,0),(gis,-1)))
-      durss:      ((16,8.))
-      accentss:   ((~,>,>),(>,>,~,~,~))
-      register:   (g,-1)
-      durval:     int 1024
-
-# trial:  first pass without param to tie voices together
+# experimeintal:  no param to tie voices together, proof of concept
 homophony:
   common:
     tempo:       (100,4)
@@ -172,27 +143,3 @@ homophony:
       rotval:   int 0
     voice4:
       rotval:   int 0
-
-# expand mpitOcts to allow for chords, durss to allow for tuplets
-experimental:
-  common:
-    tempo:       (100,4)
-    key:         c major
-    instr:       acoustic grand
-    time:        (4,4)
-    scale:       (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
-    register:    (c,0)
-    accentss:    ((>,>,~,~),(~,>,>),(>,>,>,>))
-  section:
-    stype:      homophony
-    reps:       int 1
-    common:
-      vtype:      repeat
-      durval:     int 512
-      reps:       1
-      mPitOctsss: (((b,0),r,((a,0),(f,0))))
-      durss:      ((8),(16,16),(4),(8,(3,2,8,(16,8,16,16,16)),4)))
-    voice1:
-    voice2:
-    voice3:
-    voice4:
