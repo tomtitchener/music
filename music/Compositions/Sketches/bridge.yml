@@ -2,7 +2,7 @@
 
 bridge:
   common:
-    tempo:       (120,8)
+    tempo:       (120,4)
     key:         c major
     changeclefs: int 3
     instr:       acoustic grand

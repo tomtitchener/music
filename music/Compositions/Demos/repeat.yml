@@ -1,0 +1,93 @@
+# repeat.yml:  demo group and section with VoiceConfigRepeat only
+
+# driven:  brief duration of bass voice in 3 8th notes is strong pulse,
+# treble repeats in two 6/8 bars, inner voices with some rhythmic irregularity
+# harmony: minor ninth with rhythm period of 5 8ths (4, 4, 8)
+# having different total durations for four different voices dilutes pulse, but not entirely
+# having relatively short dur val (4 6/8 bars) means variations shift regularly
+# duration of 384 cycles repeat pattern every four bars, sounds like minor hiccup
+short:
+  common:
+    tempo:       (120,4)
+    key:         c major
+    instr:       acoustic grand
+    time:        (6,8)
+  group:
+    grtype: neutral
+    section:
+      stype:      neutral
+      reps:       int 9
+      uniformDyn: mp
+      vesmods:    (uniformDyns)
+      common:
+        # One 6/8 bar is 6 * 16 or 96 128ths, 96 * 8 is 768 * 2 is 1536
+        durval: int 384
+        vtype:  repeat
+      # periods in 16ths (1,2,3,4):  12,9,?,3.
+      # lock in bass drives regularity, pattern shifts every four bars
+      voice1:
+        mPitOctsss: (((g,1),(g,2)),((b,0),(b,1)))
+        durss:      ((8,8),(16,16),(8,4)) # 12 16ths
+        accentss:   ((>,>),(~,~))
+      voice2:
+        vtype: repeat
+        mPitOctsss: (((c,0),(c,0)),((e,0),(e,0)))
+        durss:      ((8,8),(16,16),(16,8)) # 9 16ths
+        accentss:   ((>,>),(~,~))
+      voice3:
+        vtype: repeat
+        mPitOctsss: (((c,1),(c,-1)),((e,1),(e,-1)))
+        durss:      ((8,8),(16,16),(4)) # 10 16ths
+        accentss:   ((>,>),(~,~))
+      voice4:
+        mPitOctsss: (((a,-3),(a,-2)),((e,-2),(e,-1)))
+        durss:      ((8,8),(16,16)) # 6 16ths
+        accentss:   ((>,>),(~,~))
+
+# long:  patterned on short, with longer spans for bass, treble rhythms
+# starts to jam up some of the squareness of short, with 4 bar period
+# longer durations remove some heat, less tiring to listen
+# still a very intense, active texture, very repetitive,
+# not very different from short
+# could try new config mod to randomly highlight one voice by dynamic,
+# though swells up and down from background would be more like Reich
+# sounds well with orchestral marimba
+# and in the end, even fff/ppp dynamic differences weren't very audible,
+# at least not for marimba
+long:
+  common:
+    tempo:       (120,4)
+    key:         c major
+    instr:       marimba
+    time:        (6,8)
+  group:
+    grtype: neutral
+    section:
+      stype:      neutral
+      reps:       int 9
+      foreDyn:    fff
+      backDyn:    ppp
+      vesmods:    (spotDyns)
+      common:
+        # One 6/8 bar is 6 * 16 or 96 128ths, 96 * 4 is 384
+        # pattern shifts every four bars
+        durval: int 384
+        vtype:  repeat
+      voice1:
+        mPitOctsss: (((g,1),(g,2)),((b,0),(b,1)),((c,1),(a,1),(a,0),(g,1)))
+        durss:      ((8,8),(16,16),(8,4),(8,8,8,8)) # 20 16ths
+        accentss:   ((>,>),(~,~))
+      voice2:
+        vtype: repeat
+        mPitOctsss: (((c,0),(c,1)),((e,0),(e,1)))
+        durss:      ((8,8),(16,16),(4,16,8)) # 13 16ths
+        accentss:   ((>,>),(~,~))
+      voice3:
+        vtype: repeat
+        mPitOctsss: (((c,0),(c,-1)),((e,0),(e,-1)))
+        durss:      ((8,8),(16,16),(4)) # 10 16ths
+        accentss:   ((>,>),(~,~))
+      voice4:
+        mPitOctsss: (((a,-3),(a,-2)),((e,-2),(e,-1)))
+        durss:      ((8,8),(4,16),(16,16)) # 21 16ths
+        accentss:   ((>,>),(~,~))

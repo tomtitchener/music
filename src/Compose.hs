@@ -42,6 +42,7 @@ data VoiceRuntimeConfig =
   VoiceRuntimeConfig {
                    _vrcSctnPath :: String
                    ,_vrcMNumVoc  :: Maybe Int
+                   ,_vrcMSpotIdx :: Maybe Int
                    ,_vrcCntVocs  :: Int
                    ,_vrcNumVoc   :: Int
                    ,_vrcCntSegs  :: Int
@@ -64,6 +65,7 @@ name2VoiceEventsMods = M.fromList [("uniformAccs",uniformAccents)
                                   ,("voicesDyn",voicesDynamics)
                                   ,("uniformDyns",uniformDynamics)
                                   ,("sectionDyns",sectionDynamics)
+                                  ,("spotDyns",spotDynamics)
                                   ,("sustainNotes",sustainNotes)]
 
 -- Weight, action pairs for four segment example, all voices have same weight:
@@ -194,7 +196,18 @@ voicesDynamics vrtc@VoiceRuntimeConfig{..} ves = do
       | _vrcNumSeg == 0 && isMElem _vrcNumVoc mIdxs = pure $ tagFirstSoundDynamic voicesDyn' ves'
       | otherwise = pure ves'
      where
-        isMElem idx = maybe True (idx `elem`) 
+        isMElem idx = maybe True (idx `elem`)
+
+spotDynamics :: VoiceEventsMod
+spotDynamics VoiceRuntimeConfig{..} ves = do
+  foreDyn <- searchMConfigParam (_vrcSctnPath <> ".foreDyn") <&> fromMaybe FF
+  backDyn <- searchMConfigParam (_vrcSctnPath <> ".backDyn") <&> fromMaybe PP
+  voicesDynamics' _vrcNumVoc foreDyn backDyn ves
+  where
+    spotIdx = fromMaybe (error "spotDynamics missing index") _vrcMSpotIdx
+    voicesDynamics' vocIdx foreDyn backDyn ves'
+      | vocIdx == spotIdx = pure $ tagFirstSoundDynamic foreDyn ves'
+      | otherwise = pure $ tagFirstSoundDynamic backDyn ves'
 
 tagFirstSoundDynamic :: Dynamic -> [VoiceEvent] -> [VoiceEvent]
 tagFirstSoundDynamic dyn ves = maybe ves (`tagDynForIdx` ves) $ findIndex isVeSound ves
@@ -516,35 +529,23 @@ applyMod m modName pr =
 type Slice = ([Maybe PitOctOrNEPitOcts],[DurOrDurTuplet],[Accent])
 
 sectionConfig2VoiceEvents :: TimeSignature -> SectionConfig -> Driver [[VoiceEvent]]
--- No section-level manipulation beyond segement repetition, and section and voice event mods from configuration.
 sectionConfig2VoiceEvents _ (SectionConfigNeutral scnPath cntSegs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
-  traverse (traverse (applyMConfigMods mConfigMods)) prss >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
-   where
-    cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
-    scnName         = fromMaybe "neutral" mSctnName
-    cntVocs         = length voiceConfigs
-    voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
-    segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
-    prss = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss (NE.toList voiceConfigs)
--- Freeze config by generating single permutation of inner lists from list of list of pitch, duration, accent, and
--- freezing further randomization by concatenating inner lists and wrapping whole thing in a list so there's only one
--- inner list in the list of lists.
--- Not actually homophony, as each segment gets a new frozen config and configs are themselves frozen independently.
--- Repetition happens only with voice configs with durations that exceed sum of durations in configuration.
--- TBD: can be reduced to a config mod.  
-sectionConfig2VoiceEvents _ (SectionConfigHomophony scnPath cntSegs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
-  traverse (traverse (applyMConfigMods mConfigMods)) prss >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
-  where
-    cvtAndApplyMod (rt,cfg) = freezeConfig cfg >>= voiceConfig2VoiceEvents scnPath >>= applyMVoiceEventsMods mVoiceEventsMods . (rt,)
-    scnName = fromMaybe "homophony" mSctnName
-    cntVocs = length voiceConfigs
-    voiceRTConfigs = [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
-    segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
-    prss = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss (NE.toList voiceConfigs)
+  spotIxs <- traverse (const (randomIndex cntVocs)) [0..cntSegs - 1]
+  traverse (traverse (applyMConfigMods mConfigMods)) (mkPrss spotIxs) >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
+    where
+      cntVocs = length voiceConfigs
+      scnName = fromMaybe "neutral" mSctnName
+      cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
+      mkPrss spotIxs = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss (NE.toList voiceConfigs)
+        where
+          segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
+          voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing (Just spotIx) cntVocs numVoc cntSegs numSeg |
+                             numVoc <- [0..cntVocs - 1], (numSeg,spotIx) <- zip [0..cntSegs - 1] spotIxs]
+      
 -- Fade in from rests, voice-by-voice, voice event mods fadeinAccs and fadeinDyns background continuing voices: start of a round.
 -- The list of indexes in fadeIxs tells the index for the [VoiceEvent] to add, one-by-one.
 -- Monadically fold over list if indexes with fade-out order from config, generating new [[VoiceEvent]] for all voices.
-sectionConfig2VoiceEvents _ (SectionConfigFadeIn scnPath fadeIxs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
+sectionConfig2VoiceEvents _ (SectionConfigFadeIn scnPath fadeIxs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) =
   foldM foldMf ([], idxVEsPrs) fadeIxs <&> addSecnName scnName . map snd . snd
   where
     cntVocs    = length voiceConfigs
@@ -561,12 +562,12 @@ sectionConfig2VoiceEvents _ (SectionConfigFadeIn scnPath fadeIxs mSctnName mConf
           | idxVoc == numVoc = pure (idxVoc,ves <> newVEs')
           | idxVoc `elem` seenNumVocs = genVEs idxVoc <&> second (ves <>)
           | otherwise = pure  (idxVoc,ves <> restVEs')
-        genVEs idx = 
-          applyMods scnPath mConfigMods mVoiceEventsMods (rtTup,cfgTup)
+        genVEs idx = applyMods scnPath mConfigMods mVoiceEventsMods (rtTup,cfgTup)
           where
             mIdx = if idx == numVoc then Just idx else Nothing
-            rtTup  = VoiceRuntimeConfig scnPath mIdx cntVocs idx cntSegs numSeg
+            rtTup  = VoiceRuntimeConfig scnPath mIdx Nothing cntVocs idx cntSegs numSeg
             cfgTup = voiceConfigs NE.!! idx
+            
 -- Fade out to rests, voice-by-voice, like end of a round.  
 -- The list of indexes in fadeIxs tells the index for the [VoiceEvent] to subtract, one-by-one.
 -- Monadically fold over list if indexes with fade-out order from config, generating new [[VoiceEvent]] for all unseen voices,
@@ -588,12 +589,12 @@ sectionConfig2VoiceEvents timeSig (SectionConfigFadeOut scnPath fadeIxs mSctnNam
         appendVEs (idxVoc,ves)
           | idxVoc == numVoc || idxVoc `elem` seenNumVocs = pure (idxVoc,ves)
           | otherwise = genVEs idxVoc <&> second (ves <>) 
-        genVEs idx = 
-          applyMods scnPath mConfigMods mVoiceEventsMods (rtTup,cfgTup)
+        genVEs idx = applyMods scnPath mConfigMods mVoiceEventsMods (rtTup,cfgTup)
           where
             mIdx = if idx == numVoc then Just idx else Nothing
-            rtTup  = VoiceRuntimeConfig scnPath mIdx cntVocs idx cntSegs numSeg
+            rtTup  = VoiceRuntimeConfig scnPath mIdx Nothing cntVocs idx cntSegs numSeg
             cfgTup = voiceConfigs NE.!! idx
+
 -- Blend between two [VoiceConfig] by grouping pitches, durations into equal-length [Slice], then substituting slice-by-slice
 -- from second [VoiceConfig] into first [VoiceConfig], starting with one voice from first [VoiceConfig] ending with all voices 
 -- but one from second [VoiceConfig].
@@ -601,21 +602,24 @@ sectionConfig2VoiceEvents timeSig (SectionConfigFadeOut scnPath fadeIxs mSctnNam
 -- same length.
 -- As the actual selection of which inner list in the list of list of pitches, durations, and accents gets rendered is
 -- randomized by the VoiceConfig, 
-sectionConfig2VoiceEvents _ (SectionConfigFadeAcross scnPath nReps mSctnName mConfigMods mVoiceEventsMods voiceConfigPrs) =
-  traverse (traverse (applyMConfigMods mConfigMods)) prss >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
-  where
-    cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
-    cntVocs         = length voiceConfigPrs
-    slicePrs        = both voiceConfig2Slice <$> NE.toList voiceConfigPrs
-    blendedSlices   = transpose $ unfoldr (unfoldToSlicesRow nReps slicePrs) (1:replicate (cntVocs - 1) 0)
-    voiceConfigs    = NE.toList (fst <$> voiceConfigPrs)
-    voiceConfigss   = cfgSlicessPr2Configs <$> zip voiceConfigs blendedSlices
-    cntSegs         = length (head voiceConfigss)
-    voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing cntVocs numVoc cntSegs numSeg | numVoc <- [0..cntVocs - 1], numSeg <- [0..cntSegs - 1]]
-    segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
-    prss             = zipWith zip segRuntimeTupss voiceConfigss
-    scnName          = fromMaybe "fade-cells" mSctnName
-
+sectionConfig2VoiceEvents _ (SectionConfigFadeAcross scnPath nReps mSctnName mConfigMods mVoiceEventsMods voiceConfigPrs) = do
+  spotIxs <- traverse (const (randomIndex cntVocs)) [0..cntSegs - 1]
+  traverse (traverse (applyMConfigMods mConfigMods)) (mkPrss spotIxs) >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
+    where
+      scnName         = fromMaybe "fade-cells" mSctnName      
+      cntVocs         = length voiceConfigPrs
+      slicePrs        = both voiceConfig2Slice <$> NE.toList voiceConfigPrs
+      blendedSlices   = transpose $ unfoldr (unfoldToSlicesRow nReps slicePrs) (1:replicate (cntVocs - 1) 0)
+      voiceConfigs    = NE.toList (fst <$> voiceConfigPrs)
+      voiceConfigss   = cfgSlicessPr2Configs <$> zip voiceConfigs blendedSlices
+      cntSegs         = length (head voiceConfigss)
+      cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
+      mkPrss spotIxs = zipWith zip segRuntimeTupss voiceConfigss
+        where
+          segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
+          voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing (Just spotIx) cntVocs numVoc cntSegs numSeg |
+                             numVoc <- [0..cntVocs - 1], (numSeg,spotIx) <- zip [0..cntSegs - 1] spotIxs]
+    
 voiceConfig2Slice :: VoiceConfig -> [Slice]
 voiceConfig2Slice VoiceConfigXPose{..}    = config2Slices _vcxmPOOrPOss  _vcxDurss  _vcxAcctss
 voiceConfig2Slice VoiceConfigRepeat{..}   = config2Slices _vcrmPOOrPOss  _vcrDurss  _vcrAcctss
@@ -934,36 +938,35 @@ swapVeLens dur ve@VeSpacer{} = ve & veSpacer . spacerDur .~ duration2DurationVal
 swapVeLens dur VeTuplet{}    = VeRest $ Rest (duration2DurationVal dur) NoDynamic ""
 swapVeLens _   ve            = ve
 
-freezeNELists :: NE.NonEmpty (NE.NonEmpty a) -> Driver (NE.NonEmpty (NE.NonEmpty a))
-freezeNELists xss = randomizeList (nes2arrs xss) <&> singleton . NE.fromList . concat
+-- freezeNELists :: NE.NonEmpty (NE.NonEmpty a) -> Driver (NE.NonEmpty (NE.NonEmpty a))
+-- freezeNELists xss = randomizeList (nes2arrs xss) <&> singleton . NE.fromList . concat
 
-freezeConfig :: VoiceConfig -> Driver VoiceConfig
-freezeConfig vcx@VoiceConfigXPose{..}  = do
-  durss      <- freezeNELists _vcxDurss
-  acctss     <- freezeNELists _vcxAcctss
-  mPOOrPOss  <- freezeNELists _vcxmPOOrPOss 
-  pure $ vcx & vcxDurss .~ durss & vcxAcctss .~ acctss & vcxmPOOrPOss  .~ mPOOrPOss 
-freezeConfig vcr@VoiceConfigRepeat{..} = do
-  durss      <- freezeNELists _vcrDurss
-  acctss     <- freezeNELists _vcrAcctss
-  mPOOrPOss  <- freezeNELists _vcrmPOOrPOss 
-  pure $ vcr & vcrDurss .~ durss & vcrAcctss .~ acctss & vcrmPOOrPOss  .~ mPOOrPOss  
-freezeConfig vcr@VoiceConfigVerbatim{} = 
-  pure vcr
-freezeConfig vcl@VoiceConfigCell{..} = do
-  durss      <- freezeNELists _vcclDurss
-  acctss     <- freezeNELists _vcclAcctss
-  mPOOrPOss  <- freezeNELists _vcclmPOOrPOss 
-  pure $ vcl & vcclDurss .~ durss & vcclAcctss .~ acctss & vcclmPOOrPOss  .~ mPOOrPOss 
-freezeConfig vcc@VoiceConfigCanon{..}  = do
-  durss      <- freezeNELists _vccDurss
-  acctss     <- freezeNELists _vccAcctss
-  mPOOrPOss  <- freezeNELists _vccmPOOrPOss 
-  pure $ vcc & vccDurss .~ durss & vccAcctss .~ acctss & vccmPOOrPOss  .~ mPOOrPOss 
-    
+-- freezeConfig :: VoiceConfig -> Driver VoiceConfig
+-- freezeConfig vcx@VoiceConfigXPose{..}  = do
+--   durss      <- freezeNELists _vcxDurss
+--   acctss     <- freezeNELists _vcxAcctss
+--   mPOOrPOss  <- freezeNELists _vcxmPOOrPOss 
+--   pure $ vcx & vcxDurss .~ durss & vcxAcctss .~ acctss & vcxmPOOrPOss  .~ mPOOrPOss 
+-- freezeConfig vcr@VoiceConfigRepeat{..} = do
+--   durss      <- freezeNELists _vcrDurss
+--   acctss     <- freezeNELists _vcrAcctss
+--   mPOOrPOss  <- freezeNELists _vcrmPOOrPOss 
+--   pure $ vcr & vcrDurss .~ durss & vcrAcctss .~ acctss & vcrmPOOrPOss  .~ mPOOrPOss  
+-- freezeConfig vcr@VoiceConfigVerbatim{} = 
+--   pure vcr
+-- freezeConfig vcl@VoiceConfigCell{..} = do
+--   durss      <- freezeNELists _vcclDurss
+--   acctss     <- freezeNELists _vcclAcctss
+--   mPOOrPOss  <- freezeNELists _vcclmPOOrPOss 
+--   pure $ vcl & vcclDurss .~ durss & vcclAcctss .~ acctss & vcclmPOOrPOss  .~ mPOOrPOss 
+-- freezeConfig vcc@VoiceConfigCanon{..}  = do
+--   durss      <- freezeNELists _vccDurss
+--   acctss     <- freezeNELists _vccAcctss
+--   mPOOrPOss  <- freezeNELists _vccmPOOrPOss 
+--   pure $ vcc & vccDurss .~ durss & vccAcctss .~ acctss & vccmPOOrPOss  .~ mPOOrPOss
+
 -- sectionCfg2TimeSignature :: SectionConfig -> TimeSignature
 -- sectionCfg2TimeSignature SectionConfigNeutral{..}    = voiceCfg2TimeSignature (NE.head _scnVoices)
--- sectionCfg2TimeSignature SectionConfigHomophony{..}  = voiceCfg2TimeSignature (NE.head _schVoices)
 -- sectionCfg2TimeSignature SectionConfigFadeIn{..}     = voiceCfg2TimeSignature (NE.head _scfiVoices)
 -- sectionCfg2TimeSignature SectionConfigFadeOut{..}    = voiceCfg2TimeSignature (NE.head _scfoVoices)
 -- sectionCfg2TimeSignature SectionConfigFadeAcross{..} = voiceCfg2TimeSignature (fst (NE.head _scfcVoicesAB))

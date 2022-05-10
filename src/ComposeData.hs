@@ -33,15 +33,6 @@ data SectionConfig =
                       ,_scnMVesMods    :: Maybe (NE.NonEmpty String)
                       ,_scnVoices      :: NE.NonEmpty VoiceConfig
                  }
-    -- TBD:  config with list of Bool to say flatten per voice per segment per param
-  | SectionConfigHomophony {
-                       _schPath        :: String
-                      ,_schReps        :: Int
-                      ,_schMName       :: Maybe String
-                      ,_schMConfigMods :: Maybe (NE.NonEmpty String)
-                      ,_schMVesMods    :: Maybe (NE.NonEmpty String)
-                      ,_schVoices      :: NE.NonEmpty VoiceConfig
-                 }
   | SectionConfigFadeIn {
                        _scfiPath        :: String
                       ,_scfiOrder       :: NE.NonEmpty Int
@@ -70,36 +61,45 @@ data SectionConfig =
 
 data VoiceConfig =
   VoiceConfigXPose {
-                 _vcxScale      :: Scale
-                 ,_vcxmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
-                 ,_vcxDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
-                 ,_vcxAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
-                 ,_vcxRange      :: ((Pitch,Octave),(Pitch,Octave))
-                 } 
+                  _vcxScale     :: Scale
+                 ,_vcxmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                 ,_vcxDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+                 ,_vcxAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
+                 ,_vcxRange     :: ((Pitch,Octave),(Pitch,Octave))
+                 }
+  -- a) randomly permute list of list of pitches, durations, accents, e.g. for single 
+  --    [[Int]]: [[0,1,2],[3,4,5],[6,7,8]] -> [[6,7,8],[0,1,2],[3,4,5]], so order within
+  --    inner lists is preserved, but order of inner lists themselves is randomized
+  -- b) flatten lists of lists to lists of list of pitches, durations, accents, REPEATing
+  --    that list forever, e.g. from above [6,7,8,0,1,2,3,4,5, 6,7,8,0,1,2,3,4,5, etc. ]
+  -- c) create a list of notes selecting pitch, duration, accent in order from lists in step
+  --    b (each extended infinitely) until total duration is equal to _vcrDurVal where 
+  --    _vcDurVal is smallest unit, 128th note (128 to one whole note)
   | VoiceConfigRepeat {
-                    _vcrmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
-                    ,_vcrDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
-                    ,_vcrAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vcrDurVal     :: Int
+                     _vcrmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                    ,_vcrDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+                    ,_vcrAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
+                    ,_vcrDurVal    :: Int
                  } 
+  -- a) without any randomization, slice lists of lists of pitch, duration, 
   | VoiceConfigVerbatim {
-                    _vcvmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
-                    ,_vcvDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
-                    ,_vcvAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vcvDurVal     :: Int
+                     _vcvmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                    ,_vcvDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+                    ,_vcvAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
+                    ,_vcvDurVal    :: Int
                  } 
   | VoiceConfigCell {
-                    _vcclmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
-                    ,_vcclDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
-                    ,_vcclAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vcclDurVal     :: Int
+                     _vcclmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                    ,_vcclDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+                    ,_vcclAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
+                    ,_vcclDurVal    :: Int
                  } 
   | VoiceConfigCanon {
-                    _vccmPOOrPOss  :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
-                    ,_vccDurss      :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
-                    ,_vccAcctss     :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vccDurVal     :: Int
-                    ,_vccRotVal     :: Int
+                     _vccmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                    ,_vccDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+                    ,_vccAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
+                    ,_vccDurVal    :: Int
+                    ,_vccRotVal    :: Int
                  }
   -- Tricky bits:  for a DurTuplet, need to have corresponding counts of pitches and accents.
   -- But it's more complicated than that:  self-similar expansion expects integral units, but
@@ -219,16 +219,7 @@ sectionAndVoices2SectionConfigNeutral section voices =
       <*> searchMConfigParam (section <> ".cfgmods")
       <*> searchMConfigParam (section <> ".vesmods")
       <*> path2VoiceConfigs section voices
-      
-sectionAndVoices2SectionConfigHomophony :: SectionAndVoices2SectionConfig
-sectionAndVoices2SectionConfigHomophony section voices =
-      SectionConfigHomophony section
-      <$> searchConfigParam  (section <> ".reps")
-      <*> searchMConfigParam (section <> ".sctname")
-      <*> searchMConfigParam (section <> ".cfgmods")
-      <*> searchMConfigParam (section <> ".vesmods")
-      <*> path2VoiceConfigs section voices
-      
+            
 sectionAndVoices2SectionConfigFadeIn :: SectionAndVoices2SectionConfig
 sectionAndVoices2SectionConfigFadeIn section voices =
       SectionConfigFadeIn section
@@ -258,7 +249,6 @@ sectionAndVoices2SectionConfigFadeAcross section voices =
 
 name2SectionConfigMap :: M.Map String SectionAndVoices2SectionConfig
 name2SectionConfigMap = M.fromList [("neutral"   ,sectionAndVoices2SectionConfigNeutral)
-                                   ,("homophony" ,sectionAndVoices2SectionConfigHomophony)
                                    ,("fadein"    ,sectionAndVoices2SectionConfigFadeIn)
                                    ,("fadeout"   ,sectionAndVoices2SectionConfigFadeOut)
                                    ,("fadeacross",sectionAndVoices2SectionConfigFadeAcross)]
