@@ -47,14 +47,127 @@ short:
 # long:  patterned on short, with longer spans for bass, treble rhythms
 # starts to jam up some of the squareness of short, with 4 bar period
 # longer durations remove some heat, less tiring to listen
-# still a very intense, active texture, very repetitive,
-# not very different from short
-# could try new config mod to randomly highlight one voice by dynamic,
-# though swells up and down from background would be more like Reich
-# sounds well with orchestral marimba
-# and in the end, even fff/ppp dynamic differences weren't very audible,
-# at least not for marimba
+# still a very intense, active texture, very repetitive
+# carefully varying total length of durations
+# collapsing durations into single list makes for more regular
+# repetition, a little less random, esier to listen to
+# abandoned these for four voices in order:
+#
+#  durss:      ((8,8),(16,16),(8,4),(8,8,8,8)) # 20 16ths
+#  durss:      ((8,8),(16,16),(4,16,8)) # 13 16ths
+#  durss:      ((8,8),(16,16),(4)) # 10 16ths
+#  durss:      ((8,8),(8,16,16),(16,16)) # 10 16ths
+#
+# also, replaced duration for fourth voice from 21 to 20 16ths
+# to greatly reduce the complexity of the line
+# with randomly varying durations, I doubt the rhythms
+# would have even been playable
+#
+# my ear picks out repetitions of e-c in the middle voices and b-a-b-g
+# or b-a-b in the top voice over a bass of a and a harmony an a minor 9th
 long:
+  common:
+    tempo:       (120,4)
+    key:         c major
+    instr:       marimba
+    time:        (6,8)
+  group:
+    grtype: neutral
+    section1:
+      stype:      neutral
+      reps:       int 3
+      uniformDyn: pp
+      vesmods:    (uniformDyns)
+      common:
+        # One 6/8 bar is 6 * 16 or 96 128ths, 96 * 4 is 384
+        # pattern shifts every four bars
+        durval: int 384
+        vtype:  repeat
+      voice1:
+        mPitOctsss: (((g,0),(g,2)),((b,0),(b,1)),((c,1),(b,1),(a,0),(a,1)))
+        durss:      ((8,8,16,16,8,4,8,8,8,8)) # 20 16ths
+        accentss:   ((^,^),(~,~))
+      voice2:
+        vtype: repeat
+        mPitOctsss: (((c,0),(c,1)),((e,0),(e,1)))
+        durss:      ((8,8,16,16,4,16,8)) # 13 16ths
+        accentss:   ((^,^),(~,~))
+      voice3:
+        vtype: repeat
+        mPitOctsss: (((c,0),(c,-1)),((e,0),(e,-1)))
+        durss:      ((8,8,16,16,4)) # 10 16ths
+        accentss:   ((^,^),(~,~))
+      voice4:
+        mPitOctsss: (((a,-3),(a,-2)),((e,-2),(e,-1)))
+        durss:      ((8,8,8,16,16,16,16)) # 10 16ths
+        accentss:   ((^,^),(~,~))
+    # length dur val, use voice mod to randomly pick order of four voices
+    # for dynamic swell while rest of voices stay quiet in background
+    section2:
+      stype:         neutral
+      reps:          int 9
+      foreDyn:       ffff
+      backDyn:       pppp
+      delayDurVal:   int 0
+      crescDurVal:   int 192
+      decrescDurVal: int 96
+      vesmods:       (spotDyns)
+      common:
+        # One 6/8 bar is 6 * 16 or 96 128ths, 96 * 4 is 384
+        # pattern shifts every eight bars
+        durval: int 768
+        vtype:  repeat
+      voice1:
+        mPitOctsss: (((g,0),(g,2)),((b,0),(b,1)),((c,1),(b,1),(a,0),(a,1)))
+        durss:      ((8,8,16,16,8,4,8,8,8,8)) # 20 16ths
+        accentss:   ((^,^),(~,~))
+      voice2:
+        vtype: repeat
+        mPitOctsss: (((c,0),(c,1)),((e,0),(e,1)))
+        durss:      ((8,8,16,16,4,16,8)) # 13 16ths
+        accentss:   ((^,^),(~,~))
+      voice3:
+        vtype: repeat
+        mPitOctsss: (((c,0),(c,-1)),((e,0),(e,-1)))
+        durss:      ((8,8,16,16,4)) # 10 16ths
+        accentss:   ((^,^),(~,~))
+      voice4:
+        mPitOctsss: (((a,-3),(a,-2)),((e,-2),(e,-1)))
+        durss:      ((8,8,8,16,16,16,16)) # 10 16ths
+        accentss:   ((^,^),(~,~))
+    section3:
+      stype:      neutral
+      reps:       int 3
+      uniformDyn: pp
+      vesmods:    (uniformDyns)
+      common:
+        # One 6/8 bar is 6 * 16 or 96 128ths, 96 * 4 is 384
+        # pattern shifts every four bars
+        durval: int 384
+        vtype:  repeat
+      voice1:
+        mPitOctsss: (((g,0),(g,2)),((b,0),(b,1)),((c,1),(b,1),(a,0),(a,1)))
+        durss:      ((8,8,16,16,8,4,8,8,8,8)) # 20 16ths
+        accentss:   ((^,^),(~,~))
+      voice2:
+        vtype: repeat
+        mPitOctsss: (((c,0),(c,1)),((e,0),(e,1)))
+        durss:      ((8,8,16,16,4,16,8)) # 13 16ths
+        accentss:   ((^,^),(~,~))
+      voice3:
+        vtype: repeat
+        mPitOctsss: (((c,0),(c,-1)),((e,0),(e,-1)))
+        durss:      ((8,8,16,16,4)) # 10 16ths
+        accentss:   ((^,^),(~,~))
+      voice4:
+        mPitOctsss: (((a,-3),(a,-2)),((e,-2),(e,-1)))
+        durss:      ((8,8,8,16,16,16,16)) # 10 16ths
+        accentss:   ((^,^),(~,~))
+
+# what happens when we only play with accents?
+# you can hear the different patterns, and you
+# can hear them shift, but it's still really boring
+accents:
   common:
     tempo:       (120,4)
     key:         c major
@@ -65,29 +178,27 @@ long:
     section:
       stype:      neutral
       reps:       int 9
-      foreDyn:    fff
-      backDyn:    ppp
-      vesmods:    (spotDyns)
+      uniformDyn: pp
+      vesmods:    (uniformDyns)
       common:
-        # One 6/8 bar is 6 * 16 or 96 128ths, 96 * 4 is 384
-        # pattern shifts every four bars
         durval: int 384
         vtype:  repeat
       voice1:
-        mPitOctsss: (((g,1),(g,2)),((b,0),(b,1)),((c,1),(a,1),(a,0),(g,1)))
-        durss:      ((8,8),(16,16),(8,4),(8,8,8,8)) # 20 16ths
-        accentss:   ((>,>),(~,~))
+        mPitOctsss: ((((g,1),(g,2)),((b,0),(b,1))),(((c,1),(a,1)),((a,0),(g,1))))
+        durss:      ((8,8))
+        accentss:   ((^,~,~))
       voice2:
         vtype: repeat
-        mPitOctsss: (((c,0),(c,1)),((e,0),(e,1)))
-        durss:      ((8,8),(16,16),(4,16,8)) # 13 16ths
-        accentss:   ((>,>),(~,~))
+        mPitOctsss: ((((c,0),(c,1))),(((e,0),(e,1))))
+        durss:      ((8,8))
+        accentss:   ((~,~,~,^))
       voice3:
         vtype: repeat
-        mPitOctsss: (((c,0),(c,-1)),((e,0),(e,-1)))
-        durss:      ((8,8),(16,16),(4)) # 10 16ths
-        accentss:   ((>,>),(~,~))
+        mPitOctsss: ((((c,0),(c,-1))),(((e,0),(e,-1))))
+        durss:      ((8,8))
+        accentss:   ((^,^,^,~,^,~))
       voice4:
-        mPitOctsss: (((a,-3),(a,-2)),((e,-2),(e,-1)))
-        durss:      ((8,8),(4,16),(16,16)) # 21 16ths
-        accentss:   ((>,>),(~,~))
+        mPitOctsss: ((((a,-3),(a,-2))),(((e,-2),(e,-1))))
+        durss:      ((8,8))
+        accentss:   ((^,^,~,^,~,~))
+

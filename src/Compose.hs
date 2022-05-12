@@ -188,7 +188,7 @@ sectionDynamics VoiceRuntimeConfig{..} ves =
 voicesDynamics :: VoiceEventsMod
 voicesDynamics vrtc@VoiceRuntimeConfig{..} ves = do
   voicesDyn <- searchMConfigParam (_vrcSctnPath <> ".vocsDyn") <&> fromMaybe MF
-  mIdxs::Maybe (NE.NonEmpty Int) <- searchMConfigParam (_vrcSctnPath <> ".vocsDynIdxs")
+  mIdxs     <- searchMConfigParam (_vrcSctnPath <> ".vocsDynIdxs")
   voicesDynamics' voicesDyn mIdxs vrtc ves
   where
     voicesDynamics' :: Dynamic -> Maybe (NE.NonEmpty Int) -> VoiceEventsMod
@@ -198,33 +198,67 @@ voicesDynamics vrtc@VoiceRuntimeConfig{..} ves = do
      where
         isMElem idx = maybe True (idx `elem`)
 
+-- insert actions:
+--  * backDyn at very beginning
+--  * cresc after current duration >= delayDurVal
+--  * foreDyn after current duration plus duration of next VE >= delayDurVal + crescDurVal
+--  * descresc after current duration >= total duration - (decrescDurVal + delayDurVal)
+--  * backDyn after current duration plus duration of next VE >= total duration - delayDurVal
 spotDynamics :: VoiceEventsMod
 spotDynamics VoiceRuntimeConfig{..} ves = do
-  foreDyn <- searchMConfigParam (_vrcSctnPath <> ".foreDyn") <&> fromMaybe FF
-  backDyn <- searchMConfigParam (_vrcSctnPath <> ".backDyn") <&> fromMaybe PP
-  voicesDynamics' _vrcNumVoc foreDyn backDyn ves
+  foreDyn       <- searchConfigParam (_vrcSctnPath <> ".foreDyn")
+  backDyn       <- searchConfigParam (_vrcSctnPath <> ".backDyn")
+  delayDurVal   <- searchConfigParam (_vrcSctnPath <> ".delayDurVal")
+  crescDurVal   <- searchConfigParam (_vrcSctnPath <> ".crescDurVal")
+  decrescDurVal <- searchConfigParam (_vrcSctnPath <> ".decrescDurVal")
+  pure $ spotDyns _vrcNumVoc foreDyn backDyn delayDurVal crescDurVal decrescDurVal (tagFirstSoundDynamic backDyn ves)
   where
-    spotIdx = fromMaybe (error "spotDynamics missing index") _vrcMSpotIdx
-    voicesDynamics' vocIdx foreDyn backDyn ves'
-      | vocIdx == spotIdx = pure $ tagFirstSoundDynamic foreDyn ves'
-      | otherwise = pure $ tagFirstSoundDynamic backDyn ves'
+    totDurVal = ves2DurVal ves
+    spotIdx = fromMaybe (error "spotDyns missing index") _vrcMSpotIdx
+    spotDyns vocIdx foreDyn backDyn delay cresc decresc  ves'
+      | vocIdx == spotIdx =  snd $ mapAccumL accum (0,offFuns) ves'
+      | otherwise = ves'
+      where
+        after  testOff totOff _       = totOff >= testOff
+        before testOff totOff thisOff = totOff + thisOff >= testOff
+        mInsDyn dyn test totOff thisOff ve = if test totOff thisOff then Just (tagControl (CtrlDynamic dyn) ve) else Nothing
+        mInsSwell swell test totOff thisOff ve = if test totOff thisOff then Just (tagControl (CtrlSwell swell) ve) else Nothing
+        offFuns :: [Int -> Int -> VoiceEvent -> Maybe VoiceEvent]
+        offFuns = [mInsSwell Crescendo (after delay)
+                  ,mInsDyn foreDyn (before (delay + cresc)) 
+                  ,mInsSwell Decrescendo (after (totDurVal - (decresc + delay)))
+                  ,mInsDyn backDyn (before (totDurVal - delay))]
+        accum (totOff,funs) ve
+          | null funs = ((totOff,[]),ve)
+          | otherwise = maybe ((totOff',funs),ve) ((totOff',tail funs),) (head funs totOff thisOff ve)
+          where
+            thisOff = ve2DurVal ve
+            totOff' = totOff + thisOff
 
 tagFirstSoundDynamic :: Dynamic -> [VoiceEvent] -> [VoiceEvent]
 tagFirstSoundDynamic dyn ves = maybe ves (`tagDynForIdx` ves) $ findIndex isVeSound ves
   where
-    tagDynForIdx idx = toList . adjust' tagDyn idx . fromList
-    tagDyn ve@VeNote{}    = ve & veNote . noteCtrls %~ swapDyn dyn
-    tagDyn ve@VeRhythm{}  = ve & veRhythm . rhythmCtrls %~ swapDyn dyn
-    tagDyn ve@VeTuplet{}  = ve & veTuplet . tupNotes %~ (\notes -> tagDyn (NE.head notes) NE.:| NE.tail notes)
-    tagDyn ve@VeChord{}   = ve & veChord . chordCtrls %~ swapDyn dyn
-    tagDyn (VeTremolo nt@NoteTremolo{})  = VeTremolo (nt & ntrNote . noteCtrls %~ swapDyn dyn)
-    tagDyn (VeTremolo ct@ChordTremolo{})  = VeTremolo (ct & ctrLeftChord . chordCtrls %~ swapDyn dyn)
-    tagDyn ve             = error $ "tagFirstSoundDynamic: unexpected VoiceEvent: " <> show ve
-    swapDyn dy = (:) (CtrlDynamic dy) . filter (not . isCtrlDynamic) 
+    tagDynForIdx idx = toList . adjust' (tagControl (CtrlDynamic dyn)) idx . fromList
 
-isCtrlDynamic :: Control -> Bool
-isCtrlDynamic CtrlDynamic {} = True
-isCtrlDynamic _              = False
+tagControl :: Control -> VoiceEvent -> VoiceEvent
+tagControl ctrl ve@VeNote{}   = ve & veNote . noteCtrls %~ swapControl ctrl
+tagControl ctrl ve@VeRhythm{} = ve & veRhythm . rhythmCtrls %~ swapControl ctrl
+tagControl ctrl ve@VeTuplet{} = ve & veTuplet . tupNotes %~ (\notes -> tagControl ctrl (NE.head notes) NE.:| NE.tail notes)
+tagControl ctrl ve@VeChord{}  = ve & veChord . chordCtrls %~ swapControl ctrl
+tagControl ctrl (VeTremolo nt@NoteTremolo{})  = VeTremolo (nt & ntrNote . noteCtrls %~ swapControl ctrl)
+tagControl ctrl (VeTremolo ct@ChordTremolo{})  = VeTremolo (ct & ctrLeftChord . chordCtrls %~ swapControl ctrl)
+tagControl _ ve              = error $ "tagControl: unexpected VoiceEvent: " <> show ve
+
+swapControl :: Control -> [Control] -> [Control]
+swapControl ctrl = (:) ctrl . filter (not . isSameControl ctrl) 
+
+isSameControl :: Control -> Control -> Bool
+isSameControl CtrlAccent {}     CtrlAccent {}     = True
+isSameControl CtrlDynamic {}    CtrlDynamic {}    = True
+isSameControl CtrlSwell {}      CtrlSwell {}      = True
+isSameControl CtrlSustain {}    CtrlSustain {}    = True
+isSameControl CtrlAnnotation {} CtrlAnnotation {} = True
+isSameControl _                 _                 = False
 
 isVeSound :: VoiceEvent -> Bool
 isVeSound VeNote {}    = True
@@ -530,7 +564,7 @@ type Slice = ([Maybe PitOctOrNEPitOcts],[DurOrDurTuplet],[Accent])
 
 sectionConfig2VoiceEvents :: TimeSignature -> SectionConfig -> Driver [[VoiceEvent]]
 sectionConfig2VoiceEvents _ (SectionConfigNeutral scnPath cntSegs mSctnName mConfigMods mVoiceEventsMods voiceConfigs) = do
-  spotIxs <- traverse (const (randomIndex cntVocs)) [0..cntSegs - 1]
+  spotIxs <- randomizeList [0..cntVocs - 1] <&> cycle
   traverse (traverse (applyMConfigMods mConfigMods)) (mkPrss spotIxs) >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
     where
       cntVocs = length voiceConfigs

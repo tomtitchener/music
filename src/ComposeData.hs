@@ -74,7 +74,7 @@ data VoiceConfig =
   --    that list forever, e.g. from above [6,7,8,0,1,2,3,4,5, 6,7,8,0,1,2,3,4,5, etc. ]
   -- c) create a list of notes selecting pitch, duration, accent in order from lists in step
   --    b (each extended infinitely) until total duration is equal to _vcrDurVal where 
-  --    _vcDurVal is smallest unit, 128th note (128 to one whole note)
+  --    _vcDurVal is in smallest units of 128th notes (128 to one whole note)
   | VoiceConfigRepeat {
                      _vcrmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcrDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
