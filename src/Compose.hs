@@ -312,9 +312,7 @@ genXPose path durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
                   else error $ "invalid step order " <> show stepOrd <> " compared with range order " <> show rangeOrd
       mPOOrPOs  = unfoldr (unfoldMPOOrPOs compareOp) (Left start,manyMIOrIssDiffs)
       ves       = catMaybes $ unfoldr unfoldVEs (mPOOrPOs,manyDurOrDurTups,manyAccts)
-  if 0 == showVType
-  then pure ves 
-  else pure $ appendAnnFirstNote "xpose" ves
+  pure $ if 0 == showVType then ves else appendAnnFirstNote "xpose" ves
   where
     -- Be careful:  mIOrIss is infinite list.
     unfoldMPOOrPOs cmp (Left prev,Just (Left step):mIOrIss)
@@ -355,7 +353,7 @@ mPrOrPrss2MIOrIsDiffs scale =
         accumDiff prev (Just (Left i))   = (i,Just (Left (i - prev)))
         accumDiff prev (Just (Right is)) = (minimum is,Just (Right (flip (-) prev <$> is)))
 
--- Be careful:  list of [DurOrDurTuplet] and [Accent] are infinite.
+-- Be careful:  lists of [DurOrDurTuplet] and [Accent] are infinite.
 unfoldVEs :: ([Maybe PitOctOrPitOcts],[DurOrDurTuplet],[Accent]) -> Maybe (Maybe VoiceEvent,([Maybe PitOctOrPitOcts],[DurOrDurTuplet],[Accent]))
 unfoldVEs (mPOOrPOs:mPOOrPOss,Left dur:durOrDurTups,accent:accents) =
   Just (Just $ mkNoteChordOrRest mPOOrPOs dur accent,(mPOOrPOss,durOrDurTups,accents))
@@ -399,17 +397,20 @@ mkEqualLengthLists (xs,ys,zs) =
 
 genRepeat :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Driver [VoiceEvent]
 genRepeat path durss acctss mPOOrPOss maxDurVal = do
-  durss'      <- freezeLists durss
-  acctss'     <- freezeLists acctss
-  mPOOrPOss'  <- freezeLists mPOOrPOss 
-  genCanon path durss' acctss' mPOOrPOss' maxDurVal 0 <&> replaceAnnFirstNote "repeat"
-
-freezeLists :: [[a]] -> Driver [[a]]
-freezeLists xss = randomizeList xss <&> (:[]) . concat
+  showVType::Int  <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
+  durss'          <- freezeLists durss
+  acctss'         <- freezeLists acctss
+  mPOOrPOss'      <- freezeLists mPOOrPOss 
+  ves <- genCanon path durss' acctss' mPOOrPOss' maxDurVal 0
+  pure $ if 0 == showVType then ves else replaceAnnFirstNote "repeat" ves
+  where
+    freezeLists xss = randomizeList xss <&> (:[]) . concat
 
 genVerbatim :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Driver [VoiceEvent]
 genVerbatim path durss acctss mPOOrPOss maxDurVal = do
-  genCanon path durss' acctss' mPOOrPOss' maxDurVal 0 <&> replaceAnnFirstNote "verbatim"
+  showVType::Int  <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
+  ves <- genCanon path durss' acctss' mPOOrPOss' maxDurVal 0 
+  pure $ if 0 == showVType then ves else replaceAnnFirstNote "verbatim" ves
   where
     durss'     = [concat durss]
     acctss'    = [concat acctss]

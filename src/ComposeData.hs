@@ -81,7 +81,12 @@ data VoiceConfig =
                     ,_vcrAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vcrDurVal    :: Int
                  } 
-  -- a) without any randomization, slice lists of lists of pitch, duration, 
+  -- without any randomization:
+  -- a) concatenate all list of list components into a list list with single inner list
+  --    [[0,1,2],[3,4,5],[6,7,8]] -> [[0,1,2,3,4,5,6,7,8]]
+  -- b) call genCanon with new list of list components and a rotation of zero
+  -- genCanon will "randomize" single-item list of list as same list, cycle the result,
+  -- and demux components into a pitch list until it reaches the max duration
   | VoiceConfigVerbatim {
                      _vcvmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vcvDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
@@ -93,7 +98,8 @@ data VoiceConfig =
                     ,_vcclDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
                     ,_vcclAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vcclDurVal    :: Int
-                 } 
+                 }
+  -- canon is really maximum randomization with the option of a rotation thrown in
   | VoiceConfigCanon {
                      _vccmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                     ,_vccDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
