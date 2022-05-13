@@ -419,9 +419,9 @@ genVerbatim path durss acctss mPOOrPOss maxDurVal = do
 genCanon :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Int -> Driver [VoiceEvent]
 genCanon path durOrDurTupss acctss mPOOrPOss maxDurVal rotVal = do
   showVType::Int   <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
-  manymPOOrPOss    <- randomElements mPOOrPOss  <&> concatMap (rotN rotVal)
-  manyDurOrDurTups <- randomElements durOrDurTupss  <&> concat
-  manyAccts        <- randomElements acctss <&> concat
+  manymPOOrPOss    <- randomElements mPOOrPOss     <&> concatMap (rotN rotVal)
+  manyDurOrDurTups <- randomElements durOrDurTupss <&> concatMap (rotN rotVal)
+  manyAccts        <- randomElements acctss        <&> concatMap (rotN rotVal)
   let allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,manyDurOrDurTups)
       ves             = catMaybes . snd $ mapAccumL accumDurOrDurTupToMVEs (manymPOOrPOss,manyAccts) allDurOrDurTups
   if 0 == showVType
