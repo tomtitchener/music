@@ -21,6 +21,7 @@ import Data.List (elemIndex, findIndex, findIndices, groupBy, isPrefixOf, sortBy
 import qualified Data.List.NonEmpty as NE
 import Data.List.Split (chunksOf, splitOn)
 import qualified Data.Map.Strict as M
+import Data.Either (isRight)
 import Data.Maybe (fromMaybe, catMaybes)
 import Data.Sequence (adjust', fromList)
 import Data.Traversable (mapAccumL)
@@ -353,7 +354,7 @@ mPrOrPrss2MIOrIsDiffs scale =
         accumDiff prev (Just (Left i))   = (i,Just (Left (i - prev)))
         accumDiff prev (Just (Right is)) = (minimum is,Just (Right (flip (-) prev <$> is)))
 
--- Be careful:  lists of [DurOrDurTuplet] and [Accent] are infinite.
+-- Called only from genXPose, [Maybe PitOctOrPitOcts] is finite length, [DurOrDurTuplet] and [Accent] are infinite lengths.
 unfoldVEs :: ([Maybe PitOctOrPitOcts],[DurOrDurTuplet],[Accent]) -> Maybe (Maybe VoiceEvent,([Maybe PitOctOrPitOcts],[DurOrDurTuplet],[Accent]))
 unfoldVEs (mPOOrPOs:mPOOrPOss,Left dur:durOrDurTups,accent:accents) =
   Just (Just $ mkNoteChordOrRest mPOOrPOs dur accent,(mPOOrPOss,durOrDurTups,accents))
@@ -382,18 +383,51 @@ genCell path durss acctss mPOOrPOss maxDurVal = do
   showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
   pure $ if 0 == showVType then ves else appendAnnFirstNote "cell" ves
 
-mkEqualLengthSubLists :: ([[a]],[[b]],[[c]]) -> ([[a]],[[b]],[[c]])
+mkEqualLengthSubLists :: ([[DurOrDurTuplet]],[[Accent]],[[Maybe PitOctOrPitOcts]]) -> ([[DurOrDurTuplet]],[[Accent]],[[Maybe PitOctOrPitOcts]])
 mkEqualLengthSubLists (as:ass,bs:bss,cs:css) = (as':ass',bs':bss',cs':css')
   where
     (as',bs',cs') = mkEqualLengthLists (as,bs,cs)
     (ass',bss',css') = mkEqualLengthSubLists (ass,bss,css)
-mkEqualLengthSubLists (as,bs,cs) = error $ "equalLists unexpected uneven length lists (as,bs,cs): " <> show (length as,length bs,length cs)
+mkEqualLengthSubLists (as,bs,cs) = error $ "mkEqualLengSublists unexpected uneven length lists (as,bs,cs): " <> show (length as,length bs,length cs)
 
-mkEqualLengthLists :: ([a],[b],[c]) -> ([a],[b],[c])
-mkEqualLengthLists (xs,ys,zs) =
-  (take l (cycle xs), take l (cycle ys), take l (cycle zs))
+-- Make length of all lists equal to max with special handling for DurTuplets in [DurOrDurTuplet]
+-- because you cannot have a partial DurTuplet.
+-- If [DurOrDurTuplet] is all (Left DurationVal), i.e. no (Right DurTuplet)
+--   Then all lists contain unit values so just take max of all from each
+-- Else if the count of all durations allowing for DurTuplets is >= length accents and length pitches
+--   Then answer unchanged [DurOrDurTuplet] and take count of all durations from (cycle accents) and (cycle pitches)
+-- Otherwise have to take from cycle ds maybe extending as and pos to fill terminal DurTuplet, if necesssary
+--   a) count down to zero from max of accents or pitches through cycle ds, decrementing 1 for DurationVal, > 1 for DurTuplet,
+--      summing to max accents or pitches maybe plus extra to match terminal DurTuplet if necessary
+--   b) use that count to extract result lists with equal count items including full concluding DurTuplet
+mkEqualLengthLists :: ([DurOrDurTuplet],[Accent],[Maybe PitOctOrPitOcts]) -> ([DurOrDurTuplet],[Accent],[Maybe PitOctOrPitOcts])
+mkEqualLengthLists (ds,as,pos)
+  | not (any isRight ds) = (take maxAll (cycle ds), take maxAll (cycle as), take maxAll (cycle pos))
+  | cntDurs >= maxAsPos = (ds, take cntDurs (cycle as), take cntDurs (cycle pos))
+  | otherwise = (takeChunk cntTot (cycle ds), take cntTot (cycle as), take cntTot (cycle pos))
   where
-    l = maximum [length xs,length ys,length zs]
+    maxAll = maximum [length ds,length as,length pos]
+    cntDurs = sum (either (const 1) (length . _durtupDurations) <$> ds)
+    maxAsPos = max (length as) (length pos)
+    cntTot = countItems maxAsPos (cycle ds)
+    countItems :: Int -> [DurOrDurTuplet] -> Int
+    countItems 0 _ = 0
+    countItems n (Left _:ds') = 1 + countItems (n - 1) ds'
+    countItems n (Right DurTuplet{..}:ds')
+      | nDurs >= n = nDurs + countItems (n - nDurs) ds'
+      | otherwise = nDurs -- take extra accents and pitches to match count in tuplet
+        where
+          nDurs = length _durtupDurations
+    countItems n [] = error $ "mkEqualLengthLists:countItems unexpected end of list, n: " <> show n
+    takeChunk :: Int -> [DurOrDurTuplet] -> [DurOrDurTuplet]
+    takeChunk 0 _ = []
+    takeChunk n (Left d@DurationVal{}:ds') = Left d : takeChunk (n - 1) ds'
+    takeChunk n (Right d@DurTuplet{..}:ds')
+      | nDurs >= n = Right d : takeChunk (n - nDurs) ds'
+      | otherwise = error $ "mkEqualLengthLists:takeChunk unexpected count " <> show n  <> " < durations in tuplet " <> show nDurs
+        where
+          nDurs = length _durtupDurations
+    takeChunk _ [] = error "mkEqualLengthLists:takeChunk unexpected end of list"
 
 genRepeat :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Driver [VoiceEvent]
 genRepeat path durss acctss mPOOrPOss maxDurVal = do
@@ -428,6 +462,7 @@ genCanon path durOrDurTupss acctss mPOOrPOss maxDurVal rotVal = do
   then pure ves
   else pure $ appendAnnFirstNote "canon" ves
 
+-- [Maybe PitOctOrPitOcts] and [Accent] are infinite length.
 accumDurOrDurTupToMVEs :: ([Maybe PitOctOrPitOcts],[Accent]) -> DurOrDurTuplet -> (([Maybe PitOctOrPitOcts],[Accent]),Maybe VoiceEvent)
 accumDurOrDurTupToMVEs (mPitOrPitOct:mPitOrPitOcts,accent:accents) (Left dur) =
   ((mPitOrPitOcts,accents),Just $ mkNoteChordOrRest mPitOrPitOct dur accent)
@@ -457,10 +492,10 @@ unfoldDurOrDurTups maxDurVal (totDurVal,Right durTup:durOrDurTups)
   | totDurVal == maxDurVal = Nothing
   | otherwise = Just (adjNextDur,(totDurVal + adjNextDurVal,durOrDurTups))
     where
-      nextDurVal = dur2DurVal (durTup2Dur durTup)
+      nextDurVal = durTup2Dur durTup
       adjNextDurVal = if totDurVal + nextDurVal <= maxDurVal then nextDurVal else nextDurVal - ((totDurVal + nextDurVal) - maxDurVal)
       adjNextDur = if adjNextDurVal == nextDurVal then Right durTup else Left $ mkDurationVal adjNextDurVal
-      durTup2Dur DurTuplet{..} = durVal2Dur "3" (getDurSum (sumDurs (replicate _durtupDenominator _durtupUnitDuration)))
+      durTup2Dur DurTuplet{..} = getDurSum (sumDurs (replicate (durTup2CntTups durTup * _durtupDenominator) _durtupUnitDuration))
 unfoldDurOrDurTups _ (_,[]) = error "unfoldDurOrDurTups unexpected empty list of [DurOrDurTuplet]"
 
 appendAnnFirstNote :: String -> [VoiceEvent] -> [VoiceEvent]
@@ -505,17 +540,18 @@ pitchInt2ScaleDegree Scale{..} (pitch,octOff) =
     pitches = NE.toList _scPitches
     err = error $ "mPitch2ScaleDegree no pitch: " <> show pitch <> " in pitches for scale: " <> show pitches
 
--- Be careful, [Maybe PitOctOrPitOcts] and/or [Accent] maybe be infinite lengths.
+-- When called from genXPose -> unfoldVEs, [Maybe PitOctOrPitOcts] is finite length, [Accent] is infinite length
+-- When called from genCell | genCanon -> accumDurOrDurTupToMVEs, [Maybe PitOctOrPitOcts] and [Accent] are infinite lengths
 mkMaybeVeTuplet :: [Maybe PitOctOrPitOcts] -> DurTuplet -> [Accent] -> (Maybe VoiceEvent,[Maybe PitOctOrPitOcts],[Accent])
 mkMaybeVeTuplet mPOOrPOs DurTuplet{..} accents
-  | cntDurs > length accents' || cntDurs > length mPOOrPOs' = (Nothing,mPOOrPOs,accents) -- not enough left, maybe retry with next DurOrDurTuplet?
+  | cntDurs > min (length accents') (length mPOOrPOs') = (Nothing,mPOOrPOs,accents) -- not enough left, maybe retry with next DurOrDurTuplet?
   | otherwise = (verifyVeTuplet veTup,drop cntDurs mPOOrPOs,drop cntDurs accents)
   where
     ves         = zipWith3 mkNoteChordOrRest mPOOrPOs' (NE.toList _durtupDurations) accents'
     veTup       = VeTuplet (Tuplet _durtupNumerator _durtupDenominator _durtupUnitDuration (NE.fromList ves))
     cntDurs     = length _durtupDurations
-    mPOOrPOs'   = take cntDurs mPOOrPOs
-    accents'    = take cntDurs accents
+    mPOOrPOs'   = take cntDurs mPOOrPOs -- may return < cntDurs (Maybe PitOctOrPitOcts)
+    accents'    = take cntDurs accents -- always returns cntDurs Accent
 
 verifyVeTuplet :: VoiceEvent -> Maybe VoiceEvent
 verifyVeTuplet (VeTuplet tuplet)

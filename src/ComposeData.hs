@@ -62,28 +62,55 @@ data SectionConfig =
                       }
     deriving Show
 
--- Don't forget:  effect of different components between voices
-
 -- For each list of list of (Maybe PitOctOrNEPitOcts), the outer Maybe is
--- Nothing for a rest or Just PitOctOrNEPitOcts for a pitch, octave pair
--- e.g. for a note, or a list of pitch, octave pairs, e.g. for a chord.
+-- Nothing for a rest or Just PitOctOrNEPitOcts for 1) a pitch, octave pair
+-- e.g. for a note, or 2) a non-empty list of pitch, octave pairs,
+-- e.g. for a chord.
 --
--- A DurOrDurTuplet is either a DurationVal, which tells the length in 128th
--- notes of a rest, pitch, or chord, or a tuplet, which tells the numerator,
+-- A DurOrDurTuplet is either a 1) DurationVal, which tells the length in 128th
+-- notes of a rest, pitch, or chord, or 2) a DurTuplet, which tells the numerator,
 -- denominator, unit duration, and list of DurationVals to pair with a list
 -- of rest, pitch, or chord.  The total duration of the list of DurationVals
 -- must be a multiple of the total duration for the tuplet.
 data VoiceConfig =
-  -- same as canon, except concatenated, randomized selection of sublists from
-  -- pitches are mapped to interval diffs extending over _vcxRange from first
-  -- pair to second
-  VoiceConfigXPose {
-                  _vcxScale     :: Scale
-                 ,_vcxmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
-                 ,_vcxDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
-                 ,_vcxAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                 ,_vcxRange     :: ((Pitch,Octave),(Pitch,Octave))
-                 }
+  -- maximum regularity: nothing changes from segment to segment, collect pitch,
+  -- duration, and accent in same order as config until reaching max duration,
+  -- repeating entire list of pitches, durations, or accents as necessary, so that,
+  -- if lengths of lists are equal, each segment repeats same note sequence
+  -- a) concatenate pitch, duration, and accent sublists into a list of lists with
+  --    only one inner list
+  --      e.g.: [[p0,p1,p2],[p3,p4,p5],[p6,p7,p8]] -> [[p0,p1,p2,p3,p4,p5,p6,p7,p8]]
+  -- b) cycle and concat pitch, duration, and accent list of list to make infinite
+  --    lists.
+  -- c) combine pitch, duration, and accent sublists into list of notes until
+  --    total duration matches configuration value in 128th notes
+    VoiceConfigVerbatim {
+                     _vcvmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                    ,_vcvDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+                    ,_vcvAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
+                    ,_vcvDurVal    :: Int
+                    }
+  -- introduction of some irregularity vs. verbatim:  extend sublists of pitches,
+  -- durations, and accents so they're all equal lengths, then randomly pick the
+  -- same sublist from the list of lists to create the next batch of pitches until
+  -- reaching the max duration (all lists must contain the same number of sublists)
+  -- a) tuple up inner lists of pitches, durations, and accents,
+  --    all outer lists must be same length (e.g. two lists below):
+  --      e.g.: ((p1,p2),(p3)), ((d1),(d2,d3)), ((a1,a2),(a3,a4)) ->
+  --            (((p1,p2),(d1),(a1,a2)), ((p3),(d2,d3),(a3,a4)))
+  -- b) cycle all inner lists to be the same length, e.g
+  --      e.g.: (((p1,p2),(d1),(a1,a2)), ((p3),(d2,d3),(a3,a4))) ->
+  --            (((p1,p2),(d1,d1),(a1,a2)), ((p3,p3),(d2,d3),(a3,a4)))
+  -- c) create an infinite list of random indices 0..N-1 where N is 
+  --    length of list of tuples (2 above), e.g.: 0,1,1,1,0,0,0..
+  -- d) generate list of notes from pitches, durations, and accents in lists
+  --      e.g. for indices 0,1: ((p1,d1,a1),(p2,d1,a2),(p3,d2,a3),(p3,d3,a4))
+  | VoiceConfigCell {
+                     _vcclmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                    ,_vcclDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+                    ,_vcclAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
+                    ,_vcclDurVal    :: Int
+                    }
   -- a) randomly permute list of list of pitches, durations, accents, so
   --    order in inner lists is preserved, order of inner lists themselves 
   --    is randomized, e.g.:
@@ -104,42 +131,6 @@ data VoiceConfig =
                     ,_vcrAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
                     ,_vcrDurVal    :: Int
                     } 
-  -- a) concatenate pitch, duration, and accent sublists into a list of lists with
-  --    only one inner list
-  --      e.g.: [[p0,p1,p2],[p3,p4,p5],[p6,p7,p8]] -> [[p0,p1,p2,p3,p4,p5,p6,p7,p8]]
-  -- b) cycle and concat pitch, duration, and accent list of list to make infinite
-  --    lists.
-  -- c) combine pitch, duration, and accent sublists into list of notes until
-  --    total duration matches configuration value in 128th notes
-  -- maximum reduction in irregularity, nothing changes from segment to segment,
-  -- though alignment of pitch, duration, and accents may shift if lengths of
-  -- concatenated inner lists vary
-  | VoiceConfigVerbatim {
-                     _vcvmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
-                    ,_vcvDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
-                    ,_vcvAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vcvDurVal    :: Int
-                    }
-  -- a) tuple up inner lists of pitches, durations, and accents,
-  --    all outer lists must be same length (e.g. two lists below):
-  --      e.g.: ((p1,p2),(p3)), ((d1),(d2,d3)), ((a1,a2),(a3,a4)) ->
-  --            (((p1,p2),(d1),(a1,a2)), ((p3),(d2,d3),(a3,a4)))
-  -- b) cycle all inner lists to be the same length, e.g
-  --      e.g.: (((p1,p2),(d1),(a1,a2)), ((p3),(d2,d3),(a3,a4))) ->
-  --            (((p1,p2),(d1,d1),(a1,a2)), ((p3,p3),(d2,d3),(a3,a4)))
-  -- c) create an infinite list of random indices 0..N-1 where N is 
-  --    length of list of tuples (2 above), e.g.: 0,1,1,1,0,0,0..
-  -- d) generate list of notes from pitches, durations, and accents in lists
-  --      e.g. for indices 0,1: ((p1,d1,a1),(p2,d1,a2),(p3,d2,a3),(p3,d3,a4))
-  -- reduction of irregularity from canon eliminates:
-  --   a) random associations of sublists of pitches, durations, and accents
-  --   b) varying tupling of pitch, duration, and accent from different length sublists
-  | VoiceConfigCell {
-                     _vcclmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
-                    ,_vcclDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
-                    ,_vcclAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vcclDurVal    :: Int
-                    }
   -- a) for each of list of list of pitches, durations, accents:
   --    - create an infinite list of indices 0..N-1 where N is length of outer list
   --    - use the list indices to select an infinite list of inner lists by index
@@ -162,6 +153,22 @@ data VoiceConfig =
                     ,_vccDurVal    :: Int
                     ,_vccRotVal    :: Int
                     }
+  -- same as canon, except concatenated, randomized selection of sublists from
+  -- pitches are mapped to interval diffs extending over _vcxRange from first in
+  -- pair to second (have to be careful random sequences of pitches always either
+  -- rise or fall depending on order of pitch, octave pairs in range)
+  -- sublists of pitches, durations, and accents are randomly selected, then
+  -- tupled together to make notes, until the pitch exceeds the range
+  -- in the bridge piece, all voices share the same configuration, the outcome
+  -- is a race among similar but different voices as the randomizations result in
+  -- different range and duration results, so the voices gradually become separated
+  | VoiceConfigXPose {
+                  _vcxScale     :: Scale
+                 ,_vcxmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+                 ,_vcxDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+                 ,_vcxAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
+                 ,_vcxRange     :: ((Pitch,Octave),(Pitch,Octave))
+                 }
     deriving Show
 
 makeLenses ''VoiceConfig
