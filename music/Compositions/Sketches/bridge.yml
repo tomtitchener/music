@@ -249,6 +249,9 @@ bridge:
     #     accentss: ((!,~,!,~,>,~),(!,>,>,!))
     # Do this incrementally with fade-across.  Is this any better?  Not for sure.  Individual slow downs really
     # pop out, sound awkward with start / stop.
+    # 
+    # NB: first and fourth voices stay the same, only inner voices slow down incrementally.
+    # 
     section1:
       stype:       fadeacross
       reps:        int 1
@@ -259,7 +262,7 @@ bridge:
       showVType:   int 0
       common:
         vtype:      canon
-        durval:     int 576 # 2 * 9 * 32
+        durval:     int 576 # 2 * 9 * 32  -- 7 * 16 == 112 per measure, why 576?
       voice1:
         mPitOctsss: ((((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1),((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))),
                      (((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1),((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
@@ -270,14 +273,12 @@ bridge:
         vtype:    verbatim
         mPitOctsss: ((((d,0),(ais,-1)),((c,0),(gis,-1)),(gis,-1),((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))),
                      (((d,0),(ais,-1)),((c,0),(gis,-1)),(gis,-1),((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-        rotval:   int 0
         durss:    ((16,16,16,16,8,8),(16,16,16,16,8,8))
         accentss: ((~,~,~,~,~,~,>,~,>,~),(~,~,~,~,~,~,>,~,>,~))
       voice3:
         vtype:    verbatim
         mPitOctsss: ((((d,0),(ais,-1)),((c,0),(gis,-1)),(gis,-1),((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))),
                      (((d,0),(ais,-1)),((c,0),(gis,-1)),(gis,-1),((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-        rotval:   int 1
         durss:    ((8.,16,16,8.,16,16),(8.,16,16,8.,16,16))
         accentss: ((>,~,-,-,-),(>,~,-,-,-))
       voice4:
@@ -296,14 +297,12 @@ bridge:
         vtype:    verbatim
         mPitOctsss: ((((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1),((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))),
                      (((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1),((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))))
-        rotval:   int 0
         durss:    ((8,8,4,8,8,4,8),(8,8,4,8,8,4,8))
         accentss: ((~,~,~,~),(~,~,~,~))
       voice7:
         vtype:    verbatim
         mPitOctsss: ((((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1),((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))),
                      (((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1),((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))))
-        rotval:   int 1
         durss:    ((8,8,4,8,4,8,8),(8,8,4,8,4,8,8))
         accentss: ((~,~,~,~),(~,~,~,~))
       voice8:

@@ -88,12 +88,10 @@ long:
         durss:      ((8,8,16,16,8,4,8,8,8,8)) # 20 16ths
         accentss:   ((^,^),(~,~))
       voice2:
-        vtype: repeat
         mPitOctsss: (((c,0),(c,1)),((e,0),(e,1)))
         durss:      ((8,8,16,16,4,16,8)) # 13 16ths
         accentss:   ((^,^),(~,~))
       voice3:
-        vtype: repeat
         mPitOctsss: (((c,0),(c,-1)),((e,0),(e,-1)))
         durss:      ((8,8,16,16,4)) # 10 16ths
         accentss:   ((^,^),(~,~))
@@ -106,6 +104,10 @@ long:
     section2:
       stype:         neutral
       reps:          int 9
+      # spotlight dynamics: bring random voice to foreground 
+      # with cresc to foreDyn that lasts crescDurVal,
+      # decresc to backDyn that lasts decrescDurVal,
+      # all other voices stay at backDyn
       foreDyn:       ffff
       backDyn:       pppp
       delayDurVal:   int 0
@@ -122,12 +124,10 @@ long:
         durss:      ((8,8,16,16,8,4,8,8,8,8)) # 20 16ths
         accentss:   ((^,^),(~,~))
       voice2:
-        vtype: repeat
         mPitOctsss: (((c,0),(c,1)),((e,0),(e,1)))
         durss:      ((8,8,16,16,4,16,8)) # 13 16ths
         accentss:   ((^,^),(~,~))
       voice3:
-        vtype: repeat
         mPitOctsss: (((c,0),(c,-1)),((e,0),(e,-1)))
         durss:      ((8,8,16,16,4)) # 10 16ths
         accentss:   ((^,^),(~,~))
@@ -150,12 +150,10 @@ long:
         durss:      ((8,8,16,16,8,4,8,8,8,8)) # 20 16ths
         accentss:   ((^,^),(~,~))
       voice2:
-        vtype: repeat
         mPitOctsss: (((c,0),(c,1)),((e,0),(e,1)))
         durss:      ((8,8,16,16,4,16,8)) # 13 16ths
         accentss:   ((^,^),(~,~))
       voice3:
-        vtype: repeat
         mPitOctsss: (((c,0),(c,-1)),((e,0),(e,-1)))
         durss:      ((8,8,16,16,4)) # 10 16ths
         accentss:   ((^,^),(~,~))
