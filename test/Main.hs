@@ -76,7 +76,7 @@ tests =
   ,testCase     "single-voice score" (testLilypond "single-voice.ly" minScore)
   ,testCase     "multi-voice score"  (testLilypond "multi-voice.ly" multiScore)
   ,testCase     "poly-voice score"   (testLilypond "poly-voice.ly" polyScore)
-  ,testCase     "splist-staff score" (testLilypond "split-staff-voice.ly" splitStaffScore)
+  ,testCase     "split-staff score" (testLilypond "split-staff-voice.ly" splitStaffScore)
   ,testCase     "group-voice score"  (testLilypond "group-voice.ly" groupScore)
   ]
 
