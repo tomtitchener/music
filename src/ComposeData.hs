@@ -62,6 +62,13 @@ data SectionConfig =
                       }
     deriving Show
 
+data VoiceConfigCore =
+  VoiceConfigCore {
+   _vcmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
+  ,_vcDurss    :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+  ,_vcAcctss   :: NE.NonEmpty (NE.NonEmpty Accent)
+  } deriving Show
+
 -- For each list of list of (Maybe PitOctOrNEPitOcts), the outer Maybe is
 -- Nothing for a rest or Just PitOctOrNEPitOcts for 1) a pitch, octave pair
 -- e.g. for a note, or 2) a non-empty list of pitch, octave pairs,
@@ -85,11 +92,9 @@ data VoiceConfig =
   -- c) combine pitch, duration, and accent sublists into list of notes until
   --    total duration matches configuration value in 128th notes
     VoiceConfigVerbatim {
-                     _vcvmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
-                    ,_vcvDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
-                    ,_vcvAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vcvDurVal    :: Int
-                    }
+    _vcvCore   :: VoiceConfigCore
+   ,_vcvDurVal :: Int
+   }
   -- introduction of some irregularity vs. verbatim:  extend sublists of pitches,
   -- durations, and accents so they're all equal lengths, then randomly pick the
   -- same sublist from the list of lists to create the next batch of pitches until
@@ -106,11 +111,9 @@ data VoiceConfig =
   -- d) generate list of notes from pitches, durations, and accents in lists
   --      e.g. for indices 0,1: ((p1,d1,a1),(p2,d1,a2),(p3,d2,a3),(p3,d3,a4))
   | VoiceConfigCell {
-                     _vcclmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
-                    ,_vcclDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
-                    ,_vcclAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vcclDurVal    :: Int
-                    }
+     _vccCore    :: VoiceConfigCore
+    ,_vcclDurVal :: Int
+    }
   -- a) randomly permute list of list of pitches, durations, accents, so
   --    order in inner lists is preserved, order of inner lists themselves 
   --    is randomized, e.g.:
@@ -126,11 +129,9 @@ data VoiceConfig =
   -- same as canon because (possibly) different lengths of pitches, durations, and
   -- accents mean irregular pairings of pitch, duration, and accent to generate notes
   | VoiceConfigRepeat {
-                     _vcrmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
-                    ,_vcrDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
-                    ,_vcrAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vcrDurVal    :: Int
-                    } 
+      _vcrCore    :: VoiceConfigCore
+     ,_vcrDurVal    :: Int
+     } 
   -- a) for each of list of list of pitches, durations, accents:
   --    - create an infinite list of indices 0..N-1 where N is length of outer list
   --    - use the list indices to select an infinite list of inner lists by index
@@ -147,12 +148,10 @@ data VoiceConfig =
   -- (even then, you need to use a config mod to stagger the arrival of the voices)
   -- poor name choice, maybe VoiceConfigRandomizedSublists would be better?
   | VoiceConfigCanon {
-                     _vccmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
-                    ,_vccDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
-                    ,_vccAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                    ,_vccDurVal    :: Int
-                    ,_vccRotVal    :: Int
-                    }
+       _vccCore    :: VoiceConfigCore
+      ,_vccDurVal    :: Int
+      ,_vccRotVal    :: Int
+      }
   -- same as canon, except concatenated, randomized selection of sublists from
   -- pitches are mapped to interval diffs extending over _vcxRange from first in
   -- pair to second (have to be careful random sequences of pitches always either
@@ -163,47 +162,45 @@ data VoiceConfig =
   -- is a race among similar but different voices as the randomizations result in
   -- different range and duration results, so the voices gradually become separated
   | VoiceConfigXPose {
-                  _vcxScale     :: Scale
-                 ,_vcxmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
-                 ,_vcxDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
-                 ,_vcxAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
-                 ,_vcxRange     :: ((Pitch,Octave),(Pitch,Octave))
-                 }
+       _vcxCore    :: VoiceConfigCore
+      ,_vcxScale     :: Scale
+      ,_vcxRange     :: ((Pitch,Octave),(Pitch,Octave))
+      }
     deriving Show
 
+makeLenses ''VoiceConfigCore
 makeLenses ''VoiceConfig
 
+path2VoiceConfigCore :: String -> Driver VoiceConfigCore
+path2VoiceConfigCore pre =
+  VoiceConfigCore
+  <$> searchConfigParam  (pre <> ".mPitOctsss")
+  <*> searchConfigParam  (pre <> ".durss")
+  <*> searchConfigParam  (pre <> ".accentss")
+  
 path2VoiceConfigXPose :: String -> Driver VoiceConfig
 path2VoiceConfigXPose pre =
       VoiceConfigXPose 
-        <$> searchConfigParam  (pre <> ".scale")
-        <*> searchConfigParam  (pre <> ".mPitOctsss")
-        <*> searchConfigParam  (pre <> ".durss")
-        <*> searchConfigParam  (pre <> ".accentss")
+        <$> path2VoiceConfigCore pre
+        <*> searchConfigParam  (pre <> ".scale")
         <*> searchConfigParam  (pre <> ".range")
 
 path2VoiceConfigRepeat :: String -> Driver VoiceConfig
 path2VoiceConfigRepeat pre =
       VoiceConfigRepeat 
-        <$> searchConfigParam  (pre <> ".mPitOctsss")
-        <*> searchConfigParam  (pre <> ".durss")
-        <*> searchConfigParam  (pre <> ".accentss")
+        <$> path2VoiceConfigCore pre
         <*> searchConfigParam  (pre <> ".durval")
-
+  
 path2VoiceConfigVerbatim :: String -> Driver VoiceConfig
 path2VoiceConfigVerbatim pre =
       VoiceConfigVerbatim 
-        <$> searchConfigParam  (pre <> ".mPitOctsss")
-        <*> searchConfigParam  (pre <> ".durss")
-        <*> searchConfigParam  (pre <> ".accentss")
+        <$> path2VoiceConfigCore pre
         <*> searchConfigParam  (pre <> ".durval")
         
 path2VoiceConfigCell' :: String -> Driver VoiceConfig
 path2VoiceConfigCell' pre =
       VoiceConfigCell
-        <$> searchConfigParam  (pre <> ".mPitOctsss")
-        <*> searchConfigParam  (pre <> ".durss")
-        <*> searchConfigParam  (pre <> ".accentss")
+        <$> path2VoiceConfigCore pre
         <*> searchConfigParam  (pre <> ".durval")
 
 path2VoiceConfigCell :: String -> Driver VoiceConfig
@@ -213,15 +210,13 @@ path2VoiceConfigCell pre = path2VoiceConfigCell' pre <&> verifyListsLengths
       | all (== head allLengths) allLengths = vc
       | otherwise = error $ "path2VoiceConfigCell unequal length listss: " <> show allLengths
       where
-        allLengths = [NE.length _vcclmPOOrPOss,NE.length _vcclAcctss,NE.length _vcclDurss]
+        allLengths = [NE.length (_vcmPOOrPOss _vccCore),NE.length (_vcAcctss _vccCore) ,NE.length (_vcDurss _vccCore)]
     verifyListsLengths vc = error $ "pagth2VoiceConfigCell unexpected VoiceConfig: " <> show vc
 
 path2VoiceConfigCanon :: String -> Driver VoiceConfig
 path2VoiceConfigCanon pre =
       VoiceConfigCanon 
-        <$> searchConfigParam  (pre <> ".mPitOctsss")
-        <*> searchConfigParam  (pre <> ".durss")
-        <*> searchConfigParam  (pre <> ".accentss")
+        <$> path2VoiceConfigCore pre
         <*> searchConfigParam  (pre <> ".durval")
         <*> searchConfigParam  (pre <> ".rotval")
         
