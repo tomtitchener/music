@@ -312,6 +312,7 @@ genXPose path durOrDurTupss acctss mPrOrPrsss scale (Range (start,stop)) = do
                   then if stepOrd == LT then (<=) else (>=)
                   else error $ "invalid step order " <> show stepOrd <> " compared with range order " <> show rangeOrd
       mPOOrPOs  = unfoldr (unfoldMPOOrPOs compareOp) (Left start,manyMIOrIssDiffs)
+                  -- Nothing if not enough mPOOrPOs for DurTuplet in mkMaybeVeTuplet, so just drop pitches in partial tuplet
       ves       = catMaybes $ unfoldr unfoldVEs (mPOOrPOs,manyDurOrDurTups,manyAccts)
   pure $ if 0 == showVType then ves else appendAnnFirstNote "xpose" ves
   where
@@ -379,7 +380,7 @@ genCell path durss acctss mPOOrPOss maxDurVal = do
   let (eqLenDurss,eqLenAcctss,eqLenmPOOrPOss) = mkEqualLengthSubLists (durss,acctss,mPOOrPOss)
       (manyDurs,manyAccts,manymPOOrPOss) = ((eqLenDurss !!) <$> manyIs,(eqLenAcctss !!) <$> manyIs,(eqLenmPOOrPOss !!) <$> manyIs)
       allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,concat manyDurs)
-      ves             = catMaybes . snd $ mapAccumL accumDurOrDurTupToMVEs (concat manymPOOrPOss,concat manyAccts) allDurOrDurTups
+      ves             = snd $ mapAccumL accumDurOrDurTupToVEs (concat manymPOOrPOss,concat manyAccts) allDurOrDurTups
   showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
   pure $ if 0 == showVType then ves else appendAnnFirstNote "cell" ves
 
@@ -429,48 +430,51 @@ mkEqualLengthLists (ds,as,pos)
           nDurs = length _durtupDurations
     takeChunk _ [] = error "mkEqualLengthLists:takeChunk unexpected end of list"
 
-genRepeat :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Driver [VoiceEvent]
-genRepeat path durss acctss mPOOrPOss maxDurVal = do
-  showVType::Int  <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
-  durss'          <- freezeLists durss
-  acctss'         <- freezeLists acctss
-  mPOOrPOss'      <- freezeLists mPOOrPOss 
-  ves <- genCanon path durss' acctss' mPOOrPOss' maxDurVal 0
-  pure $ if 0 == showVType then ves else replaceAnnFirstNote "repeat" ves
-  where
-    freezeLists xss = randomizeList xss <&> (:[]) . concat
-
+genVEsForDurs :: [DurOrDurTuplet] -> [Maybe PitOctOrPitOcts] -> [Accent] -> [VoiceEvent]
+genVEsForDurs allDurOrDurTups manymPOOrPOs manyActs =
+  snd $ mapAccumL accumDurOrDurTupToVEs (manymPOOrPOs, manyActs) allDurOrDurTups
+  
 genVerbatim :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Driver [VoiceEvent]
 genVerbatim path durss acctss mPOOrPOss maxDurVal = do
   showVType::Int  <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
-  ves <- genCanon path durss' acctss' mPOOrPOss' maxDurVal 0 
-  pure $ if 0 == showVType then ves else replaceAnnFirstNote "verbatim" ves
+  let allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,concat (cycle durss))
+      manymPOOrPOs    = concat (cycle mPOOrPOss)
+      manyAccts       = concat (cycle acctss)    
+      ves             = genVEsForDurs allDurOrDurTups manymPOOrPOs manyAccts
+  pure $ if 0 == showVType then ves else appendAnnFirstNote "verbatim" ves
+
+genRepeat :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Driver [VoiceEvent]
+genRepeat path durss acctss mPOOrPOss maxDurVal = do
+  showVType::Int   <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
+  manymPOOrPOs     <- freezeLists mPOOrPOss
+  manyDurOrDurTups <- freezeLists durss
+  manyAccts        <- freezeLists acctss
+  let allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,manyDurOrDurTups)
+      ves             = genVEsForDurs allDurOrDurTups manymPOOrPOs manyAccts
+  pure $ if 0 == showVType then ves else appendAnnFirstNote "repeat" ves
   where
-    durss'     = [concat durss]
-    acctss'    = [concat acctss]
-    mPOOrPOss' = [concat mPOOrPOss]
+    freezeLists xss = randomizeList xss <&> concat . cycle . (:[]) . concat
 
 genCanon :: String -> [[DurOrDurTuplet]] -> [[Accent]] -> [[Maybe PitOctOrPitOcts]] -> Int -> Int -> Driver [VoiceEvent]
 genCanon path durOrDurTupss acctss mPOOrPOss maxDurVal rotVal = do
   showVType::Int   <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
-  manymPOOrPOss    <- randomElements mPOOrPOss     <&> concatMap (rotN rotVal)
+  manymPOOrPOs     <- randomElements mPOOrPOss     <&> concatMap (rotN rotVal)
   manyDurOrDurTups <- randomElements durOrDurTupss <&> concatMap (rotN rotVal)
   manyAccts        <- randomElements acctss        <&> concatMap (rotN rotVal)
   let allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,manyDurOrDurTups)
-      ves             = catMaybes . snd $ mapAccumL accumDurOrDurTupToMVEs (manymPOOrPOss,manyAccts) allDurOrDurTups
-  if 0 == showVType
-  then pure ves
-  else pure $ appendAnnFirstNote "canon" ves
+      ves             = genVEsForDurs allDurOrDurTups manymPOOrPOs manyAccts
+  pure $ if 0 == showVType then ves else appendAnnFirstNote "canon" ves
 
 -- [Maybe PitOctOrPitOcts] and [Accent] are infinite length.
-accumDurOrDurTupToMVEs :: ([Maybe PitOctOrPitOcts],[Accent]) -> DurOrDurTuplet -> (([Maybe PitOctOrPitOcts],[Accent]),Maybe VoiceEvent)
-accumDurOrDurTupToMVEs (mPitOrPitOct:mPitOrPitOcts,accent:accents) (Left dur) =
-  ((mPitOrPitOcts,accents),Just $ mkNoteChordOrRest mPitOrPitOct dur accent)
-accumDurOrDurTupToMVEs (mPitOrPitOcts,accents) (Right durTup) =
-  ((mPitOrPitOcts',accents'),mVeTup)
+accumDurOrDurTupToVEs :: ([Maybe PitOctOrPitOcts],[Accent]) -> DurOrDurTuplet -> (([Maybe PitOctOrPitOcts],[Accent]),VoiceEvent)
+accumDurOrDurTupToVEs (mPitOrPitOct:mPitOrPitOcts,accent:accents) (Left dur) =
+  ((mPitOrPitOcts,accents),mkNoteChordOrRest mPitOrPitOct dur accent)
+accumDurOrDurTupToVEs (mPitOrPitOcts,accents) (Right durTup) =
+  ((mPitOrPitOcts',accents'),veTup)
   where
     (mVeTup,mPitOrPitOcts',accents') = mkMaybeVeTuplet mPitOrPitOcts durTup accents
-accumDurOrDurTupToMVEs (mPitOrPitOcts,accents) durTup = error $ "accumDurOrDurTupToMVEs unexpected vals: " <> show mPitOrPitOcts <> ", " <> show accents <> ", " <> show durTup
+    veTup = fromMaybe (error "accumDurOrDurTupToVEs unexpected failure from mkVeTuplet") mVeTup
+accumDurOrDurTupToVEs (mPitOrPitOcts,accents) durTup = error $ "accumDurOrDurTupToVEs unexpected vals: " <> show mPitOrPitOcts <> ", " <> show accents <> ", " <> show durTup
 
 mkNoteChordOrRest :: Maybe PitOctOrPitOcts -> DurationVal -> Accent -> VoiceEvent
 mkNoteChordOrRest (Just (Left (p,o))) d a = VeNote (Note p o d [] [CtrlAccent a] False)
@@ -504,8 +508,8 @@ appendAnnFirstNote ann = annFirstEvent ann (\new old -> if null old then new els
 prependAnnFirstNote :: String -> [VoiceEvent] -> [VoiceEvent]
 prependAnnFirstNote ann = annFirstEvent ann (\new old -> if null old then new else  new <> ", " <> old)
 
-replaceAnnFirstNote :: String -> [VoiceEvent] -> [VoiceEvent]
-replaceAnnFirstNote ann = annFirstEvent ann const
+-- replaceAnnFirstNote :: String -> [VoiceEvent] -> [VoiceEvent]
+-- replaceAnnFirstNote ann = annFirstEvent ann const
 
 annFirstEvent :: String -> (String -> String -> String ) -> [VoiceEvent] -> [VoiceEvent]
 annFirstEvent ann append = snd . mapAccumL accumSeen False
@@ -540,8 +544,8 @@ pitchInt2ScaleDegree Scale{..} (pitch,octOff) =
     pitches = NE.toList _scPitches
     err = error $ "mPitch2ScaleDegree no pitch: " <> show pitch <> " in pitches for scale: " <> show pitches
 
--- When called from genXPose -> unfoldVEs, [Maybe PitOctOrPitOcts] is finite length, [Accent] is infinite length
--- When called from genCell | genCanon -> accumDurOrDurTupToMVEs, [Maybe PitOctOrPitOcts] and [Accent] are infinite lengths
+-- When called from genXPose -> unfoldVEs, [Maybe PitOctOrPitOcts] is finite length, [Accent] is infinite length, can answer Nothing
+-- When called from genCell | genVEsForDurs -> accumDurOrDurTupToVEs, [Maybe PitOctOrPitOcts] and [Accent] are infinite lengths, should never answer Nothing
 mkMaybeVeTuplet :: [Maybe PitOctOrPitOcts] -> DurTuplet -> [Accent] -> (Maybe VoiceEvent,[Maybe PitOctOrPitOcts],[Accent])
 mkMaybeVeTuplet mPOOrPOs DurTuplet{..} accents
   | cntDurs > min (length accents') (length mPOOrPOs') = (Nothing,mPOOrPOs,accents) -- not enough left, maybe retry with next DurOrDurTuplet?
@@ -623,7 +627,7 @@ sectionConfig2VoiceEvents _ (SectionConfigFadeIn scnPath fadeIxs mSctnName mConf
     idxVEsPrs  = (,[]) <$> [0..cntVocs - 1]
     scnName    = fromMaybe "fade in" mSctnName
     foldMf (seenNumVocs,idxVEsPr) numVoc = do
-      newVEs <- genVEs numVoc <&> snd
+      newVEs <- genVEsFromMods numVoc <&> snd
       let restVEs = ves2VeRests newVEs
       traverse (appendVEs newVEs restVEs) idxVEsPr <&> (numVoc:seenNumVocs,)
       where
@@ -631,9 +635,9 @@ sectionConfig2VoiceEvents _ (SectionConfigFadeIn scnPath fadeIxs mSctnName mConf
         numSeg = length seenNumVocs
         appendVEs newVEs' restVEs' (idxVoc,ves)
           | idxVoc == numVoc = pure (idxVoc,ves <> newVEs')
-          | idxVoc `elem` seenNumVocs = genVEs idxVoc <&> second (ves <>)
+          | idxVoc `elem` seenNumVocs = genVEsFromMods idxVoc <&> second (ves <>)
           | otherwise = pure  (idxVoc,ves <> restVEs')
-        genVEs idx = applyMods scnPath mConfigMods mVoiceEventsMods (rtTup,cfgTup)
+        genVEsFromMods idx = applyMods scnPath mConfigMods mVoiceEventsMods (rtTup,cfgTup)
           where
             mIdx = if idx == numVoc then Just idx else Nothing
             rtTup  = VoiceRuntimeConfig scnPath mIdx Nothing cntVocs idx cntSegs numSeg
@@ -659,8 +663,8 @@ sectionConfig2VoiceEvents timeSig (SectionConfigFadeOut scnPath fadeIxs mSctnNam
         numSeg = length seenNumVocs
         appendVEs (idxVoc,ves)
           | idxVoc == numVoc || idxVoc `elem` seenNumVocs = pure (idxVoc,ves)
-          | otherwise = genVEs idxVoc <&> second (ves <>) 
-        genVEs idx = applyMods scnPath mConfigMods mVoiceEventsMods (rtTup,cfgTup)
+          | otherwise = genVEsFromMods idxVoc <&> second (ves <>) 
+        genVEsFromMods idx = applyMods scnPath mConfigMods mVoiceEventsMods (rtTup,cfgTup)
           where
             mIdx = if idx == numVoc then Just idx else Nothing
             rtTup  = VoiceRuntimeConfig scnPath mIdx Nothing cntVocs idx cntSegs numSeg
@@ -680,7 +684,8 @@ sectionConfig2VoiceEvents _ (SectionConfigFadeAcross scnPath nReps mSctnName mCo
       scnName         = fromMaybe "fade-cells" mSctnName      
       cntVocs         = length voiceConfigPrs
       slicePrs        = both voiceConfig2Slice <$> NE.toList voiceConfigPrs
-      blendedSlices   = transpose $ unfoldr (unfoldToSlicesRow nReps slicePrs) (1:replicate (cntVocs - 1) 0)
+      cntCfgASlices   = length . fst . head $ slicePrs
+      blendedSlices   = transpose $ unfoldr (unfoldToSlicesRow nReps cntCfgASlices slicePrs) (1:replicate (cntVocs - 1) 0)
       voiceConfigs    = NE.toList (fst <$> voiceConfigPrs)
       voiceConfigss   = cfgSlicessPr2Configs <$> zip voiceConfigs blendedSlices
       cntSegs         = length (head voiceConfigss)
@@ -717,9 +722,8 @@ type ConfigTup = (NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
                  ,NE.NonEmpty (NE.NonEmpty Accent))
 
 slices2Tup :: [Slice] -> ConfigTup
-slices2Tup slices = (NE.fromList $ fst3 <$> sliceTups
-                    ,NE.fromList $ snd3 <$> sliceTups
-                    ,NE.fromList $ thd3 <$> sliceTups)
+slices2Tup slices =
+  (NE.fromList $ fst3 <$> sliceTups, NE.fromList $ snd3 <$> sliceTups, NE.fromList $ thd3 <$> sliceTups)
   where
     sliceTups = slice2Tup <$> slices
 
@@ -738,29 +742,28 @@ tup2VoiceConfig (VoiceConfigCell _ _ _ durVal) (mPitOrPits,durss,accents) =
 tup2VoiceConfig (VoiceConfigCanon _ _ _ durVal rotVal) (mPitOrPits,durss,accents) =
   VoiceConfigCanon mPitOrPits durss accents durVal rotVal
 
+-- TBD: always blends voices in order, e.g. for four voices 1, 2, 3, 4.  Randomize?
 -- unfold instead of map because we don't just map over is, but rather use it to track progress of 
 -- replacing config A slices with config B slices.
---   $ incrBlendedIndices [0,0,0,0]
---   [1,0,0,0]
---   $ incrBlendedIndices (incrBlendedIndices [0,0,0,0])
---   [2,1,0,0]
---   $ incrBlendedIndices (incrBlendedIndices (incrBlendedIndices [0,0,0,0]))
---   [3,2,1,0]
---   $ incrBlendedIndices (incrBlendedIndices (incrBlendedIndices (incrBlendedIndices [0,0,0,0])))
---   [4,3,2,1]
 -- the end of the unfold is when the last element in the list reaches the count of config slices
-unfoldToSlicesRow :: Int -> [([Slice],[Slice])] -> [Int] -> Maybe ([[Slice]],[Int])
-unfoldToSlicesRow nReps slicePrs is
+unfoldToSlicesRow :: Int -> Int -> [([Slice],[Slice])] -> [Int] -> Maybe ([[Slice]],[Int])
+unfoldToSlicesRow nReps cntCfgASlices slicePrs is
   | last is == cntCfgASlices = Nothing
-  | otherwise = Just (slicesCol,is')
+  | otherwise = Just (slicesCol,incrBlendedIndices is)
     where
-      cntCfgASlices = length . fst . head $ slicePrs
       slicesCol = blendSlices nReps <$> zip is slicePrs
-      is' = incrBlendedIndices is
 
 blendSlices :: Int -> (Int,([Slice],[Slice])) -> [Slice]
 blendSlices nReps (i,(cfgASlices,cfgBSlices)) = concat $ replicate nReps $ take i cfgBSlices <> drop i cfgASlices
 
+-- $ incrBlendedIndices [0,0,0,0]
+-- [1,0,0,0]
+-- $ incrBlendedIndices (incrBlendedIndices [0,0,0,0])
+-- [2,1,0,0]
+-- $ incrBlendedIndices (incrBlendedIndices (incrBlendedIndices [0,0,0,0]))
+-- [3,2,1,0]
+-- $ incrBlendedIndices (incrBlendedIndices (incrBlendedIndices (incrBlendedIndices [0,0,0,0])))
+-- [4,3,2,1]
 incrBlendedIndices :: [Int] -> [Int]
 incrBlendedIndices is = maybe (fmap succ is) (uncurry (<>) . first (fmap succ) . flip splitAt is . succ) $ elemIndex 0 is
 
