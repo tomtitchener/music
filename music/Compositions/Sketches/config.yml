@@ -1,7 +1,7 @@
 # Sketches
 
 # experimental proof of concept
-blend:
+poc:
   common:
     tempo:       (100,4)
     key:         c major
@@ -14,7 +14,7 @@ blend:
       stype:        fadeacross
       reps:         int 4
       common:
-        vtype:     cell
+        vtype:     slice
         durval:    int 512 # 4 * 32 * 4
       voice1:
         mPitOctsss:  (((c,0),(e,0)),((g,0),(b,0)))
@@ -42,7 +42,7 @@ blend:
         accentss:    ((>,!,>,!),(>,!,>,!))
 
 # experimental demo of fade in/fade out, octave config mod
-canon:
+blend:
   common:
     tempo:       (100,4)
     key:         c major
@@ -64,7 +64,7 @@ canon:
       fadeInDyn2:   p
       vesmods:      (fadeInAccs,fadeInDyns)
       common:
-        vtype:     canon
+        vtype:     blend
         durval:    int 512
         accentss:  ((~,~,~))
       voice1:
@@ -84,7 +84,7 @@ canon:
       sectionDyns: (mf,f,ff,f)
       vesmods:    (uniformAccs,sectionDyns)
       common:
-        vtype:    canon
+        vtype:    blend
         durval:   int 512
       voice1:
         rotval:   int 0
@@ -102,7 +102,7 @@ canon:
       sectionDyns: (mf,mp,p,ppp)
       vesmods:     (uniformAccs,sectionDyns)
       common:
-        vtype:    canon
+        vtype:    blend
         durval:   int 512
       voice1:
         rotval:   int 0
@@ -133,13 +133,9 @@ homophony:
     uniformDyn: mp
     vesmods:    (uniformAccs,uniformDyns)
     common:
-      vtype:    canon
+      vtype:    blend
       durval:   int 512
     voice1:
-      rotval:   int 0
     voice2:
-      rotval:   int 0
     voice3:
-      rotval:   int 0
     voice4:
-      rotval:   int 0

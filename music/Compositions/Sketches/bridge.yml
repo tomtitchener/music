@@ -190,16 +190,14 @@ bridge:
       vesmods:    (uniformAccs,uniformDyns)
       showVType:  int 0
       common:
-        vtype:      canon
+        vtype:      blend
         durval:     int 128
       voice1:
         mPitOctsss: ((((d,0),(ais,-1)),((c,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-        rotval:   int 0
         durss:    ((16,16,16),(16,8,8),(4,16,16))
         accentss: ((>,~,>,~),(~,~,_,_,_,~))
       voice2:
         mPitOctsss: ((((d,0),(ais,-1)),((c,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-        rotval:   int 0
         durss:    ((16,16,16),(16,8,8),(4,16,16))
         accentss: ((~,_,~,_,~,~),(>,~,>,~))
       voice3:
@@ -225,21 +223,18 @@ bridge:
     #   vocsDynIdxs: (1,2)
     #   showVType:   int 0
     #   common:
-    #     vtype:      canon
+    #     vtype:      blend
     #     durval:     int 128
     #   voice1:
     #     mPitOctsss: ((((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-    #     rotval:   int 0
     #     durss:    ((16,16,16),(16,8,8),(4,16,16))
     #     accentss: ((>,>,>,>),(~,!,!,~,!,!))
     #   voice2:
     #     mPitOctsss: ((((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1)),(((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))))
-    #     rotval:   int 0
     #     durss:    ((8,8,4),(8,8,4,8))
     #     accentss: ((~,~),(~,~))
     #   voice3:
     #     mPitOctsss: ((((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1)),(((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))))
-    #     rotval:   int 0
     #     durss:    ((8,8,4),(8,4,8,8))
     #     accentss: ((~,~,~),(~,~,~,~))
     #   voice4:
@@ -261,12 +256,11 @@ bridge:
       vocsDynIdxs: (1,2)
       showVType:   int 0
       common:
-        vtype:      canon
+        vtype:      blend
         durval:     int 576 # 2 * 9 * 32  -- 7 * 16 == 112 per measure, why 576?
       voice1:
         mPitOctsss: ((((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1),((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))),
                      (((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1),((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-        rotval:   int 0
         durss:    ((16,16,16,4,16,16),(16,16,16,4,16,16))
         accentss: ((>,>,>,>,~,!,!,~,!,!),(>,>,>,>,~,!,!,~,!,!))
       voice2:
@@ -290,7 +284,6 @@ bridge:
       voice5:
         mPitOctsss: ((((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1),((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))),
                      (((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1),((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-        rotval:   int 0
         durss:    ((16,16,16,4,16,16),(16,16,16,4,16,16))
         accentss: ((>,>,>,>,~,!,!,~,!,!),(>,>,>,>,~,!,!,~,!,!))
       voice6:
@@ -320,21 +313,18 @@ bridge:
       vocsDynIdxs: (1,2)
       showVType:   int 0
       common:
-        vtype:      canon
+        vtype:      blend
         durval:     int 128
       voice1:
         mPitOctsss: ((((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-        rotval:   int 0
         durss:    ((16,16,16),(16,8,8),(4,16,16))
         accentss: ((>,>,>,>),(~,!,!,~,!,!))
       voice2:
         mPitOctsss: ((((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1)),(((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))))
-        rotval:   int 0
         durss:    ((8,8,4),(8,8,4,8))
         accentss: ((~,~),(~,~))
       voice3:
         mPitOctsss: ((((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1)),(((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))))
-        rotval:   int 0
         durss:    ((8,8,4),(8,4,8,8))
         accentss: ((~,~,~),(~,~,~,~))
       voice4:
@@ -350,7 +340,7 @@ bridge:
     # maybe swapped too (gis,b),(a,cis) with a half-step in the middle?
     # Use one of voice2 or voice3, with two chords.
     # Want to pick randomly between three versions of chords but always with same rhythm,
-    # so use cell voice config type.  Accents should always be the same
+    # so use slice voice config type.  Accents should always be the same
     #
     section3:
       stype: neutral
@@ -360,15 +350,14 @@ bridge:
       showVType:  int 0
       sustainIdxs: (1)
       common:
-        vtype:      canon
+        vtype:      blend
         durval:     int 368 # (8,2.,1,1) is (16+64+32+128+128) is 368  (16,16,16,16,2.,1,8.) is (8+8+8+8+64+32+128+16+8)
       voice1:
         mPitOctsss: ((((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-        rotval:   int 0
         durss:    ((16,16,16),(16,8,8),(4,16,16))
         accentss: ((>,>,>,>),(~,!,!,~,!,!))
       voice2:
-        vtype:      cell
+        vtype:      slice
         mPitOctsss: ((((b,-2),(gis,-1),(b,-1),(b,0),(b,1)),((b,-2),(gis,-1),(b,-1),(gis,0),(b,0),(b,1)),r,r),
                      (((b,-2),(b,-1),(b,0)),((b,-2),(b,-1),(gis,-1),(b,0)),r,r),
                      (((b,-3),(b,-2),(b,-1)),((b,-3),(b,-2),(gis,-2),(b,-1)),r,r))
@@ -376,12 +365,10 @@ bridge:
         accentss: ((>,>,~,~),(>,>,~,~),(>,>,~,~))
       voice3:
         mPitOctsss: ((((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1)),(((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))))
-        rotval:   int 0
         durss:    ((8,8,4),(8,4,8,8))
         accentss: ((~,~,~),(~,~,~,~))
       voice4:
         mPitOctsss: ((((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-        rotval:   int 1
         durss:    ((8,8,16,16),(16,16),(8.,16,16,8.))
         accentss: ((!,~,!,~,>,~),(!,>,>,!))
     # Hit the breaks:  doublDurs config mod means doubling segment by segment sequentially across voices,
@@ -397,15 +384,14 @@ bridge:
       sustainIdxs: (1)
       vesmods:     (uniformDyns,sustainNotes)
       common:
-        vtype:      canon
+        vtype:      blend
         durval:     int 368 # 736 # 2 * 368
       voice1:
         mPitOctsss: ((((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-        rotval:   int 0
         durss:    ((16,16,16),(16,8,8),(4,16,16))
         accentss: ((~,~),(~,~))
       voice2:
-        vtype:      cell
+        vtype:      slice
         mPitOctsss: ((((b,-2),(gis,-1),(b,-1),(b,0),(b,1)),((b,-2),(gis,-1),(b,-1),(gis,0),(b,0),(b,1)),r,r),
                      (((b,-2),(b,-1),(b,0)),((b,-2),(b,-1),(gis,-1),(b,0)),r,r),
                      (((b,-3),(b,-2),(b,-1)),((b,-3),(b,-2),(gis,-2),(b,-1)),r,r))
@@ -413,7 +399,6 @@ bridge:
         accentss: ((>,>,~,~),(>,>,~,~),(>,>,~,~))
       voice3:
         mPitOctsss: ((((d,-1),(ais,-1)),((b,-2),(gis,-1)),(e,-1)),(((dis,-1),(b,-1)),(cis,-1),((b,-2),(e,-1))))
-        rotval:   int 0
         durss:    ((8,8,4),(8,4,8,8))
         accentss: ((~,~,~),(~,~,~,~))
       voice4:
@@ -438,15 +423,14 @@ bridge:
       vocsDynIdxs: (2)
       vesmods:     (uniformDyns,voicesDyn,sustainNotes)
       common:
-        vtype:      canon
+        vtype:      blend
         durval:     int 368 # 736 # 2 * 368
       voice1:
         mPitOctsss: ((((dis,0),(ais,-1)),((cis,0),(gis,-1)),(gis,-1)),(((dis,0),(b,-1)),(cis,0),((gis,-1),(e,-1))))
-        rotval:     int 0
         durss:      ((8,8,8),(8,4,4),(2,8,8))
         accentss:   ((~,~),(~,~))
       voice2:
-        vtype:      cell
+        vtype:      slice
         mPitOctsss: ((((b,-2),(gis,-1),(b,-1),(b,0),(b,1)),((b,-2),(gis,-1),(b,-1),(gis,0),(b,0),(b,1)),r,r),
                      (((b,-2),(b,-1),(b,0)),((b,-2),(b,-1),(gis,-1),(b,0)),r,r),
                      (((b,-3),(b,-2),(b,-1)),((b,-3),(b,-2),(gis,-2),(b,-1)),r,r))
@@ -480,7 +464,7 @@ bridge:
       vocsDynIdxs: (1,2)
       vesmods:     (uniformDyns,voicesDyn,sustainNotes)
       common:
-        vtype:      canon
+        vtype:      blend
         durval:     int 736 # 2 * 368
       voice1:
         vtype:      verbatim
@@ -493,7 +477,7 @@ bridge:
         durss:      ((16,16,8,16,16,4,4),(16,16,8,16,16,4,4),(16,16,8,16,16,4,4),(16,16,8,16,16,8,8),(16,16,8,16,16,8,8))
         accentss:   ((~,~),(~,~),(~,~),(~,~),(~,~),(~,~))
       voice2:
-        vtype:      cell
+        vtype:      slice
         mPitOctsss: ((((b,-2),(gis,-1),(b,-1),(b,0),(b,1)),((b,-2),(gis,-1),(b,-1),(gis,0),(b,0),(b,1)),r,r),
                      (((b,-2),(b,-1),(b,0)),((b,-2),(b,-1),(gis,-1),(b,0)),r,r),
                      (((b,-3),(b,-2),(b,-1)),((b,-3),(b,-2),(gis,-2),(b,-1)),r,r))
@@ -526,7 +510,7 @@ bridge:
       vocsDyn:     pppp
       vocsDynIdxs: (3)
       common:
-        vtype:      canon
+        vtype:      blend
         durval:     int 368
       voice1:
         vtype:      verbatim
@@ -544,7 +528,7 @@ bridge:
                      (16,16,8,16,16,16,16,16))
         accentss:   ((~,~),(~,~),(~,~),(~,~),(~,~),(~,~))
       voice2:
-        vtype:      cell
+        vtype:      slice
         mPitOctsss: ((((b,-2),(gis,-1),(b,-1),(b,0),(b,1)),((b,-2),(gis,-1),(b,-1),(gis,0),(b,0),(b,1)),r,r),
                      (((b,-2),(b,-1),(b,0)),((b,-2),(b,-1),(gis,-1),(b,0)),r,r),
                      (((b,-3),(b,-2),(b,-1)),((b,-3),(b,-2),(gis,-2),(b,-1)),r,r))
@@ -589,7 +573,7 @@ bridge:
       vocsDyn:     pppp
       vocsDynIdxs: (3)
       common:
-        vtype:      canon
+        vtype:      blend
         durval:     int 736 # 736 # 2 * 368
       voice1:
         vtype:      verbatim
@@ -608,7 +592,7 @@ bridge:
         accentss:   ((~,~),(~,~),(~,~),(~,~),(~,~),(~,~))
       # TBD: add in flat notes as well
       voice2:
-        vtype:      cell
+        vtype:      slice
         mPitOctsss: ((((b,-2),(gis,-1),(b,-1),(b,0),(b,1)),((b,-2),(gis,-1),(b,-1),(gis,0),(b,0),(b,1)),r,r),
                      (((b,-2),(b,-1),(b,0)),((b,-2),(b,-1),(gis,-1),(b,0)),r,r),
                      (((b,-3),(b,-2),(b,-1)),((b,-3),(b,-2),(gis,-2),(b,-1)),r,r))
