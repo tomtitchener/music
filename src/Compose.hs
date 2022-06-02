@@ -89,9 +89,9 @@ modMPitOctssOctaves mkIdWeight vrtCfg vcr@VoiceConfigRepeat{..}   =
   modAnyMPitOctssOctaves mkIdWeight vrtCfg (_vcmPOOrPOss _vcrCore) <&> \mPOOrPOss -> vcr { _vcrCore = _vcrCore { _vcmPOOrPOss = mPOOrPOss } }
 modMPitOctssOctaves mkIdWeight vrtCfg vcv@VoiceConfigVerbatim{..} =
   modAnyMPitOctssOctaves mkIdWeight vrtCfg (_vcmPOOrPOss _vcvCore) <&> \mPOOrPOss -> vcv { _vcvCore =  _vcvCore { _vcmPOOrPOss = mPOOrPOss } }
-modMPitOctssOctaves mkIdWeight vrtCfg vcl@VoiceConfigCell{..}     =
+modMPitOctssOctaves mkIdWeight vrtCfg vcl@VoiceConfigSlice{..}     =
   modAnyMPitOctssOctaves mkIdWeight vrtCfg (_vcmPOOrPOss _vccCore) <&> \mPOOrPOss -> vcl { _vccCore = _vccCore { _vcmPOOrPOss = mPOOrPOss } }
-modMPitOctssOctaves mkIdWeight vrtCfg vcc@VoiceConfigCanon{..}    =
+modMPitOctssOctaves mkIdWeight vrtCfg vcc@VoiceConfigBlend{..}    =
   modAnyMPitOctssOctaves mkIdWeight vrtCfg (_vcmPOOrPOss _vccCore) <&> \mPOOrPOss -> vcc { _vccCore = _vccCore { _vcmPOOrPOss  = mPOOrPOss } }
 
 type MPitOctOrNEPitOctsss = NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
@@ -120,8 +120,8 @@ doubleCfgDurs :: ConfigMod
 doubleCfgDurs vrtCfg vcx@VoiceConfigXPose{}    = mRunDoubleCfgMod (vcx & vcxCore . vcDurss %~ doubleDurs) vrtCfg vcx
 doubleCfgDurs vrtCfg vcr@VoiceConfigRepeat{}   = mRunDoubleCfgMod (vcr & vcrCore . vcDurss %~ doubleDurs) vrtCfg vcr
 doubleCfgDurs vrtCfg vcv@VoiceConfigVerbatim{} = mRunDoubleCfgMod (vcv & vcvCore . vcDurss %~ doubleDurs) vrtCfg vcv
-doubleCfgDurs vrtCfg vcc@VoiceConfigCell{}     = mRunDoubleCfgMod (vcc & vccCore . vcDurss %~ doubleDurs) vrtCfg vcc
-doubleCfgDurs vrtCfg vcc@VoiceConfigCanon{}    = mRunDoubleCfgMod (vcc & vccCore . vcDurss %~ doubleDurs) vrtCfg vcc
+doubleCfgDurs vrtCfg vcc@VoiceConfigSlice{}    = mRunDoubleCfgMod (vcc & vccCore . vcDurss %~ doubleDurs) vrtCfg vcc
+doubleCfgDurs vrtCfg vcc@VoiceConfigBlend{}    = mRunDoubleCfgMod (vcc & vccCore . vcDurss %~ doubleDurs) vrtCfg vcc
 
 mRunDoubleCfgMod :: VoiceConfig -> VoiceRuntimeConfig -> VoiceConfig -> Driver VoiceConfig
 mRunDoubleCfgMod vcMod VoiceRuntimeConfig{..} vCfg  = do
@@ -302,7 +302,7 @@ sustainNotes vrtc@VoiceRuntimeConfig{..} ves = do
     tagSust sust (VeTremolo ct@ChordTremolo{})  = VeTremolo (ct & ctrLeftChord . chordCtrls %~ (CtrlSustain sust :))
     tagSust _ ve                = error $ "sustainNotes: unexpected VoiceEvent: " <> show ve
 
--- VoiceConfig gen[XPose | Cell | Verbatim | Repeat | Canon] helper routines
+-- VoiceConfig gen[XPose | Slice | Verbatim | Repeat | Blend] helper routines
 
 -- Convert a list of maybe pitch/octave pair or list of pitch/octave pairs into a list of maybe interval or list of intervals
 -- showing intervals relative to input Scale to transpose a list given a starting pitch/octave pair.  For a list of pitch/interval
@@ -337,58 +337,115 @@ unfoldVEs (mPOOrPOss,Right durTup:durOrDurTups,accents) =
     (mVeTup,mPOOrPOss',accents') = mkMaybeVeTuplet mPOOrPOss durTup accents
 unfoldVEs (_,_,_) = Nothing
 
--- Called by genCell
-mkEqualLengthSubLists :: ([[DurOrDurTuplet]],[[Accent]],[[Maybe PitOctOrPitOcts]]) -> ([[DurOrDurTuplet]],[[Accent]],[[Maybe PitOctOrPitOcts]])
-mkEqualLengthSubLists (as:ass,bs:bss,cs:css) = (as':ass',bs':bss',cs':css')
+-- Called only from genSlice
+-- Wrapper:
+--  a) makes all inner lists equal in length to the longest (no infinite lists in VoiceConfigCore,
+--     but lengths of outer lists of list must all be equal)
+--  b) applies infinite list of random indices to list of lists so same slice of durations, accents,
+--     and pitches always repeats, but slices themselves are in random order
+--  c) concatenates the result for merging into a list of VoiceEvents
+mkEqLenIxedLists :: [Int] -> VoiceConfigCore -> ([DurOrDurTuplet],[Accent],[Maybe PitOctOrPitOcts])
+mkEqLenIxedLists manyIs VoiceConfigCore{..} =
+  (ixBy durss',ixBy acctss',ixBy pitss')
   where
-    (as',bs',cs') = mkEqualLengthLists (as,bs,cs)
-    (ass',bss',css') = mkEqualLengthSubLists (ass,bss,css)
-mkEqualLengthSubLists (as,bs,cs) = error $ "mkEqualLengSublists unexpected uneven length lists (as,bs,cs): " <> show (length as,length bs,length cs)
+    ixBy ss = concat ((ss !!) <$> manyIs)
+    (durss',acctss',pitss') = mkEqualLengthSubLists (nes2arrs _vcDurss,nes2arrs _vcAcctss, ness2Marrss _vcmPOOrPOss)
+    -- Considered using NonEmpty lists but there's no recursive constructor to uncons down NonEmpty!
+    mkEqualLengthSubLists (as:ass,bs:bss,cs:css) = (as':ass',bs':bss',cs':css')
+      where
+        (as',bs',cs') = mkEqualLengthLists (as,bs,cs)
+        (ass',bss',css') = mkEqualLengthSubLists (ass,bss,css)
+    mkEqualLengthSubLists (as,bs,cs) = error $ "mkEqualLengSublists unexpected uneven length lists (as,bs,cs): " <> show (length as,length bs,length cs)
+    -- Make length of all lists equal to max with special handling for DurTuplets in [DurOrDurTuplet]
+    -- because you cannot have a partial DurTuplet.
+    -- If [DurOrDurTuplet] is all (Left DurationVal), i.e. no (Right DurTuplet)
+    --   Then all lists contain unit values so just take max of all from each
+    -- Else if the count of all durations allowing for DurTuplets is >= length accents and length pitches
+    --   Then answer unchanged [DurOrDurTuplet] and take count of all durations from (cycle accents) and (cycle pitches)
+    -- Otherwise have to take from cycle ds maybe extending as and pos to fill terminal DurTuplet, if necesssary
+    --   a) count down to zero from max of accents or pitches through cycle ds, decrementing 1 for DurationVal, > 1 for DurTuplet,
+    --      summing to max accents or pitches maybe plus extra to match terminal DurTuplet if necessary
+    --   b) use that count to extract result lists with equal count items including full concluding DurTuplet
+    mkEqualLengthLists (ds,as,pos)
+      | not (any isRight ds) = (take maxAll (cycle ds), take maxAll (cycle as), take maxAll (cycle pos))
+      | cntDurs >= maxAsPos = (ds, take cntDurs (cycle as), take cntDurs (cycle pos))
+      | otherwise = (takeDurs cntTot (cycle ds), take cntTot (cycle as), take cntTot (cycle pos))
+      where
+        maxAll = maximum [length ds,length as,length pos]
+        cntDurs = sum (either (const 1) (length . _durtupDurations) <$> ds)
+        maxAsPos = max (length as) (length pos)
+        cntTot = countDurs maxAsPos (cycle ds)
+        countDurs :: Int -> [DurOrDurTuplet] -> Int
+        countDurs 0 _ = 0
+        countDurs n (Left _:ds') = 1 + countDurs (n - 1) ds'
+        countDurs n (Right DurTuplet{..}:ds')
+          | nDurs >= n = nDurs + countDurs (n - nDurs) ds'
+          | otherwise = nDurs -- take extra accents and pitches to match count in tuplet
+            where
+              nDurs = length _durtupDurations
+        countDurs n [] = error $ "mkEqualLengthLists:countDurs unexpected end of list, n: " <> show n
+        takeDurs :: Int -> [DurOrDurTuplet] -> [DurOrDurTuplet]
+        takeDurs 0 _ = []
+        takeDurs n (Left d@DurationVal{}:ds') = Left d : takeDurs (n - 1) ds'
+        takeDurs n (Right d@DurTuplet{..}:ds')
+          | nDurs >= n = Right d : takeDurs (n - nDurs) ds'
+          | otherwise = error $ "mkEqualLengthLists:takeDurs unexpected count " <> show n  <> " < durations in tuplet " <> show nDurs
+            where
+              nDurs = length _durtupDurations
+        takeDurs _ [] = error "mkEqualLengthLists:takeDurs unexpected end of list"
 
--- Make length of all lists equal to max with special handling for DurTuplets in [DurOrDurTuplet]
--- because you cannot have a partial DurTuplet.
--- If [DurOrDurTuplet] is all (Left DurationVal), i.e. no (Right DurTuplet)
---   Then all lists contain unit values so just take max of all from each
--- Else if the count of all durations allowing for DurTuplets is >= length accents and length pitches
---   Then answer unchanged [DurOrDurTuplet] and take count of all durations from (cycle accents) and (cycle pitches)
--- Otherwise have to take from cycle ds maybe extending as and pos to fill terminal DurTuplet, if necesssary
---   a) count down to zero from max of accents or pitches through cycle ds, decrementing 1 for DurationVal, > 1 for DurTuplet,
---      summing to max accents or pitches maybe plus extra to match terminal DurTuplet if necessary
---   b) use that count to extract result lists with equal count items including full concluding DurTuplet
-mkEqualLengthLists :: ([DurOrDurTuplet],[Accent],[Maybe PitOctOrPitOcts]) -> ([DurOrDurTuplet],[Accent],[Maybe PitOctOrPitOcts])
-mkEqualLengthLists (ds,as,pos)
-  | not (any isRight ds) = (take maxAll (cycle ds), take maxAll (cycle as), take maxAll (cycle pos))
-  | cntDurs >= maxAsPos = (ds, take cntDurs (cycle as), take cntDurs (cycle pos))
-  | otherwise = (takeChunk cntTot (cycle ds), take cntTot (cycle as), take cntTot (cycle pos))
-  where
-    maxAll = maximum [length ds,length as,length pos]
-    cntDurs = sum (either (const 1) (length . _durtupDurations) <$> ds)
-    maxAsPos = max (length as) (length pos)
-    cntTot = countItems maxAsPos (cycle ds)
-    countItems :: Int -> [DurOrDurTuplet] -> Int
-    countItems 0 _ = 0
-    countItems n (Left _:ds') = 1 + countItems (n - 1) ds'
-    countItems n (Right DurTuplet{..}:ds')
-      | nDurs >= n = nDurs + countItems (n - nDurs) ds'
-      | otherwise = nDurs -- take extra accents and pitches to match count in tuplet
-        where
-          nDurs = length _durtupDurations
-    countItems n [] = error $ "mkEqualLengthLists:countItems unexpected end of list, n: " <> show n
-    takeChunk :: Int -> [DurOrDurTuplet] -> [DurOrDurTuplet]
-    takeChunk 0 _ = []
-    takeChunk n (Left d@DurationVal{}:ds') = Left d : takeChunk (n - 1) ds'
-    takeChunk n (Right d@DurTuplet{..}:ds')
-      | nDurs >= n = Right d : takeChunk (n - nDurs) ds'
-      | otherwise = error $ "mkEqualLengthLists:takeChunk unexpected count " <> show n  <> " < durations in tuplet " <> show nDurs
-        where
-          nDurs = length _durtupDurations
-    takeChunk _ [] = error "mkEqualLengthLists:takeChunk unexpected end of list"
-
--- Common behavior to gen[Cell | Verbatim | Repeat | Canon]
+-- Common behavior to gen[Slice | Verbatim | Repeat | Blend]
 genVEsForDurs :: [DurOrDurTuplet] -> [Maybe PitOctOrPitOcts] -> [Accent] -> [VoiceEvent]
 genVEsForDurs allDurOrDurTups manymPOOrPOs manyActs =
   snd $ mapAccumL accumDurOrDurTupToVEs (manymPOOrPOs, manyActs) allDurOrDurTups
-  
+
+-- Freeze lists of motifs in exact order and blend to make [VoiceEvent]
+genVerbatim :: String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
+genVerbatim path VoiceConfigCore{..} maxDurVal = do
+  showVType::Int  <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
+  let allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,freezeVerbatimList nes2arrs _vcDurss)
+      manymPOOrPOs    = freezeVerbatimList ness2Marrss _vcmPOOrPOss
+      manyAccts       = freezeVerbatimList nes2arrs _vcAcctss
+      ves             = genVEsForDurs allDurOrDurTups manymPOOrPOs manyAccts
+  pure $ if 0 == showVType then ves else appendAnnFirstNote "verbatim" ves
+  where
+    freezeVerbatimList cnv = concat . cycle . cnv
+
+-- Pick a randomization of lists of motifs, different for each, and blend to make [VoiceEvent]
+genRepeat :: String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
+genRepeat path VoiceConfigCore{..} maxDurVal = do
+  showVType::Int   <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
+  manymPOOrPOs     <- freezeARandomOfLists (ness2Marrss _vcmPOOrPOss)
+  manyDurOrDurTups <- freezeARandomOfLists (nes2arrs _vcDurss)
+  manyAccts        <- freezeARandomOfLists (nes2arrs _vcAcctss)
+  let allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,manyDurOrDurTups)
+      ves             = genVEsForDurs allDurOrDurTups manymPOOrPOs manyAccts
+  pure $ if 0 == showVType then ves else appendAnnFirstNote "repeat" ves
+  where
+    freezeARandomOfLists xss = randomizeList xss <&> concat . cycle . (:[]) . concat
+
+-- Slice lists of motifs, cycle each to make length of longest, collect by random index 
+-- across all outer lists (must be same lengths), and blend to make [VoiceEvent]
+genSlice :: String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
+genSlice path vcCore maxDurVal = do
+  showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
+  manyIs         <- randomIndices (length (_vcDurss vcCore))
+  let (durs, accts, pits) = mkEqLenIxedLists manyIs vcCore
+      allDurOrDurTups     = unfoldr (unfoldDurOrDurTups maxDurVal) (0,durs)
+      ves                 = genVEsForDurs allDurOrDurTups pits accts
+  pure $ if 0 == showVType then ves else appendAnnFirstNote "cell" ves
+
+-- 
+genBlend :: String -> VoiceConfigCore -> Int -> Int -> Driver [VoiceEvent]
+genBlend path VoiceConfigCore{..} maxDurVal rotVal = do
+  showVType::Int   <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
+  manymPOOrPOs     <- randomElements (ness2Marrss _vcmPOOrPOss) <&> concatMap (rotN rotVal)
+  manyDurOrDurTups <- randomElements (nes2arrs _vcDurss)        <&> concatMap (rotN rotVal)
+  manyAccts        <- randomElements (nes2arrs _vcAcctss)       <&> concatMap (rotN rotVal)
+  let allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,manyDurOrDurTups)
+      ves             = genVEsForDurs allDurOrDurTups manymPOOrPOs manyAccts
+  pure $ if 0 == showVType then ves else appendAnnFirstNote "blend" ves
+
 -- Unfold repeated transpositions of [[Maybe Pitch]] across Range
 -- matching up with repetitions of [[DurOrDurTuplet]] and [[Accent] to generate VoiceEvent.
 genXPose :: String -> VoiceConfigCore -> Scale -> Range -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
@@ -432,56 +489,6 @@ genXPose path VoiceConfigCore{..} scale (Range (start,stop)) = do
         nexts = xp scale (head prevs) <$> steps
     unfoldMPOOrPOs _ (prev,Nothing:mIOrIss) = Just (Nothing,(prev,mIOrIss))
     unfoldMPOOrPOs _ (prev,mIOrIss) = error $ "invalid list of steps, (" <> show prev <> "," <> show (take 10 mIOrIss) <> ")"
-
--- A cell is a vertical slice through the same subset of duration, accent, and pitch/octave lists from the configuration.
--- Reduce complexity by always tupling the same group of three configuration values together, but randomly from list of list.
--- Given list of list of durations, accents and pitches/rests:
--- 1) Verify the outer lists are all of the same length, N (skip this, already happens in path2VoiceConfigCell)
--- 2) Generate an infinite list of indices [0..N-1]
--- 3) Expand durations, accents, and pitches/rests sublists so they're all the same length.
--- 4) Generate infinite length lists of durations, accents and pitches/rests sublists using infinite list of indices.
--- 5) Unfold infinite list of list of durations to finite list of durations, stop when at maxDurVal
--- 6) Unfold tuple of lists of pithes, durations, and accents to [VoiceEvent], stop when list of durations is empty
-genCell :: String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
-genCell path VoiceConfigCore{..} maxDurVal = do
-  showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
-  manyIs <- randomIndices (length _vcDurss)
-  let (eqLenDurss,eqLenAcctss,eqLenmPOOrPOss) = mkEqualLengthSubLists (nes2arrs _vcDurss,nes2arrs _vcAcctss,ness2Marrss _vcmPOOrPOss)
-      (manyDurs,manyAccts,manymPOOrPOss) = ((eqLenDurss !!) <$> manyIs,(eqLenAcctss !!) <$> manyIs,(eqLenmPOOrPOss !!) <$> manyIs)
-      allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,concat manyDurs)
-      ves             = genVEsForDurs allDurOrDurTups (concat manymPOOrPOss) (concat manyAccts) 
-  pure $ if 0 == showVType then ves else appendAnnFirstNote "cell" ves
-
-genVerbatim :: String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
-genVerbatim path VoiceConfigCore{..} maxDurVal = do
-  showVType::Int  <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
-  let allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,concat (cycle (nes2arrs _vcDurss)))
-      manymPOOrPOs    = concat (cycle (ness2Marrss _vcmPOOrPOss))
-      manyAccts       = concat (cycle (nes2arrs _vcAcctss))
-      ves             = genVEsForDurs allDurOrDurTups manymPOOrPOs manyAccts
-  pure $ if 0 == showVType then ves else appendAnnFirstNote "verbatim" ves
-
-genRepeat :: String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
-genRepeat path VoiceConfigCore{..} maxDurVal = do
-  showVType::Int   <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
-  manymPOOrPOs     <- freezeLists (ness2Marrss _vcmPOOrPOss)
-  manyDurOrDurTups <- freezeLists (nes2arrs _vcDurss)
-  manyAccts        <- freezeLists (nes2arrs _vcAcctss)
-  let allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,manyDurOrDurTups)
-      ves             = genVEsForDurs allDurOrDurTups manymPOOrPOs manyAccts
-  pure $ if 0 == showVType then ves else appendAnnFirstNote "repeat" ves
-  where
-    freezeLists xss = randomizeList xss <&> concat . cycle . (:[]) . concat
-
-genCanon :: String -> VoiceConfigCore -> Int -> Int -> Driver [VoiceEvent]
-genCanon path VoiceConfigCore{..} maxDurVal rotVal = do
-  showVType::Int   <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
-  manymPOOrPOs     <- randomElements (ness2Marrss _vcmPOOrPOss) <&> concatMap (rotN rotVal)
-  manyDurOrDurTups <- randomElements (nes2arrs _vcDurss)        <&> concatMap (rotN rotVal)
-  manyAccts        <- randomElements (nes2arrs _vcAcctss)       <&> concatMap (rotN rotVal)
-  let allDurOrDurTups = unfoldr (unfoldDurOrDurTups maxDurVal) (0,manyDurOrDurTups)
-      ves             = genVEsForDurs allDurOrDurTups manymPOOrPOs manyAccts
-  pure $ if 0 == showVType then ves else appendAnnFirstNote "canon" ves
 
 -- [Maybe PitOctOrPitOcts] and [Accent] are infinite length.
 accumDurOrDurTupToVEs :: ([Maybe PitOctOrPitOcts],[Accent]) -> DurOrDurTuplet -> (([Maybe PitOctOrPitOcts],[Accent]),VoiceEvent)
@@ -551,9 +558,7 @@ isAnnotation (CtrlAnnotation _) = True
 isAnnotation _                  = False
 
 rotN :: Int -> [a] -> [a]
-rotN cnt as
-  | cnt >= length as = error $ "rotN cnt: " <> show cnt <> " >= length as " <> show (length as)
-  | otherwise = drop cnt as <> take cnt as
+rotN cnt as = drop cnt as <> take cnt as
 
 pitchInt2ScaleDegree :: Scale -> (Pitch,Int) -> Int
 pitchInt2ScaleDegree Scale{..} (pitch,octOff) =
@@ -563,7 +568,7 @@ pitchInt2ScaleDegree Scale{..} (pitch,octOff) =
     err = error $ "mPitch2ScaleDegree no pitch: " <> show pitch <> " in pitches for scale: " <> show pitches
 
 -- When called from genXPose -> unfoldVEs, [Maybe PitOctOrPitOcts] is finite length, [Accent] is infinite length, can answer Nothing
--- When called from genCell | genVEsForDurs -> accumDurOrDurTupToVEs, [Maybe PitOctOrPitOcts] and [Accent] are infinite lengths, should never answer Nothing
+-- When called from genSlice | genVEsForDurs -> accumDurOrDurTupToVEs, [Maybe PitOctOrPitOcts] and [Accent] are infinite lengths, should never answer Nothing
 mkMaybeVeTuplet :: [Maybe PitOctOrPitOcts] -> DurTuplet -> [Accent] -> (Maybe VoiceEvent,[Maybe PitOctOrPitOcts],[Accent])
 mkMaybeVeTuplet mPOOrPOs DurTuplet{..} accents
   | cntDurs > min (length accents') (length mPOOrPOs') = (Nothing,mPOOrPOs,accents) -- not enough left, maybe retry with next DurOrDurTuplet?
@@ -585,8 +590,8 @@ voiceConfig2VoiceEvents :: String -> VoiceConfig -> Driver [VoiceEvent]
 voiceConfig2VoiceEvents path VoiceConfigXPose{..}    = genXPose path _vcxCore _vcxScale (Range _vcxRange)
 voiceConfig2VoiceEvents path VoiceConfigRepeat{..}   = genRepeat path _vcrCore _vcrDurVal
 voiceConfig2VoiceEvents path VoiceConfigVerbatim{..} = genVerbatim path _vcvCore _vcvDurVal
-voiceConfig2VoiceEvents path VoiceConfigCell{..}     = genCell path _vccCore _vcclDurVal
-voiceConfig2VoiceEvents path VoiceConfigCanon{..}    = genCanon path _vccCore _vccDurVal _vccRotVal
+voiceConfig2VoiceEvents path VoiceConfigSlice{..}    = genSlice path _vccCore _vcclDurVal
+voiceConfig2VoiceEvents path VoiceConfigBlend{..}    = genBlend path _vccCore _vccDurVal _vccRotVal
 
 ves2VeRests :: [VoiceEvent] -> [VoiceEvent]
 ves2VeRests ves = [VeRest (Rest (mkDurationVal (ves2DurVal ves)) NoDynamic [])]
@@ -611,9 +616,9 @@ applyMod m modName pr =
     Just f  -> uncurry f pr
 
 -- Single vertical slice through individual lists of list of: Maybe PitOctOrNEPitOcts, DurOrDurTuplet, and Accent,
--- used with VoiceConfigCell where sublists are guaranteed to be of the same length.  A [Slice]
+-- used with VoiceConfigSlice where sublists are guaranteed to be of the same length.  A [Slice]
 -- gives all data from three input vals in VoiceConfig but grouped vertically, for blending
--- between VoiceConfig A and VoiceConfig B where both are VoiceConfigCell.
+-- between VoiceConfig A and VoiceConfig B where both are VoiceConfigSlice.
 type Slice = ([Maybe PitOctOrNEPitOcts],[DurOrDurTuplet],[Accent])
 
 sectionConfig2VoiceEvents :: TimeSignature -> SectionConfig -> Driver [[VoiceEvent]]
@@ -713,8 +718,8 @@ voiceConfig2Slice :: VoiceConfig -> [Slice]
 voiceConfig2Slice VoiceConfigXPose{..}    = config2Slices _vcxCore
 voiceConfig2Slice VoiceConfigRepeat{..}   = config2Slices _vcrCore
 voiceConfig2Slice VoiceConfigVerbatim{..} = config2Slices _vcvCore
-voiceConfig2Slice VoiceConfigCell{..}     = config2Slices _vccCore
-voiceConfig2Slice VoiceConfigCanon{..}    = config2Slices _vccCore
+voiceConfig2Slice VoiceConfigSlice{..}    = config2Slices _vccCore
+voiceConfig2Slice VoiceConfigBlend{..}    = config2Slices _vccCore
 
 config2Slices :: VoiceConfigCore -> [Slice]
 config2Slices VoiceConfigCore{..} =
@@ -747,10 +752,10 @@ tup2VoiceConfig (VoiceConfigRepeat _ durVal) (mPitOrPits,durss,accents) =
   VoiceConfigRepeat (VoiceConfigCore mPitOrPits durss accents) durVal
 tup2VoiceConfig (VoiceConfigVerbatim _ durVal) (mPitOrPits,durss,accents) =
   VoiceConfigVerbatim (VoiceConfigCore mPitOrPits durss accents) durVal
-tup2VoiceConfig (VoiceConfigCell _ durVal) (mPitOrPits,durss,accents) =
-  VoiceConfigCell (VoiceConfigCore mPitOrPits durss accents) durVal
-tup2VoiceConfig (VoiceConfigCanon _ durVal rotVal) (mPitOrPits,durss,accents) =
-  VoiceConfigCanon (VoiceConfigCore mPitOrPits durss accents) durVal rotVal
+tup2VoiceConfig (VoiceConfigSlice _ durVal) (mPitOrPits,durss,accents) =
+  VoiceConfigSlice (VoiceConfigCore mPitOrPits durss accents) durVal
+tup2VoiceConfig (VoiceConfigBlend _ durVal rotVal) (mPitOrPits,durss,accents) =
+  VoiceConfigBlend (VoiceConfigCore mPitOrPits durss accents) durVal rotVal
 
 -- TBD: always blends voices in order, e.g. for four voices 1, 2, 3, 4.  Randomize?
 -- unfold instead of map because we don't just map over is, but rather use it to track progress of 
@@ -1022,42 +1027,3 @@ swapVeLens dur ve@VeSpacer{} = ve & veSpacer . spacerDur .~ duration2DurationVal
 swapVeLens dur VeTuplet{}    = VeRest $ Rest (duration2DurationVal dur) NoDynamic ""
 swapVeLens _   ve            = ve
 
--- freezeNELists :: NE.NonEmpty (NE.NonEmpty a) -> Driver (NE.NonEmpty (NE.NonEmpty a))
--- freezeNELists xss = randomizeList (nes2arrs xss) <&> singleton . NE.fromList . concat
-
--- freezeConfig :: VoiceConfig -> Driver VoiceConfig
--- freezeConfig vcx@VoiceConfigXPose{..}  = do
---   durss      <- freezeNELists _vcxDurss
---   acctss     <- freezeNELists _vcxAcctss
---   mPOOrPOss  <- freezeNELists _vcxmPOOrPOss 
---   pure $ vcx & vcxDurss .~ durss & vcxAcctss .~ acctss & vcxmPOOrPOss  .~ mPOOrPOss 
--- freezeConfig vcr@VoiceConfigRepeat{..} = do
---   durss      <- freezeNELists _vcrDurss
---   acctss     <- freezeNELists _vcrAcctss
---   mPOOrPOss  <- freezeNELists _vcrmPOOrPOss 
---   pure $ vcr & vcrDurss .~ durss & vcrAcctss .~ acctss & vcrmPOOrPOss  .~ mPOOrPOss  
--- freezeConfig vcr@VoiceConfigVerbatim{} = 
---   pure vcr
--- freezeConfig vcl@VoiceConfigCell{..} = do
---   durss      <- freezeNELists _vcclDurss
---   acctss     <- freezeNELists _vcclAcctss
---   mPOOrPOss  <- freezeNELists _vcclmPOOrPOss 
---   pure $ vcl & vcclDurss .~ durss & vcclAcctss .~ acctss & vcclmPOOrPOss  .~ mPOOrPOss 
--- freezeConfig vcc@VoiceConfigCanon{..}  = do
---   durss      <- freezeNELists _vccDurss
---   acctss     <- freezeNELists _vccAcctss
---   mPOOrPOss  <- freezeNELists _vccmPOOrPOss 
---   pure $ vcc & vccDurss .~ durss & vccAcctss .~ acctss & vccmPOOrPOss  .~ mPOOrPOss
-
--- sectionCfg2TimeSignature :: SectionConfig -> TimeSignature
--- sectionCfg2TimeSignature SectionConfigNeutral{..}    = voiceCfg2TimeSignature (NE.head _scnVoices)
--- sectionCfg2TimeSignature SectionConfigFadeIn{..}     = voiceCfg2TimeSignature (NE.head _scfiVoices)
--- sectionCfg2TimeSignature SectionConfigFadeOut{..}    = voiceCfg2TimeSignature (NE.head _scfoVoices)
--- sectionCfg2TimeSignature SectionConfigFadeAcross{..} = voiceCfg2TimeSignature (fst (NE.head _scfcVoicesAB))
-
--- voiceCfg2TimeSignature :: VoiceConfig -> TimeSignature
--- voiceCfg2TimeSignature VoiceConfigXPose{..}    = _vcxTime
--- voiceCfg2TimeSignature VoiceConfigRepeat{..}   = _vcrTime
--- voiceCfg2TimeSignature VoiceConfigVerbatim{..} = _vcvTime
--- voiceCfg2TimeSignature VoiceConfigCell{..}     = _vcclTime
--- voiceCfg2TimeSignature VoiceConfigCanon{..}    = _vccTime

@@ -10,6 +10,7 @@ import Control.Lens hiding (pre)
 import Data.List (isPrefixOf)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
+import Data.Maybe (fromMaybe)
 
 data GroupConfig =
   GroupConfigNeutral {
@@ -65,8 +66,8 @@ data SectionConfig =
 data VoiceConfigCore =
   VoiceConfigCore {
    _vcmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
-  ,_vcDurss    :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
-  ,_vcAcctss   :: NE.NonEmpty (NE.NonEmpty Accent)
+  ,_vcDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+  ,_vcAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
   } deriving Show
 
 -- For each list of list of (Maybe PitOctOrNEPitOcts), the outer Maybe is
@@ -110,7 +111,7 @@ data VoiceConfig =
   --    length of list of tuples (2 above), e.g.: 0,1,1,1,0,0,0..
   -- d) generate list of notes from pitches, durations, and accents in lists
   --      e.g. for indices 0,1: ((p1,d1,a1),(p2,d1,a2),(p3,d2,a3),(p3,d3,a4))
-  | VoiceConfigCell {
+  | VoiceConfigSlice {
      _vccCore    :: VoiceConfigCore
     ,_vcclDurVal :: Int
     }
@@ -124,13 +125,13 @@ data VoiceConfig =
   -- c) create a list of notes selecting pitch, duration, accent in order from lists in 
   --    step b (each cycled infinitely) until total duration is equal to _vcrDurVal 
   --    where _vcDurVal is in smallest units of 128th notes
-  -- different from canon because one randomized reordering of inner lists is repeated,
-  -- whereas canon randomly picks from sublist for entire duration
-  -- same as canon because (possibly) different lengths of pitches, durations, and
+  -- different from blend because one randomized reordering of inner lists is repeated,
+  -- whereas blend randomly picks from sublist for entire duration
+  -- same as blend because (possibly) different lengths of pitches, durations, and
   -- accents mean irregular pairings of pitch, duration, and accent to generate notes
   | VoiceConfigRepeat {
-      _vcrCore    :: VoiceConfigCore
-     ,_vcrDurVal    :: Int
+      _vcrCore   :: VoiceConfigCore
+     ,_vcrDurVal :: Int
      } 
   -- a) for each of list of list of pitches, durations, accents:
   --    - create an infinite list of indices 0..N-1 where N is length of outer list
@@ -143,16 +144,16 @@ data VoiceConfig =
   --    duration, accent rarely (if ever) repeat
   --  - with different length sublists and random selection of sublists themselves,
   --    pairings of e.g. pitch and duration rarely repeat so you don't hear motifs
-  -- only way to generate recognizable canon is for each outer list to contain one 
+  -- only way to generate recognizable blend is for each outer list to contain one 
   -- sublist only, all voices use same list of pitches, durations, and accents 
   -- (even then, you need to use a config mod to stagger the arrival of the voices)
   -- poor name choice, maybe VoiceConfigRandomizedSublists would be better?
-  | VoiceConfigCanon {
-       _vccCore    :: VoiceConfigCore
-      ,_vccDurVal    :: Int
-      ,_vccRotVal    :: Int
+  | VoiceConfigBlend {
+       _vccCore   :: VoiceConfigCore
+      ,_vccDurVal :: Int
+      ,_vccRotVal :: Int -- default 0 if not in config
       }
-  -- same as canon, except concatenated, randomized selection of sublists from
+  -- same as blend, except concatenated, randomized selection of sublists from
   -- pitches are mapped to interval diffs extending over _vcxRange from first in
   -- pair to second (have to be careful random sequences of pitches always either
   -- rise or fall depending on order of pitch, octave pairs in range)
@@ -197,28 +198,28 @@ path2VoiceConfigVerbatim pre =
         <$> path2VoiceConfigCore pre
         <*> searchConfigParam  (pre <> ".durval")
         
-path2VoiceConfigCell' :: String -> Driver VoiceConfig
-path2VoiceConfigCell' pre =
-      VoiceConfigCell
+path2VoiceConfigSlice' :: String -> Driver VoiceConfig
+path2VoiceConfigSlice' pre =
+      VoiceConfigSlice
         <$> path2VoiceConfigCore pre
         <*> searchConfigParam  (pre <> ".durval")
 
-path2VoiceConfigCell :: String -> Driver VoiceConfig
-path2VoiceConfigCell pre = path2VoiceConfigCell' pre <&> verifyListsLengths
+path2VoiceConfigSlice :: String -> Driver VoiceConfig
+path2VoiceConfigSlice pre = path2VoiceConfigSlice' pre <&> verifyListsLengths
   where
-    verifyListsLengths vc@VoiceConfigCell{..}
+    verifyListsLengths vc@VoiceConfigSlice{..}
       | all (== head allLengths) allLengths = vc
-      | otherwise = error $ "path2VoiceConfigCell unequal length listss: " <> show allLengths
+      | otherwise = error $ "path2VoiceConfigSlice unequal length listss: " <> show allLengths
       where
         allLengths = [NE.length (_vcmPOOrPOss _vccCore),NE.length (_vcAcctss _vccCore) ,NE.length (_vcDurss _vccCore)]
-    verifyListsLengths vc = error $ "pagth2VoiceConfigCell unexpected VoiceConfig: " <> show vc
+    verifyListsLengths vc = error $ "pagth2VoiceConfigSlice unexpected VoiceConfig: " <> show vc
 
-path2VoiceConfigCanon :: String -> Driver VoiceConfig
-path2VoiceConfigCanon pre =
-      VoiceConfigCanon 
+path2VoiceConfigBlend :: String -> Driver VoiceConfig
+path2VoiceConfigBlend pre =
+      VoiceConfigBlend 
         <$> path2VoiceConfigCore pre
-        <*> searchConfigParam  (pre <> ".durval")
-        <*> searchConfigParam  (pre <> ".rotval")
+        <*> searchConfigParam (pre <> ".durval")
+        <*> (searchMConfigParam (pre <> ".rotval") <&> fromMaybe 0)
         
 type Path2VoiceConfig = String -> Driver VoiceConfig
 
@@ -226,8 +227,8 @@ name2VoiceConfigMap :: M.Map String Path2VoiceConfig
 name2VoiceConfigMap = M.fromList [("xpose"   ,path2VoiceConfigXPose)
                                  ,("repeat"  ,path2VoiceConfigRepeat)
                                  ,("verbatim",path2VoiceConfigVerbatim)
-                                 ,("cell"    ,path2VoiceConfigCell)
-                                 ,("canon"   ,path2VoiceConfigCanon)]
+                                 ,("slice"   ,path2VoiceConfigSlice)
+                                 ,("blend"   ,path2VoiceConfigBlend)]
 
 path2VoiceConfig :: Path2VoiceConfig
 path2VoiceConfig path =
