@@ -20,12 +20,13 @@ module Driver (initEnv
               ,getMConfigParam
               ,searchConfigParam
               ,searchMConfigParam
+              ,searchAltConfigParam              
               ,printIt
               ,cfgPath2Keys
               ,Driver
               ) where
 
-import Control.Lens ( preview )
+import Control.Lens (preview)
 import Control.Monad.Free (Free(..), liftF)
 import Control.Monad.Random.Class (MonadRandom(getRandomR, getRandomRs))
 import Control.Monad.Reader (MonadIO(..), MonadReader, asks)
@@ -209,6 +210,16 @@ searchMConfigParam path = do
       | "common" `notElem` segs = take (length segs - 2) segs <> ["common"] <> [last segs]
       | length segs > 3 = take (length segs - 3) segs  <> drop (length segs - 2) segs
       | otherwise = []
+
+searchAltConfigParam :: (FromConfig a, Show a) => [String] -> Driver a
+searchAltConfigParam paths = inner paths []
+  where
+    inner (p:ps) tried = do
+      mv <- searchMConfigParam p
+      case mv of
+        Just v  -> pure v
+        Nothing -> inner ps (p:tried)
+    inner [] tried = error $ "searchAltConfigParam failed paths: " <> show tried
 
 -- https://www.parsonsmatt.org/2017/09/22/what_does_free_buy_us.html
 
