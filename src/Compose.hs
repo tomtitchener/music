@@ -41,14 +41,14 @@ newtype Range = Range ((Pitch,Octave),(Pitch,Octave)) deriving (Eq, Show)
 
 data VoiceRuntimeConfig =
   VoiceRuntimeConfig {
-                   _vrcSctnPath :: String
-                   ,_vrcMNumVoc  :: Maybe Int
-                   ,_vrcMSpotIdx :: Maybe Int
-                   ,_vrcCntVocs  :: Int
-                   ,_vrcNumVoc   :: Int
-                   ,_vrcCntSegs  :: Int
-                   ,_vrcNumSeg   :: Int
-                   } deriving Show
+  _vrcSctnPath :: String
+  ,_vrcMNumVoc  :: Maybe Int
+  ,_vrcMSpotIdx :: Maybe Int
+  ,_vrcCntVocs  :: Int
+  ,_vrcNumVoc   :: Int
+  ,_vrcCntSegs  :: Int
+  ,_vrcNumSeg   :: Int
+  } deriving Show
 
 type ConfigMod = VoiceRuntimeConfig -> VoiceConfig -> Driver VoiceConfig
 
@@ -179,12 +179,33 @@ fadeInDynamics VoiceRuntimeConfig{..} ves = do
     Just _  -> tagFirstSoundDynamic dyn1 ves -- fade-in voice signaled via Just <index>
     Nothing -> tagFirstSoundDynamic dyn2 ves -- non fade-in voices get second dynamic
 
--- All voices get the same dynamic, no need to repeat dynamic for each seg
+-- So, need, one, two, or all three of:
+--  a) a way to say initial dynamic regardless of swell, always goes at beginning
+--  b) positive duration offset for first segment
+--     1) crescendo dynamic is required 
+--     2) decrescendo dynamic is required
+--  c) negative duration offset for last segment
+--     1) crescendo dynamic is ignored
+--     2) decrescendo dynamic is ignored
 uniformDynamics :: VoiceEventsMod
-uniformDynamics VoiceRuntimeConfig{..} ves
-  | _vrcNumSeg == 0 = searchMConfigParam (_vrcSctnPath <> ".uniformDyn") <&> fromMaybe PPP <&> flip tagFirstSoundDynamic ves
-  | otherwise = pure ves
-
+uniformDynamics VoiceRuntimeConfig{..} inVes = do
+  ves1 <- searchMConfigParam (_vrcSctnPath <> ".uniformDyn") <&> maybeInsertUniDyn inVes
+  ves2 <- searchMConfigParam (_vrcSctnPath <> ".crescDurVal") >>= maybeInsertSwell Crescendo ves1
+  searchMConfigParam (_vrcSctnPath <> ".decrescDurVal") >>= maybeInsertSwell Decrescendo ves2
+  where
+    maybeInsertUniDyn vs Nothing    = vs
+    maybeInsertUniDyn vs (Just dyn) = if isFirstSeg then tagFirstSoundDynamic dyn vs else vs
+    maybeInsertSwell _     vs Nothing = pure vs
+    maybeInsertSwell swell vs (Just durVal) 
+      | durVal < 0 = pure $ maybeTagSwell swell durVal vs Nothing
+      | otherwise  = searchConfigParam (_vrcSctnPath <> ".swellDyn") <&> maybeTagSwell swell durVal vs . Just
+    maybeTagSwell swell dur vs mDyn =
+      if (dur >= 0 && isFirstSeg) || isLastSeg
+         then tagSwell swell dur vs mDyn
+         else vs
+    isFirstSeg = _vrcNumSeg == 0
+    isLastSeg  = _vrcNumSeg == pred _vrcCntSegs
+              
 -- Spread a list of per-section dynamics across all voices, section-by-section.                     
 sectionDynamics :: VoiceEventsMod
 sectionDynamics VoiceRuntimeConfig{..} ves = 
@@ -242,9 +263,32 @@ spotDynamics VoiceRuntimeConfig{..} ves = do
             totOff' = totOff + thisOff
 
 tagFirstSoundDynamic :: Dynamic -> [VoiceEvent] -> [VoiceEvent]
-tagFirstSoundDynamic dyn ves = maybe ves (`tagDynForIdx` ves) $ findIndex isVeSound ves
+tagFirstSoundDynamic dyn ves = maybe ves (\i -> tagCtrlForIdx (CtrlDynamic dyn) i ves) $ findIndex isVeSound ves
+
+-- offset is length duration in 128th notes of swell
+-- if positive, then duration from the beginning of [VoiceEvent]
+-- if negative, then duration from the end of [VoiceEvent]
+-- dynamic always goes with first sound in [VoiceEvent]
+-- 
+tagSwell :: Swell -> Int -> [VoiceEvent] -> Maybe Dynamic -> [VoiceEvent]    
+tagSwell swell off ves mDyn = 
+  case findIndexForOffset off ves of
+    Just i  -> if off >= 0
+               then tagCtrlForIdx (CtrlSwell swell) 0 $ maybe ves (\dyn -> tagCtrlForIdx (CtrlDynamic dyn) i ves) mDyn
+               else tagCtrlForIdx (CtrlSwell swell) i $ maybe ves (\dyn -> tagCtrlForIdx (CtrlDynamic dyn) (length ves - 1) ves) mDyn
+    Nothing -> error $ "tag " <> show swell <> " bad offset " <> show off <> " for events " <> show ves
+
+findIndexForOffset :: Int -> [VoiceEvent] -> Maybe Int
+findIndexForOffset off ves
+  | 0 <= off  = inner off 0 0 ves
+  | otherwise = inner off' 0 0 ves
   where
-    tagDynForIdx idx = toList . adjust' (tagControl (CtrlDynamic dyn)) idx . fromList
+    inner o pos i (v:vs) = if pos >= o then Just i else inner o (pos + ve2DurVal v) (succ i) vs
+    inner _ _   _ []    = Nothing
+    off' = off + ves2DurVal ves
+
+tagCtrlForIdx :: Control -> Int -> [VoiceEvent] -> [VoiceEvent]
+tagCtrlForIdx ctrl idx = toList . adjust' (tagControl ctrl) idx . fromList 
 
 tagControl :: Control -> VoiceEvent -> VoiceEvent
 tagControl ctrl ve@VeNote{}   = ve & veNote . noteCtrls %~ swapControl ctrl
