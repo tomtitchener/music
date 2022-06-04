@@ -14,53 +14,53 @@ import Data.Maybe (fromMaybe)
 
 data GroupConfig =
   GroupConfigNeutral {
-                     _gcnPath    :: String
-                    ,_gcnMName   :: Maybe String
-                    ,_gcnConfigs :: NE.NonEmpty SectionConfig
-                    }
+  _gcnPath    :: String
+  ,_gcnMName   :: Maybe String
+  ,_gcnConfigs :: NE.NonEmpty SectionConfig
+  }
   | GroupConfigEvenEnds {
-                     _gcePath    :: String
-                    ,_gceMName   :: Maybe String
-                    ,_gceConfigs :: NE.NonEmpty SectionConfig
-                    }
+      _gcePath    :: String
+      ,_gceMName   :: Maybe String
+      ,_gceConfigs :: NE.NonEmpty SectionConfig
+      }
   deriving Show
 
 data SectionConfig =
   SectionConfigNeutral {
-                       _scnPath        :: String
-                      ,_scnReps        :: Int
-                      ,_scnMName       :: Maybe String
-                      ,_scnMConfigMods :: Maybe (NE.NonEmpty String)
-                      ,_scnMVesMods    :: Maybe (NE.NonEmpty String)
-                      ,_scnVoices      :: NE.NonEmpty VoiceConfig
-                 }
+  _scnPath        :: String
+  ,_scnReps        :: Int
+  ,_scnMName       :: Maybe String
+  ,_scnMConfigMods :: Maybe (NE.NonEmpty String)
+  ,_scnMVesMods    :: Maybe (NE.NonEmpty String)
+  ,_scnVoices      :: NE.NonEmpty VoiceConfig
+  }
   | SectionConfigFadeIn {
-                       _scfiPath        :: String
-                      ,_scfiOrder       :: NE.NonEmpty Int
-                      ,_scfiMName       :: Maybe String
-                      ,_scfiMConfigMods :: Maybe (NE.NonEmpty String)
-                      ,_scfiMVesMods    :: Maybe (NE.NonEmpty String)
-                      ,_scfiVoices      :: NE.NonEmpty VoiceConfig
-                      }
+      _scfiPath        :: String
+      ,_scfiOrder       :: NE.NonEmpty Int
+      ,_scfiMName       :: Maybe String
+      ,_scfiMConfigMods :: Maybe (NE.NonEmpty String)
+      ,_scfiMVesMods    :: Maybe (NE.NonEmpty String)
+      ,_scfiVoices      :: NE.NonEmpty VoiceConfig
+      }
   | SectionConfigFadeOut {
-                       _scfoPath        :: String
-                      ,_scfoOrder       :: NE.NonEmpty Int
-                      ,_scfoMName       :: Maybe String
-                      ,_scfoMConfigMods :: Maybe (NE.NonEmpty String)
-                      ,_scfoMVesMods    :: Maybe (NE.NonEmpty String)
-                      ,_scfoVoices      :: NE.NonEmpty VoiceConfig
-                      }
+      _scfoPath        :: String
+      ,_scfoOrder       :: NE.NonEmpty Int
+      ,_scfoMName       :: Maybe String
+      ,_scfoMConfigMods :: Maybe (NE.NonEmpty String)
+      ,_scfoMVesMods    :: Maybe (NE.NonEmpty String)
+      ,_scfoVoices      :: NE.NonEmpty VoiceConfig
+      }
   | SectionConfigFadeAcross {
-                       _scfcPath        :: String
-                      ,_scfcReps         :: Int
-                      ,_scfcMName       :: Maybe String
-                      ,_scfcMConfigMods :: Maybe (NE.NonEmpty String)
-                      ,_scfcMVesMods    :: Maybe (NE.NonEmpty String)
-                      -- (a,b) pairs for two equal-length consorts
-                      -- both must be sliceable, though they can be
-                      -- different lengths
-                      ,_scfcVoicesAB    :: NE.NonEmpty (VoiceConfig,VoiceConfig)
-                      }
+      _scfcPath        :: String
+      ,_scfcReps         :: Int
+      ,_scfcMName       :: Maybe String
+      ,_scfcMConfigMods :: Maybe (NE.NonEmpty String)
+      ,_scfcMVesMods    :: Maybe (NE.NonEmpty String)
+      -- (a,b) pairs for two equal-length consorts
+      -- both must be sliceable, though they can be
+      -- different lengths
+      ,_scfcVoicesAB    :: NE.NonEmpty (VoiceConfig,VoiceConfig)
+      }
     deriving Show
 
 data VoiceConfigCore =
@@ -92,10 +92,10 @@ data VoiceConfig =
   --    lists.
   -- c) combine pitch, duration, and accent sublists into list of notes until
   --    total duration matches configuration value in 128th notes
-    VoiceConfigVerbatim {
-    _vcvCore   :: VoiceConfigCore
-   ,_vcvDurVal :: Int
-   }
+  VoiceConfigVerbatim {
+  _vcvCore   :: VoiceConfigCore
+  , _vcvDurVal :: Int
+  }
   -- introduction of some irregularity vs. verbatim:  extend sublists of pitches,
   -- durations, and accents so they're all equal lengths, then randomly pick the
   -- same sublist from the list of lists to create the next batch of pitches until
@@ -112,9 +112,9 @@ data VoiceConfig =
   -- d) generate list of notes from pitches, durations, and accents in lists
   --      e.g. for indices 0,1: ((p1,d1,a1),(p2,d1,a2),(p3,d2,a3),(p3,d3,a4))
   | VoiceConfigSlice {
-     _vccCore    :: VoiceConfigCore
-    ,_vcclDurVal :: Int
-    }
+      _vccCore    :: VoiceConfigCore
+      ,_vcclDurVal :: Int
+      }
   -- a) randomly permute list of list of pitches, durations, accents, so
   --    order in inner lists is preserved, order of inner lists themselves 
   --    is randomized, e.g.:
@@ -131,8 +131,8 @@ data VoiceConfig =
   -- accents mean irregular pairings of pitch, duration, and accent to generate notes
   | VoiceConfigRepeat {
       _vcrCore   :: VoiceConfigCore
-     ,_vcrDurVal :: Int
-     } 
+      ,_vcrDurVal :: Int
+      } 
   -- a) for each of list of list of pitches, durations, accents:
   --    - create an infinite list of indices 0..N-1 where N is length of outer list
   --    - use the list indices to select an infinite list of inner lists by index
@@ -149,7 +149,7 @@ data VoiceConfig =
   -- (even then, you need to use a config mod to stagger the arrival of the voices)
   -- poor name choice, maybe VoiceConfigRandomizedSublists would be better?
   | VoiceConfigBlend {
-       _vccCore   :: VoiceConfigCore
+      _vccCore   :: VoiceConfigCore
       ,_vccDurVal :: Int
       ,_vccRotVal :: Int -- default 0 if not in config
       }
@@ -163,7 +163,7 @@ data VoiceConfig =
   -- is a race among similar but different voices as the randomizations result in
   -- different range and duration results, so the voices gradually become separated
   | VoiceConfigXPose {
-       _vcxCore    :: VoiceConfigCore
+      _vcxCore    :: VoiceConfigCore
       ,_vcxScale     :: Scale
       ,_vcxRange     :: ((Pitch,Octave),(Pitch,Octave))
       }
