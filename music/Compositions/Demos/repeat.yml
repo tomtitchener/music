@@ -426,7 +426,6 @@ alter-ordered:
     grsnames: (sectiona,sectionfis,sectionDes,sectioncis)
     sectiona:
       stype:         neutral
-      sctname:       "sectiona"
       reps:          int 4
       uniformDyn:    fff
       decrescDurVal: int -384
@@ -454,7 +453,6 @@ alter-ordered:
         accentss:   ((^,^),(~,~))
     sectionfis:
       stype:       neutral
-      sctname:     "sectionfis"
       reps:        int 4
       uniformDyn:  ppp
       crescDurVal: int -384
@@ -482,7 +480,6 @@ alter-ordered:
         accentss:   ((^,^),(~,~))
     sectionDes: 
       stype:         neutral
-      sctname:       "sectionDes"
       reps:          int 4
       uniformDyn:    fff
       decrescDurVal: int -384
@@ -510,9 +507,8 @@ alter-ordered:
         accentss:   ((^,^),(~,~))
     sectioncis:
       stype:         neutral
-      sctname:       "sectioncis"
       reps:          int 4
-      uniformDyn:    mp
+      uniformDyn:    ppp
       crescDurVal:   int -384
       vesmods:       (uniformDyns)
       common:

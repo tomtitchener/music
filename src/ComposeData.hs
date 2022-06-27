@@ -35,7 +35,6 @@ data SectionConfig =
   SectionConfigNeutral {
   _scnPath        :: String
   ,_scnReps        :: Int
-  ,_scnMName       :: Maybe String
   ,_scnMConfigMods :: Maybe (NE.NonEmpty String)
   ,_scnMVesMods    :: Maybe (NE.NonEmpty String)
   ,_scnVoices      :: NE.NonEmpty VoiceConfig
@@ -43,7 +42,6 @@ data SectionConfig =
   | SectionConfigFadeIn {
       _scfiPath        :: String
       ,_scfiOrder       :: NE.NonEmpty Int
-      ,_scfiMName       :: Maybe String
       ,_scfiMConfigMods :: Maybe (NE.NonEmpty String)
       ,_scfiMVesMods    :: Maybe (NE.NonEmpty String)
       ,_scfiVoices      :: NE.NonEmpty VoiceConfig
@@ -51,7 +49,6 @@ data SectionConfig =
   | SectionConfigFadeOut {
       _scfoPath        :: String
       ,_scfoOrder       :: NE.NonEmpty Int
-      ,_scfoMName       :: Maybe String
       ,_scfoMConfigMods :: Maybe (NE.NonEmpty String)
       ,_scfoMVesMods    :: Maybe (NE.NonEmpty String)
       ,_scfoVoices      :: NE.NonEmpty VoiceConfig
@@ -59,7 +56,6 @@ data SectionConfig =
   | SectionConfigFadeAcross {
       _scfcPath        :: String
       ,_scfcReps         :: Int
-      ,_scfcMName       :: Maybe String
       ,_scfcMConfigMods :: Maybe (NE.NonEmpty String)
       ,_scfcMVesMods    :: Maybe (NE.NonEmpty String)
       -- (a,b) pairs for two equal-length consorts
@@ -260,7 +256,6 @@ sectionAndVoices2SectionConfigNeutral :: SectionAndVoices2SectionConfig
 sectionAndVoices2SectionConfigNeutral section voices =
       SectionConfigNeutral section
       <$> searchConfigParam  (section <> ".reps")
-      <*> searchMConfigParam (section <> ".sctname")
       <*> searchMConfigParam (section <> ".cfgmods")
       <*> searchMConfigParam (section <> ".vesmods")
       <*> path2VoiceConfigs section voices
@@ -269,7 +264,6 @@ sectionAndVoices2SectionConfigFadeIn :: SectionAndVoices2SectionConfig
 sectionAndVoices2SectionConfigFadeIn section voices =
       SectionConfigFadeIn section
       <$> searchConfigParam  (section <> ".delays")
-      <*> searchMConfigParam (section <> ".sctname")
       <*> searchMConfigParam (section <> ".cfgmods")
       <*> searchMConfigParam (section <> ".vesmods")
       <*> path2VoiceConfigs section voices
@@ -278,7 +272,6 @@ sectionAndVoices2SectionConfigFadeOut :: SectionAndVoices2SectionConfig
 sectionAndVoices2SectionConfigFadeOut section voices =
       SectionConfigFadeOut section
       <$> searchConfigParam  (section <> ".drops")
-      <*> searchMConfigParam (section <> ".sctname")
       <*> searchMConfigParam (section <> ".cfgmods")
       <*> searchMConfigParam (section <> ".vesmods")
       <*> path2VoiceConfigs section voices
@@ -287,7 +280,6 @@ sectionAndVoices2SectionConfigFadeAcross :: SectionAndVoices2SectionConfig
 sectionAndVoices2SectionConfigFadeAcross section voices = 
       SectionConfigFadeAcross section
       <$> searchConfigParam  (section <> ".reps")
-      <*> searchMConfigParam (section <> ".sctname")
       <*> searchMConfigParam (section <> ".cfgmods")
       <*> searchMConfigParam (section <> ".vesmods")
       <*> path2VoiceConfigss section voices
