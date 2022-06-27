@@ -674,7 +674,7 @@ sectionConfig2VoiceEvents _ (SectionConfigNeutral scnPath cntSegs mConfigMods mV
   traverse (traverse (applyMConfigMods mConfigMods)) (mkPrss spotIxs) >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
     where
       cntVocs = length voiceConfigs
-      scnName = path2Name scnPath <> " (neutral)"
+      scnName = drop (length "section") (path2Name scnPath) <> " (neutral)"
       cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
       mkPrss spotIxs = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss (NE.toList voiceConfigs)
         where
@@ -690,7 +690,7 @@ sectionConfig2VoiceEvents _ (SectionConfigFadeIn scnPath fadeIxs mConfigMods mVo
   where
     cntVocs    = length voiceConfigs
     idxVEsPrs  = (,[]) <$> [0..cntVocs - 1]
-    scnName    = path2Name scnPath <> " (fade in)"
+    scnName    = drop (length "section") (path2Name scnPath) <> " (fade in)"
     foldMf (seenNumVocs,idxVEsPr) numVoc = do
       newVEs <- genVEsFromMods numVoc <&> snd
       let restVEs = ves2VeRests newVEs
@@ -720,7 +720,7 @@ sectionConfig2VoiceEvents timeSig (SectionConfigFadeOut scnPath fadeIxs mConfigM
   where
     cntVocs   = length voiceConfigs
     idxVEsPrs = (,[]) <$> [0..cntVocs - 1]
-    scnName   = path2Name scnPath <> " (fade out)"
+    scnName   = drop (length "section") (path2Name scnPath) <> " (fade out)"
     foldMf (seenNumVocs,idxVEsPr) numVoc = do
       traverse appendVEs idxVEsPr <&> (numVoc:seenNumVocs,)
       where
@@ -746,7 +746,7 @@ sectionConfig2VoiceEvents _ (SectionConfigFadeAcross scnPath nReps mConfigMods m
   spotIxs <- traverse (const (randomIndex cntVocs)) [0..cntSegs - 1]
   traverse (traverse (applyMConfigMods mConfigMods)) (mkPrss spotIxs) >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
     where
-      scnName         = path2Name scnPath <> " (fade cells)"
+      scnName         = drop (length "section") (path2Name scnPath) <> " (fade cells)"
       cntVocs         = length voiceConfigPrs
       slicePrs        = both voiceConfig2Slice <$> NE.toList voiceConfigPrs
       cntCfgASlices   = length . fst . head $ slicePrs
