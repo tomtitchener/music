@@ -26,7 +26,7 @@ import Data.Maybe (fromMaybe, catMaybes)
 import Data.Sequence (adjust', fromList)
 import Data.Traversable (mapAccumL)
 import Data.Tuple (swap)
-import Data.Tuple.Extra (both, dupe, first, fst3, secondM, snd3, thd3)
+import Data.Tuple.Extra (both, dupe, first, fst3, secondM, snd3, thd3, (&&&))
 import Safe (lastMay)
 
 import ComposeData
@@ -872,31 +872,34 @@ config2VEss path timeSig = case countKeys path of
     countKeys :: String -> Int
     countKeys = length . splitOn "."
 
--- TBD: regularize SectionConfigs with different counts of VoiceConfigs, fix
--- global time and key signatures and instrument type in Main too.
+-- TBD: regularize SectionConfigs with different counts of VoiceConfigs.
 -- Going to mean pulling processing of [[[VoiceEvent]]] output from 
 -- traverse of groupConfig2VoiceEvents to NonEmpty Voice input to writeScore
--- and pipeline from Main::cfg2Score here, dropping globals for time, key, and
--- instrument and sourcing them from VoiceConfig, maybe in parallel lists to
--- [[VoiceEvent]].  May want to reconsider this as it really makes no sense
--- to always repeat same key and time signature and instrument on a voice
--- config level.  But if something were to change, you'd want a way to slip
--- the appropriate VoiceEvent into the stream when it did change.  Maybe a
--- master voice list roster in a new top-level data type?  That could let you 
--- do something dynamic like stitching together tacit voices as you travel down
--- the list of group configs -- assuming you only change orchestration between
--- groups anyway -- which would turn a traverse into a foldM at the top level.
+-- and pipeline from Main::cfg2Score here.
 -- Note also pipeline forces genSplitStaffVoc which will need to be configurable
 -- either by VoiceConfig or SectionConfig or else associated with an instrument.
 -- But *before that* need to deal with variable choirs, instruments that sit out
 -- a section by adding rests for tacit voices when they're missing from a Section,
 -- preservation of ordering of by voice in [[VoiceEvent]].
--- XXX Thread new input TimeSignature to sectionConfig2VoiceEvents
 groupConfig2VoiceEvents :: TimeSignature -> GroupConfig -> Driver [[[VoiceEvent]]]
 groupConfig2VoiceEvents timeSig (GroupConfigNeutral _ _ secCfgs) =
   traverse (sectionConfig2VoiceEvents timeSig) (NE.toList secCfgs)
 groupConfig2VoiceEvents timeSig (GroupConfigEvenEnds _ _ secCfgs) =
   traverse (sectionConfig2VoiceEvents timeSig) (NE.toList secCfgs) >>= extendVoicesEvents timeSig (NE.last secCfgs)
+groupConfig2VoiceEvents timeSig (GroupConfigOrdered _ _ orderedSectionNames secCfgs) =
+  traverse (sectionConfig2VoiceEvents timeSig) orderedConfigs
+  where
+    name2ConfigMap = M.fromList ((secCfg2SecName &&& id) <$> NE.toList secCfgs)
+    orderedConfigs = (M.!) name2ConfigMap <$> NE.toList orderedSectionNames
+
+secCfg2SecName :: SectionConfig -> String
+secCfg2SecName SectionConfigNeutral{..}    = getNameForPath _scnPath _scnMName
+secCfg2SecName SectionConfigFadeIn{..}     = getNameForPath _scfiPath _scfiMName
+secCfg2SecName SectionConfigFadeOut{..}    = getNameForPath _scfoPath _scfoMName
+secCfg2SecName SectionConfigFadeAcross{..} = getNameForPath _scfcPath _scfcMName
+
+getNameForPath :: String -> Maybe String -> String
+getNameForPath path = fromMaybe (error $ "config " <> path <> " is missing name") 
 
 -- Repeatedly add [[VoiceEvent]] for last section to input until all [[VoiceEvent]] are the same
 -- total duration.  Tricky bit is that sectionConfig2VoiceEvents may not add [VoiceEvent] of

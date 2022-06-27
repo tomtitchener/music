@@ -23,6 +23,12 @@ data GroupConfig =
       ,_gceMName   :: Maybe String
       ,_gceConfigs :: NE.NonEmpty SectionConfig
       }
+  | GroupConfigOrdered {
+      _gcoPath    :: String
+      ,_gcoMName   :: Maybe String
+      ,_gcoSNames  :: NE.NonEmpty String -- order of sections by name
+      ,_gcoConfigs :: NE.NonEmpty SectionConfig
+      }
   deriving Show
 
 data SectionConfig =
@@ -63,6 +69,7 @@ data SectionConfig =
       }
     deriving Show
 
+-- TBD: proper OO path in Haskell is typeclass, not nesting like this.
 data VoiceConfigCore =
   VoiceConfigCore {
    _vcmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
@@ -317,10 +324,18 @@ groupAndSections2GroupConfigEvenEnds group sections =
       GroupConfigEvenEnds group
       <$> searchMConfigParam (group <> ".grname")
       <*> path2SectionConfigs group sections
+      
+groupAndSections2GroupConfigOrdered :: GroupAndSections2GroupConfig
+groupAndSections2GroupConfigOrdered group sections =
+      GroupConfigOrdered group
+      <$> searchMConfigParam (group <> ".grname")
+      <*> searchConfigParam (group <> ".grsnames")
+      <*> path2SectionConfigs group sections
 
 name2GroupConfigMap :: M.Map String GroupAndSections2GroupConfig
-name2GroupConfigMap = M.fromList [("neutral"  ,groupAndSections2GroupConfigNeutral)
-                                 ,("evenends" ,groupAndSections2GroupConfigEvenEnds)]
+name2GroupConfigMap = M.fromList [("neutral" ,groupAndSections2GroupConfigNeutral)
+                                 ,("evenends",groupAndSections2GroupConfigEvenEnds)
+                                 ,("ordered" ,groupAndSections2GroupConfigOrdered)]
                          
 cfg2GroupConfig :: String -> NE.NonEmpty String -> Driver GroupConfig
 cfg2GroupConfig group sections =
