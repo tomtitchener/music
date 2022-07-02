@@ -158,7 +158,7 @@ instance Arbitrary Note where
   shrink = genericShrink
 
 instance Arbitrary Rest where
-  arbitrary = Rest <$> arbitrary <*> arbitrary <*> elements ["a","b","c"]
+  arbitrary = Rest <$> arbitrary <*> listOfThree arbitrary
   shrink = genericShrink
 
 --
@@ -188,7 +188,7 @@ instance Arbitrary Tuplet where
   arbitrary = do
     arbGtr :: Bool <- arbitrary --  > tuple num / denum, e.g. 1 vs. < 1, e.g. True => N + 1 / N, False => N / N + 1
     arbNum :: Int <- elements [3..7] -- tuples from [4 in the time of 3 | 3 in the time of 4 ..  7 in the time of 6 | 6 in the time of 7]
-    note <- Note <$> arbitrary <*> arbitrary <*> (duration2DurationVal <$> pure dur) <*> pure [] <*>  pure [] <*> arbitrary
+    note <- Note <$> arbitrary <*> arbitrary <*>  pure (duration2DurationVal dur) <*> pure [] <*>  pure [] <*> arbitrary
     let num = if arbGtr then arbNum else arbNum - 1
         den = if arbGtr then arbNum - 1 else arbNum
         notes = NE.fromList $ replicate num note
@@ -219,8 +219,8 @@ instance Arbitrary Tremolo where
       arbNote = Note <$> arbitrary <*> arbitrary <*> (duration2DurationVal <$> elements [DWDur, WDur, DHDur, HDur, DQDur, QDur]) <*>  pure [] <*> pure [] <*> arbitrary
       arbChordTremolo = do
         dur <- elements [DWDur, WDur, DHDur, HDur, DQDur, QDur]
-        arbChord1 <- (`Chord` (duration2DurationVal dur)) . NE.fromList <$> listOfThree arbitrary <*> pure [] <*> pure [] <*> arbitrary
-        arbChord2 <- (`Chord` (duration2DurationVal dur)) . NE.fromList <$> listOfThree arbitrary <*> pure [] <*> pure [] <*> arbitrary
+        arbChord1 <- (`Chord` duration2DurationVal dur) . NE.fromList <$> listOfThree arbitrary <*> pure [] <*> pure [] <*> arbitrary
+        arbChord2 <- (`Chord` duration2DurationVal dur) . NE.fromList <$> listOfThree arbitrary <*> pure [] <*> pure [] <*> arbitrary
         pure $ ChordTremolo arbChord1 arbChord2
   shrink = genericShrink
 
