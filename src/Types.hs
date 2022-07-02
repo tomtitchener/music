@@ -81,7 +81,7 @@ data MidiControl =
 data Note = Note { _notePit :: Pitch, _noteOct :: Octave, _noteDur :: DurationVal, _noteMidiCtrls :: [MidiControl], _noteCtrls :: [Control], _noteTie :: Bool}
   deriving (Eq, Ord, Show)
 
-data Rest = Rest { _restDur :: DurationVal, _restDyn :: Dynamic, _restAnn :: String }
+data Rest = Rest { _restDur :: DurationVal, _restCtrls :: [Control] }
   deriving (Eq, Ord, Show)
 
 data Spacer = Spacer { _spacerDur :: DurationVal, _spacerDyn :: Dynamic, _spacerAnn :: String }

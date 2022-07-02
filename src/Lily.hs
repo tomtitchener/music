@@ -257,7 +257,7 @@ instance FromLily Note  where
 ------------
 
 instance ToLily Rhythm where
-  toLily (Rhythm instr dur midiCtrls ctrls) = instr  <> toLily dur <> toLilyFromList midiCtrls <> toLilyFromList ctrls
+  toLily (Rhythm instr dur midiCtrls ctrls) = instr <> toLily dur <> toLilyFromList midiCtrls <> toLilyFromList ctrls
 
 parseRhythm :: Parser Rhythm
 parseRhythm = Rhythm <$> manyTill anyChar eof <*> parseDurationVal <*> many parseMidiControl <*> many parseControl
@@ -270,10 +270,10 @@ instance FromLily Rhythm  where
 ----------
 
 instance ToLily Rest where
-  toLily (Rest dur dyn ann) = "r" <> toLily dur <> toLily dyn <> mkAnnotation ann
+  toLily (Rest dur ctrls) = "r" <> toLily dur <> toLilyFromList ctrls
 
 parseRest :: Parser Rest
-parseRest = Rest <$> (char 'r' *> parseDurationVal) <*> parseDynamic <*> parseAnnotation
+parseRest = Rest <$> (char 'r' *> parseDurationVal) <*> many parseControl
 
 instance FromLily Rest  where
   parseLily = mkParseLily parseRest

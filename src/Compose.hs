@@ -179,25 +179,29 @@ fadeInDynamics VoiceRuntimeConfig{..} ves = do
     Just _  -> tagFirstSoundDynamic dyn1 ves -- fade-in voice signaled via Just <index>
     Nothing -> tagFirstSoundDynamic dyn2 ves -- non fade-in voices get second dynamic
 
--- So, need, one, two, or all three of:
---  a) a way to say initial dynamic regardless of swell, always goes at beginning
---  b) positive duration offset for first segment
---     1) crescendo dynamic is required 
---     2) decrescendo dynamic is required
---  c) negative duration offset for last segment
---     1) crescendo dynamic is ignored
---     2) decrescendo dynamic is ignored
+-- TBD: need a more robust way of specifying swells and dynamics over the 
+-- course of an entire voice.  This is a voice mod, which means it applies on
+-- a segment-by-segment (i.e. repetition) basis for a given voice, which in
+-- effect means the only easily recognizeable points are the first segment,
+-- the last segment, and all segments that are neither.  For full flexibility,
+-- I'd need a tagged list of dynamic, swell+dynamic, or dynamic+sell pairs
+-- with the tag specifying the segment number.  And change voice mod method name.
 uniformDynamics :: VoiceEventsMod
 uniformDynamics VoiceRuntimeConfig{..} inVes = do
   ves1 <- searchMConfigParam (_vrcSctnPath <> ".uniformDyn") <&> maybeInsertUniDyn inVes
   ves2 <- searchMConfigParam (_vrcSctnPath <> ".crescDurVal") >>= maybeInsertSwell Crescendo ves1
-  searchMConfigParam (_vrcSctnPath <> ".decrescDurVal") >>= maybeInsertSwell Decrescendo ves2
+  -- This is a hack to fix a bug overwriting cresc with decresc when both are specified.
+  -- But it means within a given segment there can't be both cresc and decresc.
+  -- Also, swellDyn only at end of swell that starts at the beginning of the segment.
+  if ves1 == ves2
+  then searchMConfigParam (_vrcSctnPath <> ".decrescDurVal") >>= maybeInsertSwell Decrescendo ves2
+  else pure ves2
   where
     maybeInsertUniDyn vs Nothing    = vs
     maybeInsertUniDyn vs (Just dyn) = if isFirstSeg then tagFirstSoundDynamic dyn vs else vs
     maybeInsertSwell _     vs Nothing = pure vs
     maybeInsertSwell swell vs (Just durVal) 
-      | durVal < 0 = pure $ maybeTagSwell swell durVal vs Nothing
+      | durVal < 0 = pure $ maybeTagSwell swell durVal vs Nothing -- last segment, new dyn at start of next section
       | otherwise  = searchConfigParam (_vrcSctnPath <> ".swellDyn") <&> maybeTagSwell swell durVal vs . Just
     maybeTagSwell swell dur vs mDyn =
       if (dur >= 0 && isFirstSeg) || isLastSeg
@@ -269,7 +273,6 @@ tagFirstSoundDynamic dyn ves = maybe ves (\i -> tagCtrlForIdx (CtrlDynamic dyn) 
 -- if positive, then duration from the beginning of [VoiceEvent]
 -- if negative, then duration from the end of [VoiceEvent]
 -- dynamic always goes with first sound in [VoiceEvent]
--- 
 tagSwell :: Swell -> Int -> [VoiceEvent] -> Maybe Dynamic -> [VoiceEvent]    
 tagSwell swell off ves mDyn = 
   case findIndexForOffset off ves of
@@ -284,7 +287,7 @@ findIndexForOffset off ves
   | otherwise = inner off' 0 0 ves
   where
     inner o pos i (v:vs) = if pos >= o then Just i else inner o (pos + ve2DurVal v) (succ i) vs
-    inner _ _   _ []    = Nothing
+    inner _ _   _ []     = Nothing
     off' = off + ves2DurVal ves
 
 tagCtrlForIdx :: Control -> Int -> [VoiceEvent] -> [VoiceEvent]
@@ -292,6 +295,7 @@ tagCtrlForIdx ctrl idx = toList . adjust' (tagControl ctrl) idx . fromList
 
 tagControl :: Control -> VoiceEvent -> VoiceEvent
 tagControl ctrl ve@VeNote{}   = ve & veNote . noteCtrls %~ swapControl ctrl
+tagControl ctrl ve@VeRest{}   = ve & veRest . restCtrls %~ swapControl ctrl
 tagControl ctrl ve@VeRhythm{} = ve & veRhythm . rhythmCtrls %~ swapControl ctrl
 tagControl ctrl ve@VeTuplet{} = ve & veTuplet . tupNotes %~ (\notes -> tagControl ctrl (NE.head notes) NE.:| NE.tail notes)
 tagControl ctrl ve@VeChord{}  = ve & veChord . chordCtrls %~ swapControl ctrl
@@ -548,7 +552,7 @@ accumDurOrDurTupToVEs (mPitOrPitOcts,accents) durTup = error $ "accumDurOrDurTup
 mkNoteChordOrRest :: Maybe PitOctOrPitOcts -> DurationVal -> Accent -> VoiceEvent
 mkNoteChordOrRest (Just (Left (p,o))) d a = VeNote (Note p o d [] [CtrlAccent a] False)
 mkNoteChordOrRest (Just (Right pos))  d a = VeChord (Chord (NE.fromList pos) d [] [CtrlAccent a] False)
-mkNoteChordOrRest Nothing             d _ = VeRest (Rest d NoDynamic "")
+mkNoteChordOrRest Nothing             d _ = VeRest (Rest d [])
 
 -- Be careful:  length of [DurOrDurTuplet] is infinite.
 unfoldDurOrDurTups :: Int -> (Int, [DurOrDurTuplet]) -> Maybe (DurOrDurTuplet, (Int, [DurOrDurTuplet]))
@@ -586,10 +590,9 @@ annFirstEvent ann append = snd . mapAccumL accumSeen False
     accumSeen False (VeNote note)     = (True,VeNote   (note   & noteCtrls   %~ addOrAppendAnn ann append))
     accumSeen False (VeRhythm rhythm) = (True,VeRhythm (rhythm & rhythmCtrls %~ addOrAppendAnn ann append))
     accumSeen False (VeChord chord)   = (True,VeChord  (chord  & chordCtrls  %~ addOrAppendAnn ann append))
-    accumSeen False (VeRest rest)     = (True,VeRest   (rest   & restAnn     %~ append ann))
+    accumSeen False (VeRest rest)     = (True,VeRest   (rest   & restCtrls   %~ addOrAppendAnn ann append))
     accumSeen False (VeSpacer spacer) = (True,VeSpacer (spacer & spacerAnn   %~ append ann))
     accumSeen seen  event             = (seen,event)
-
 addOrAppendAnn :: String -> (String -> String -> String) -> [Control] -> [Control]
 addOrAppendAnn newAnn append ctrls = maybe (CtrlAnnotation newAnn : ctrls) (`appendAnnForIdx` ctrls) $ findIndex isAnnotation ctrls
   where
@@ -638,7 +641,7 @@ voiceConfig2VoiceEvents path VoiceConfigSlice{..}    = genSlice path _vccCore _v
 voiceConfig2VoiceEvents path VoiceConfigBlend{..}    = genBlend path _vccCore _vccDurVal _vccRotVal
 
 ves2VeRests :: [VoiceEvent] -> [VoiceEvent]
-ves2VeRests ves = [VeRest (Rest (mkDurationVal (ves2DurVal ves)) NoDynamic [])]
+ves2VeRests ves = [VeRest (Rest (mkDurationVal (ves2DurVal ves)) [])]
 
 applyMConfigMods :: Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig, VoiceConfig) -> Driver (VoiceRuntimeConfig,VoiceConfig)
 applyMConfigMods mNames pr = applyMMods mNames pr (applyMod name2VoiceConfigMods) <&> (fst pr,)
@@ -844,16 +847,15 @@ genSplitStaffVoc instr keySig timeSig ves
 
 --- Generalize title to path from input arg.
 title2VEss :: String -> TimeSignature -> Driver [[VoiceEvent]]
-title2VEss title timeSig = do
-  grpNames   <- cfgPath2Keys ("group" `isPrefixOf`) title <&> fmap ((title <> ".") <>)
-  grpScnsPrs <- traverse (secondM (cfgPath2Keys ("section" `isPrefixOf`)) . dupe) grpNames
-  grpCfgs    <- traverse (uncurry cfg2GroupConfig) (second NE.fromList <$> grpScnsPrs)
-  vesss      <- traverse (groupConfig2VoiceEvents timeSig) grpCfgs <&> concat
-  pure $ concat <$> transpose vesss
+title2VEss title timeSig =
+  cfgPath2Keys ("group" `isPrefixOf`) title <&> fmap ((title <> ".") <>) >>= flip grpNames2VEss timeSig
 
 group2VEss :: String -> TimeSignature -> Driver [[VoiceEvent]]
-group2VEss group timeSig = do
-  grpScnsPrs <- traverse (secondM (cfgPath2Keys ("section" `isPrefixOf`)) . dupe) [group]
+group2VEss grpName = grpNames2VEss [grpName]
+
+grpNames2VEss :: [String] -> TimeSignature -> Driver [[VoiceEvent]]
+grpNames2VEss grpNames timeSig = do
+  grpScnsPrs <- traverse (secondM (cfgPath2Keys ("section" `isPrefixOf`)) . dupe) grpNames
   grpCfgs    <- traverse (uncurry cfg2GroupConfig) (second NE.fromList <$> grpScnsPrs)
   vesss      <- traverse (groupConfig2VoiceEvents timeSig) grpCfgs <&> concat
   pure $ concat <$> transpose vesss
@@ -864,16 +866,18 @@ section2VEss section timeSig = path2SectionConfig section >>= sectionConfig2Voic
 voice2VEss :: String -> Driver [[VoiceEvent]]
 voice2VEss voice = path2VoiceConfig voice >>= voiceConfig2VoiceEvents voice <&> (:[])
 
+-- Convert config data in DriverEnv to list of VoiceEvent per voice
+-- according to length of config path so e.g. you can focus all the
+-- way down to a single voice, section, or group, as well as top-level
+-- title.
 config2VEss :: String -> TimeSignature -> Driver [[VoiceEvent]]
-config2VEss path timeSig = case countKeys path of
-  1 -> title2VEss   path timeSig
-  2 -> group2VEss   path timeSig
-  3 -> section2VEss path timeSig
-  4 -> voice2VEss   path
-  n ->  error $ "config2VEss unexpected count of keys " <> show n <> " in " <> path
-  where
-    countKeys :: String -> Int
-    countKeys = length . splitOn "."
+config2VEss path timeSig =
+  case length (splitOn "." path) of
+    1 -> title2VEss   path timeSig
+    2 -> group2VEss   path timeSig
+    3 -> section2VEss path timeSig
+    4 -> voice2VEss   path
+    n ->  error $ "config2VEss unexpected count of keys " <> show n <> " in " <> path
 
 -- TBD: regularize SectionConfigs with different counts of VoiceConfigs.
 -- Going to mean pulling processing of [[[VoiceEvent]]] output from 
@@ -968,7 +972,7 @@ mkVesTotDur timeSig maxLen vesLen ves =
     barLen  = timeSig2Num timeSig * beatLen
     remBar  = if maxLen `rem` barLen == 0 then 0 else barLen - (maxLen `rem` barLen)
     addLen  = if maxLen > vesLen then (maxLen - vesLen) + remBar else remBar
-    spacerOrRest = if not (null ves) && isSpacer (last ves) then VeSpacer . (\dur -> Spacer dur NoDynamic "") else VeRest . (\dur -> Rest dur NoDynamic "")
+    spacerOrRest = if not (null ves) && isSpacer (last ves) then VeSpacer . (\dur -> Spacer dur NoDynamic "") else VeRest . (`Rest` [])
 
 isSpacer :: VoiceEvent -> Bool
 isSpacer VeSpacer {} = True
@@ -1009,7 +1013,7 @@ alignVoiceEventsDurations timeSig ves =
       where
         addLen = ves2DurVal rests
         durs = addEndDurs timeSig curLen addLen
-        newRests = VeRest . (\dur -> Rest dur NoDynamic "") <$> durs
+        newRests = VeRest . (`Rest` []) <$> durs
     -- for notes and chords (eventually rhythms, tuplets?), add ties 
     adjVEsDurs curLen allVes =
       second concat $ mapAccumL adjVEDur curLen allVes
@@ -1062,7 +1066,7 @@ fixVoiceEventTie False tie   (VeNote note@Note{})  = VeNote $ note & noteMidiCtr
 fixVoiceEventTie True  False ve@VeChord{}          = ve & veChord . chordTie .~ True
 fixVoiceEventTie False tie   (VeChord chd@Chord{}) = VeChord $ chd & chordMidiCtrls .~ [] & chordCtrls .~ [] & chordTie .~ not tie 
 fixVoiceEventTie True  False (VeRest rest)         = VeRest rest {-- TBD: { _restTie = True } --}
-fixVoiceEventTie False _     ve@VeRest{}           = ve & veRest . restDyn .~ NoDynamic {-- TBD: ,_restTie = not tie --}
+fixVoiceEventTie False _     ve@VeRest{}           = ve & veRest . restCtrls .~ [] {-- TBD: ,_restTie = not tie --}
 fixVoiceEventTie _     _     ve                    = ve
 
 swapVeLens :: Duration -> VoiceEvent -> VoiceEvent
@@ -1071,6 +1075,6 @@ swapVeLens dur ve@VeRest{}   = ve & veRest   . restDur   .~ duration2DurationVal
 swapVeLens dur ve@VeChord{}  = ve & veChord  . chordDur  .~ duration2DurationVal dur
 swapVeLens dur ve@VeRhythm{} = ve & veRhythm . rhythmDur .~ duration2DurationVal dur
 swapVeLens dur ve@VeSpacer{} = ve & veSpacer . spacerDur .~ duration2DurationVal dur
-swapVeLens dur VeTuplet{}    = VeRest $ Rest (duration2DurationVal dur) NoDynamic ""
+swapVeLens dur VeTuplet{}    = VeRest $ Rest (duration2DurationVal dur) []
 swapVeLens _   ve            = ve
 
