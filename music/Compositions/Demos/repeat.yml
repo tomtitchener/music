@@ -420,7 +420,7 @@ alter-ordered:
     tempo:       (120,4)
     key:         c major
     instr:       marimba
-    time:        (6,8)
+    time:        (4,4)
   group:
     grtype: ordered
     grsnames: (sectiona,sectionfis,sectionDes,sectioncis)
@@ -428,7 +428,9 @@ alter-ordered:
       stype:         neutral
       reps:          int 4
       uniformDyn:    fff
-      decrescDurVal: int -384
+      decrescDurVal: int 360
+      swellDyn:      ppp
+      crescDurVal:   int -384
       vesmods:       (uniformDyns)
       common:
         # One 6/8 bar is 6 * 16 or 96 128ths, 96 * 4 is 384
@@ -441,7 +443,7 @@ alter-ordered:
         accentss:   ((^,^),(~,~))
       voice2:
         mPitOctsss: (((c,0),(c,1)),((e,0),(e,1)))
-        durss:      ((8,8,16,16,4,16,8)) # 13 16ths
+        durss:      ((8,8,16,16,4,16,16)) # 12 16ths
         accentss:   ((^,^),(~,~))
       voice3:
         mPitOctsss: (((c,0),(c,-1)),((e,0),(e,-1)))
@@ -452,11 +454,13 @@ alter-ordered:
         durss:      ((8,8,8,16,16,16,16)) # 10 16ths
         accentss:   ((^,^),(~,~))
     sectionfis:
-      stype:       neutral
-      reps:        int 4
-      uniformDyn:  ppp
-      crescDurVal: int -384
-      vesmods:     (uniformDyns)
+      stype:         neutral
+      reps:          int 4
+      uniformDyn:    fff
+      decrescDurVal: int 360
+      swellDyn:      ppp
+      crescDurVal:   int -384
+      vesmods:       (uniformDyns)
       common:
         # One 6/8 bar is 6 * 16 or 96 128ths, 96 * 4 is 384
         # pattern shifts every four bars
@@ -468,7 +472,7 @@ alter-ordered:
         accentss:   ((^,^),(~,~))
       voice2:
         mPitOctsss: (((dis,0),(fis,0)),((e,0),(gis,0)))
-        durss:      ((8,8,16,16,4,16,8)) # 13 16ths
+        durss:      ((8,8,16,16,4,16,16)) # 12 16ths
         accentss:   ((^,^),(~,~))
       voice3:
         mPitOctsss: (((b,-1),(gis,-1)),((e,-1),(cis,-1)))
@@ -482,7 +486,9 @@ alter-ordered:
       stype:         neutral
       reps:          int 4
       uniformDyn:    fff
-      decrescDurVal: int -384
+      decrescDurVal: int 360
+      swellDyn:      ppp
+      crescDurVal:   int -384
       vesmods:       (uniformDyns)
       common:
         # One 6/8 bar is 6 * 16 or 96 128ths, 96 * 4 is 384
@@ -495,7 +501,7 @@ alter-ordered:
         accentss:   ((^,^),(~,~))
       voice2:
         mPitOctsss: (((f,0),(aes,0)),((c,0),(ees,0)))
-        durss:      ((8,8,16,16,4,16,8)) # 13 16ths
+        durss:      ((8,8,16,16,4,16,16)) # 12 16ths
         accentss:   ((^,^),(~,~))
       voice3:
         mPitOctsss: (((bes,-1),(aes,-1)),((c,-1),(aes,-1)))
@@ -508,7 +514,9 @@ alter-ordered:
     sectioncis:
       stype:         neutral
       reps:          int 4
-      uniformDyn:    ppp
+      uniformDyn:    fff
+      decrescDurVal: int 360
+      swellDyn:      ppp
       crescDurVal:   int -384
       vesmods:       (uniformDyns)
       common:
@@ -522,7 +530,7 @@ alter-ordered:
         accentss:   ((^,^),(~,~))
       voice2:
         mPitOctsss: (((cis,0),(e,0)),((b,0),(gis,0)))
-        durss:      ((8,8,16,16,4,16,8)) # 13 16ths
+        durss:      ((8,8,16,16,4,16,16)) # 12 16ths
         accentss:   ((^,^),(~,~))
       voice3:
         mPitOctsss: (((b,-1),(e,-1)),((gis,-1),(cis,-1)))
@@ -532,6 +540,67 @@ alter-ordered:
         mPitOctsss: (((cis,-2),(cis,-1)),((gis,-2),(gis,-1)))
         durss:      ((8,8,8,16,16,16,16)) # 10 16ths
         accentss:   ((^,^),(~,~))
+
+alter-ordered-rhythms:
+  common:
+    tempo:       (120,2)
+    key:         c major
+    instr:       marimba
+    time:        (4,4)
+  group:
+    grtype: ordered
+    grsnames: (sectiona,sectionfis,sectionDes,sectioncis)
+    common:
+      # One 4/4 bar is 8 * 16 or 128 128ths * 4 is 512
+      durval: int 512
+      vtype:  blend
+      durss:       ((4,8,8),(8,8,4),(4,4),(8,4,8))
+      durss-trips: ((4,8,8),(8,8,4),(4,4),((3,2,4,(4,4,4)))) # makes hash, rhythmically
+      accentss:    ((^,.),(~,~),(.,^),(>,>))
+      # four times each repeat voice four times gives four random sequences
+      stype:         neutral
+      reps:          int 4
+      uniformDyn:    fff
+      decrescDurVal: int 448
+      swellDyn:      ppp
+      crescDurVal:   int -512
+      vesmods:       (uniformDyns)
+    sectiona:
+      voice1:
+        mPitOctsss: (((g,0),(g,1)),((b,0),(b,1)),((c,1),(b,1),r,(a,1)))
+      voice2:
+        mPitOctsss: (((c,0),(c,1)),((e,0),(e,1)),((c,0),r),((e,0),r))
+      voice3:
+        mPitOctsss: ((r,(c,-1)),((e,0),(e,-1)),(r,(c,-1)),(r,(e,-1)))
+      voice4:
+        mPitOctsss: (((a,-2),(a,-1)),((e,-2),(e,-1)),(r,r),((e,-2),(e,-1)))
+    sectionfis:
+      voice1:
+        mPitOctsss: (((cis,1),(cis,2)),((e,1),(b,1)),((gis,1),(e,1),(fis,1),(dis,1)))
+      voice2:
+        mPitOctsss: (((dis,0),(fis,0)),((e,0),(gis,0)))
+      voice3:
+        mPitOctsss: (((b,-1),(gis,-1)),((e,-1),(cis,-1)))
+      voice4:
+        mPitOctsss: (((a,-2),(fis,-1)),((cis,-2),(fis,-2)))
+    sectionDes: 
+      voice1:
+        mPitOctsss: (((des,1),(des,2)),((f,1),(bes,1)),((aes,1),(c,1),(des,1),(ees,1)))
+      voice2:
+        mPitOctsss: (((f,0),(aes,0)),((c,0),(ees,0)))
+      voice3:
+        mPitOctsss: (((bes,-1),(aes,-1)),((c,-1),(aes,-1)))
+      voice4:
+        mPitOctsss: (((des,-2),(des,-1)),((aes,-2),(c,-1)))
+    sectioncis:
+      voice1:
+        mPitOctsss: (((cis,1),(cis,2)),((e,1),(b,1)),((ais,1),(cis,1),(gis,1),(e,1)))
+      voice2:
+        mPitOctsss: (((cis,0),(e,0)),((b,0),(gis,0)))
+      voice3:
+        mPitOctsss: (((b,-1),(e,-1)),((gis,-1),(cis,-1)))
+      voice4:
+        mPitOctsss: (((cis,-2),(cis,-1)),((gis,-2),(gis,-1)))
 
 # what happens when we only play with accents?
 # you can hear the different patterns, and you
