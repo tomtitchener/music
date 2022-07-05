@@ -37,21 +37,21 @@ data SectionConfig =
   ,_scnReps        :: Int
   ,_scnMConfigMods :: Maybe (NE.NonEmpty String)
   ,_scnMVesMods    :: Maybe (NE.NonEmpty String)
-  ,_scnVoices      :: NE.NonEmpty VoiceConfig
+  ,_scnVoices      :: [VoiceConfig]
   }
   | SectionConfigFadeIn {
       _scfiPath        :: String
       ,_scfiOrder       :: NE.NonEmpty Int
       ,_scfiMConfigMods :: Maybe (NE.NonEmpty String)
       ,_scfiMVesMods    :: Maybe (NE.NonEmpty String)
-      ,_scfiVoices      :: NE.NonEmpty VoiceConfig
+      ,_scfiVoices      :: [VoiceConfig]
       }
   | SectionConfigFadeOut {
       _scfoPath        :: String
       ,_scfoOrder       :: NE.NonEmpty Int
       ,_scfoMConfigMods :: Maybe (NE.NonEmpty String)
       ,_scfoMVesMods    :: Maybe (NE.NonEmpty String)
-      ,_scfoVoices      :: NE.NonEmpty VoiceConfig
+      ,_scfoVoices      :: [VoiceConfig]
       }
   | SectionConfigFadeAcross {
       _scfcPath        :: String
@@ -61,7 +61,7 @@ data SectionConfig =
       -- (a,b) pairs for two equal-length consorts
       -- both must be sliceable, though they can be
       -- different lengths
-      ,_scfcVoicesAB    :: NE.NonEmpty (VoiceConfig,VoiceConfig)
+      ,_scfcVoicesAB    :: [(VoiceConfig,VoiceConfig)]
       }
     deriving Show
 
@@ -242,15 +242,15 @@ path2VoiceConfig path =
         Nothing  -> error $ "path2VoiceConfig no converter for \"vtype:\" " <> cfgType
         Just fun -> fun path
 
-path2VoiceConfigs :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty VoiceConfig)
+path2VoiceConfigs :: String -> [String] -> Driver [VoiceConfig]
 path2VoiceConfigs path = traverse (path2VoiceConfig . ((path <> ".") <>))
 
-path2VoiceConfigss :: String -> NE.NonEmpty String -> Driver (NE.NonEmpty (VoiceConfig,VoiceConfig))
-path2VoiceConfigss path voices = path2VoiceConfigs path voices <&> NE.fromList . uncurry zip . list2PairLists . NE.toList
+path2VoiceConfigss :: String -> [String] -> Driver [(VoiceConfig,VoiceConfig)]
+path2VoiceConfigss path voices = path2VoiceConfigs path voices <&> uncurry zip . list2PairLists
   where
     list2PairLists l = splitAt (length l `div` 2) l
 
-type SectionAndVoices2SectionConfig = String -> NE.NonEmpty String -> Driver SectionConfig
+type SectionAndVoices2SectionConfig = String -> [String] -> Driver SectionConfig
 
 sectionAndVoices2SectionConfigNeutral :: SectionAndVoices2SectionConfig
 sectionAndVoices2SectionConfigNeutral section voices =
@@ -293,7 +293,7 @@ name2SectionConfigMap = M.fromList [("neutral"   ,sectionAndVoices2SectionConfig
 path2SectionConfig :: String -> Driver SectionConfig
 path2SectionConfig section = do
   voices <- cfgPath2Keys ("voice" `isPrefixOf`) section
-  searchConfigParam (section <> ".stype") >>= flip runConfigType (NE.fromList voices)
+  searchConfigParam (section <> ".stype") >>= flip runConfigType voices
   where
     runConfigType cfgType voices =
       case M.lookup cfgType name2SectionConfigMap of

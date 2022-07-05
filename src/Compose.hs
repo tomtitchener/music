@@ -679,7 +679,7 @@ sectionConfig2VoiceEvents _ (SectionConfigNeutral scnPath cntSegs mConfigMods mV
       cntVocs = length voiceConfigs
       scnName = drop (length "section") (path2Name scnPath) <> " (neutral)"
       cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
-      mkPrss spotIxs = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss (NE.toList voiceConfigs)
+      mkPrss spotIxs = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss voiceConfigs
         where
           segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
           voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing (Just spotIx) cntVocs numVoc cntSegs numSeg |
@@ -709,7 +709,7 @@ sectionConfig2VoiceEvents _ (SectionConfigFadeIn scnPath fadeIxs mConfigMods mVo
           where
             mIdx = if idx == numVoc then Just idx else Nothing
             rtTup  = VoiceRuntimeConfig scnPath mIdx Nothing cntVocs idx cntSegs numSeg
-            cfgTup = voiceConfigs NE.!! idx
+            cfgTup = voiceConfigs !! idx
             
 -- Fade out to rests, voice-by-voice, like end of a round.  
 -- The list of indexes in fadeIxs tells the index for the [VoiceEvent] to subtract, one-by-one.
@@ -736,7 +736,7 @@ sectionConfig2VoiceEvents timeSig (SectionConfigFadeOut scnPath fadeIxs mConfigM
           where
             mIdx = if idx == numVoc then Just idx else Nothing
             rtTup  = VoiceRuntimeConfig scnPath mIdx Nothing cntVocs idx cntSegs numSeg
-            cfgTup = voiceConfigs NE.!! idx
+            cfgTup = voiceConfigs !! idx
 
 -- Blend between two [VoiceConfig] by grouping pitches, durations into equal-length [Slice], then substituting slice-by-slice
 -- from second [VoiceConfig] into first [VoiceConfig], starting with one voice from first [VoiceConfig] ending with all voices 
@@ -751,10 +751,10 @@ sectionConfig2VoiceEvents _ (SectionConfigFadeAcross scnPath nReps mConfigMods m
     where
       scnName         = drop (length "section") (path2Name scnPath) <> " (fade cells)"
       cntVocs         = length voiceConfigPrs
-      slicePrs        = both voiceConfig2Slice <$> NE.toList voiceConfigPrs
+      slicePrs        = both voiceConfig2Slice <$> voiceConfigPrs
       cntCfgASlices   = length . fst . head $ slicePrs
       blendedSlices   = transpose $ unfoldr (unfoldToSlicesRow nReps cntCfgASlices slicePrs) (1:replicate (cntVocs - 1) 0)
-      voiceConfigs    = NE.toList (fst <$> voiceConfigPrs)
+      voiceConfigs    = fst <$> voiceConfigPrs
       voiceConfigss   = cfgSlicessPr2Configs <$> zip voiceConfigs blendedSlices
       cntSegs         = length (head voiceConfigss)
       cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
