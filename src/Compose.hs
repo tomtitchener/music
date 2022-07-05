@@ -672,7 +672,7 @@ path2Name :: String -> String
 path2Name = last . splitOn "."
 
 sectionConfig2VoiceEvents :: TimeSignature -> SectionConfig -> Driver [[VoiceEvent]]
-sectionConfig2VoiceEvents _ (SectionConfigNeutral scnPath cntSegs mConfigMods mVoiceEventsMods voiceConfigs) = do
+sectionConfig2VoiceEvents _ (SectionConfigNeutral (SectionConfigCore scnPath mConfigMods mVoiceEventsMods) cntSegs voiceConfigs) = do
   spotIxs <- randomizeList [0..cntVocs - 1] <&> cycle
   traverse (traverse (applyMConfigMods mConfigMods)) (mkPrss spotIxs) >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
     where
@@ -688,7 +688,7 @@ sectionConfig2VoiceEvents _ (SectionConfigNeutral scnPath cntSegs mConfigMods mV
 -- Fade in from rests, voice-by-voice, voice event mods fadeinAccs and fadeinDyns background continuing voices: start of a round.
 -- The list of indexes in fadeIxs tells the index for the [VoiceEvent] to add, one-by-one.
 -- Monadically fold over list if indexes with fade-out order from config, generating new [[VoiceEvent]] for all voices.
-sectionConfig2VoiceEvents _ (SectionConfigFadeIn scnPath fadeIxs mConfigMods mVoiceEventsMods voiceConfigs) =
+sectionConfig2VoiceEvents _ (SectionConfigFadeIn (SectionConfigCore scnPath mConfigMods mVoiceEventsMods) fadeIxs voiceConfigs) =
   foldM foldMf ([], idxVEsPrs) fadeIxs <&> addSecnName scnName . map snd . snd
   where
     cntVocs    = length voiceConfigs
@@ -716,7 +716,7 @@ sectionConfig2VoiceEvents _ (SectionConfigFadeIn scnPath fadeIxs mConfigMods mVo
 -- Monadically fold over list if indexes with fade-out order from config, generating new [[VoiceEvent]] for all unseen voices,
 -- leaving the existing list as it is for all new and seen voices.
 -- Then expand all voices to be equal to the duration of the longest voice.
-sectionConfig2VoiceEvents timeSig (SectionConfigFadeOut scnPath fadeIxs mConfigMods mVoiceEventsMods voiceConfigs) = do
+sectionConfig2VoiceEvents timeSig (SectionConfigFadeOut (SectionConfigCore scnPath mConfigMods mVoiceEventsMods) fadeIxs voiceConfigs) = do
   vess <- foldM foldMf ([], idxVEsPrs) fadeIxs <&> addSecnName scnName . map snd . snd
   let veDurs = ves2DurVal <$> vess
   pure $ zipWith (mkVesTotDur timeSig (maximum veDurs)) veDurs vess
@@ -745,7 +745,7 @@ sectionConfig2VoiceEvents timeSig (SectionConfigFadeOut scnPath fadeIxs mConfigM
 -- same length.
 -- As the actual selection of which inner list in the list of list of pitches, durations, and accents gets rendered is
 -- randomized by the VoiceConfig, 
-sectionConfig2VoiceEvents _ (SectionConfigFadeAcross scnPath nReps mConfigMods mVoiceEventsMods voiceConfigPrs) = do
+sectionConfig2VoiceEvents _ (SectionConfigFadeAcross (SectionConfigCore scnPath mConfigMods mVoiceEventsMods) nReps voiceConfigPrs) = do
   spotIxs <- traverse (const (randomIndex cntVocs)) [0..cntSegs - 1]
   traverse (traverse (applyMConfigMods mConfigMods)) (mkPrss spotIxs) >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
     where
@@ -900,10 +900,10 @@ groupConfig2VoiceEvents timeSig (GroupConfigOrdered _ _ orderedSectionNames secC
     orderedConfigs = (M.!) name2ConfigMap <$> NE.toList orderedSectionNames
 
 secCfg2SecName :: SectionConfig -> String
-secCfg2SecName SectionConfigNeutral{..}    = path2Name _scnPath
-secCfg2SecName SectionConfigFadeIn{..}     = path2Name _scfiPath 
-secCfg2SecName SectionConfigFadeOut{..}    = path2Name _scfoPath
-secCfg2SecName SectionConfigFadeAcross{..} = path2Name _scfcPath
+secCfg2SecName SectionConfigNeutral{..}    = path2Name (_sccPath _scnCore)
+secCfg2SecName SectionConfigFadeIn{..}     = path2Name (_sccPath _scfiCore)
+secCfg2SecName SectionConfigFadeOut{..}    = path2Name (_sccPath _scfoCore)
+secCfg2SecName SectionConfigFadeAcross{..} = path2Name (_sccPath _scfcCore)
 
 -- Repeatedly add [[VoiceEvent]] for last section to input until all [[VoiceEvent]] are the same
 -- total duration.  Tricky bit is that sectionConfig2VoiceEvents may not add [VoiceEvent] of

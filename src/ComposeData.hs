@@ -31,37 +31,36 @@ data GroupConfig =
       }
   deriving Show
 
+data SectionConfigCore =
+  SectionConfigCore {
+    _sccPath         :: String
+    ,_sccMConfigMods :: Maybe (NE.NonEmpty String)
+    ,_sccMVesMods     :: Maybe (NE.NonEmpty String)
+    } deriving Show
+
 data SectionConfig =
   SectionConfigNeutral {
-  _scnPath        :: String
-  ,_scnReps        :: Int
-  ,_scnMConfigMods :: Maybe (NE.NonEmpty String)
-  ,_scnMVesMods    :: Maybe (NE.NonEmpty String)
-  ,_scnVoices      :: [VoiceConfig]
+  _scnCore    :: SectionConfigCore
+  ,_scnReps   :: Int
+  ,_scnVoices :: [VoiceConfig]
   }
   | SectionConfigFadeIn {
-      _scfiPath        :: String
-      ,_scfiOrder       :: NE.NonEmpty Int
-      ,_scfiMConfigMods :: Maybe (NE.NonEmpty String)
-      ,_scfiMVesMods    :: Maybe (NE.NonEmpty String)
-      ,_scfiVoices      :: [VoiceConfig]
+      _scfiCore    :: SectionConfigCore
+      ,_scfiOrder  :: NE.NonEmpty Int
+      ,_scfiVoices :: [VoiceConfig]
       }
   | SectionConfigFadeOut {
-      _scfoPath        :: String
-      ,_scfoOrder       :: NE.NonEmpty Int
-      ,_scfoMConfigMods :: Maybe (NE.NonEmpty String)
-      ,_scfoMVesMods    :: Maybe (NE.NonEmpty String)
-      ,_scfoVoices      :: [VoiceConfig]
+      _scfoCore    :: SectionConfigCore
+      ,_scfoOrder  :: NE.NonEmpty Int
+      ,_scfoVoices :: [VoiceConfig]
       }
   | SectionConfigFadeAcross {
-      _scfcPath        :: String
-      ,_scfcReps         :: Int
-      ,_scfcMConfigMods :: Maybe (NE.NonEmpty String)
-      ,_scfcMVesMods    :: Maybe (NE.NonEmpty String)
+      _scfcCore      :: SectionConfigCore
+      ,_scfcReps     :: Int
       -- (a,b) pairs for two equal-length consorts
       -- both must be sliceable, though they can be
       -- different lengths
-      ,_scfcVoicesAB    :: [(VoiceConfig,VoiceConfig)]
+      ,_scfcVoicesAB :: [(VoiceConfig,VoiceConfig)]
       }
     deriving Show
 
@@ -250,39 +249,41 @@ path2VoiceConfigss path voices = path2VoiceConfigs path voices <&> uncurry zip .
   where
     list2PairLists l = splitAt (length l `div` 2) l
 
+path2SectionConfigCore :: String -> Driver SectionConfigCore
+path2SectionConfigCore pre =
+  SectionConfigCore pre
+  <$> searchMConfigParam  (pre <> ".cfgmods")
+  <*> searchMConfigParam  (pre <> ".vesmods")
+
 type SectionAndVoices2SectionConfig = String -> [String] -> Driver SectionConfig
 
 sectionAndVoices2SectionConfigNeutral :: SectionAndVoices2SectionConfig
-sectionAndVoices2SectionConfigNeutral section voices =
-      SectionConfigNeutral section
-      <$> searchConfigParam  (section <> ".reps")
-      <*> searchMConfigParam (section <> ".cfgmods")
-      <*> searchMConfigParam (section <> ".vesmods")
-      <*> path2VoiceConfigs section voices
+sectionAndVoices2SectionConfigNeutral pre voices =
+      SectionConfigNeutral
+      <$> path2SectionConfigCore pre
+      <*> searchConfigParam  (pre <> ".reps")
+      <*> path2VoiceConfigs pre voices
             
 sectionAndVoices2SectionConfigFadeIn :: SectionAndVoices2SectionConfig
-sectionAndVoices2SectionConfigFadeIn section voices =
-      SectionConfigFadeIn section
-      <$> searchConfigParam  (section <> ".delays")
-      <*> searchMConfigParam (section <> ".cfgmods")
-      <*> searchMConfigParam (section <> ".vesmods")
-      <*> path2VoiceConfigs section voices
+sectionAndVoices2SectionConfigFadeIn pre voices =
+      SectionConfigFadeIn 
+      <$> path2SectionConfigCore pre
+      <*> searchConfigParam  (pre <> ".delays")
+      <*> path2VoiceConfigs pre voices
       
 sectionAndVoices2SectionConfigFadeOut :: SectionAndVoices2SectionConfig
-sectionAndVoices2SectionConfigFadeOut section voices =
-      SectionConfigFadeOut section
-      <$> searchConfigParam  (section <> ".drops")
-      <*> searchMConfigParam (section <> ".cfgmods")
-      <*> searchMConfigParam (section <> ".vesmods")
-      <*> path2VoiceConfigs section voices
+sectionAndVoices2SectionConfigFadeOut pre voices =
+      SectionConfigFadeOut 
+      <$> path2SectionConfigCore pre
+      <*> searchConfigParam  (pre <> ".drops")
+      <*> path2VoiceConfigs pre voices
 
 sectionAndVoices2SectionConfigFadeAcross :: SectionAndVoices2SectionConfig
-sectionAndVoices2SectionConfigFadeAcross section voices = 
-      SectionConfigFadeAcross section
-      <$> searchConfigParam  (section <> ".reps")
-      <*> searchMConfigParam (section <> ".cfgmods")
-      <*> searchMConfigParam (section <> ".vesmods")
-      <*> path2VoiceConfigss section voices
+sectionAndVoices2SectionConfigFadeAcross pre voices = 
+      SectionConfigFadeAcross 
+      <$> path2SectionConfigCore pre
+      <*> searchConfigParam  (pre <> ".reps")
+      <*> path2VoiceConfigss pre voices
 
 name2SectionConfigMap :: M.Map String SectionAndVoices2SectionConfig
 name2SectionConfigMap = M.fromList [("neutral"   ,sectionAndVoices2SectionConfigNeutral)
