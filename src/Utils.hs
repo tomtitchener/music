@@ -249,6 +249,110 @@ arrs2nes = NE.fromList . map NE.fromList
 ness2Marrss :: forall a . NE.NonEmpty (NE.NonEmpty (Maybe (Either a (NE.NonEmpty a)))) -> [[Maybe (Either a [a])]]
 ness2Marrss = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
 
+-- Scales (fill out as needed)
+cMajScale :: Scale
+cMajScale = Scale $ C NE.:| [D,E,F,G,A,B]
+
+cMajKeySig :: KeySignature
+cMajKeySig = KeySignature C Major
+
+cNatMinScale :: Scale
+cNatMinScale = Scale $ C NE.:| [D,Ef,F,G,Af,Bf]
+
+cNatMinKeySig :: KeySignature
+cNatMinKeySig = KeySignature C Minor
+
+dMajScale :: Scale
+dMajScale = Scale $ D NE.:| [E,Fs,G,A,B,Cs]
+
+dMajKeySig :: KeySignature
+dMajKeySig = KeySignature D Major
+
+dNatMinScale :: Scale
+dNatMinScale = Scale $ D NE.:| [E,F,G,A,Bf,C]
+
+dNatMinKeySig :: KeySignature
+dNatMinKeySig = KeySignature D Minor
+
+eMajScale :: Scale
+eMajScale = Scale $ E NE.:| [Fs,Gs,A,B,Cs,Ds]
+
+eMajKeySig :: KeySignature
+eMajKeySig = KeySignature E Major
+
+eNatMinScale :: Scale
+eNatMinScale = Scale $ E NE.:| [Fs,G,A,B,C,D]
+
+eNatMinKeySig :: KeySignature
+eNatMinKeySig = KeySignature E Minor
+
+fMajScale :: Scale
+fMajScale = Scale $ F NE.:| [G,A,Bf,C,D,E]
+
+fMajKeySig :: KeySignature
+fMajKeySig = KeySignature F Major
+
+fNatMinScale :: Scale
+fNatMinScale = Scale $ F NE.:| [G,Af,Bf,C,Df,Ef]
+
+fNatMinKeySig :: KeySignature
+fNatMinKeySig = KeySignature F Minor
+
+gMajScale :: Scale
+gMajScale = Scale $ G NE.:| [A,B,C,D,E,Fs]
+
+gMajKeySig :: KeySignature
+gMajKeySig = KeySignature G Major
+
+gNatMinScale :: Scale
+gNatMinScale = Scale $ G NE.:| [A,Bf,C,D,Ef,F]
+
+gNatMinKeySig :: KeySignature
+gNatMinKeySig = KeySignature G Minor
+
+aMajScale :: Scale
+aMajScale = Scale $ A NE.:| [B,Cs,D,E,Fs,Gs]
+
+aMajKeySig :: KeySignature
+aMajKeySig = KeySignature A Major
+
+aNatMinScale :: Scale
+aNatMinScale = Scale $ A NE.:| [B,C,D,E,F,G]
+
+aNatMinKeySig :: KeySignature
+aNatMinKeySig = KeySignature A Minor
+
+bMajScale :: Scale
+bMajScale = Scale $ B NE.:| [Cs,Ds,E,Fs,Gs,As]
+
+bMajKeySig :: KeySignature
+bMajKeySig = KeySignature B Major
+
+bNatMinScale :: Scale
+bNatMinScale = Scale $ B NE.:| [Cs,D,E,Fs,G,A]
+
+bNatMinKeySig :: KeySignature
+bNatMinKeySig = KeySignature B Minor
+
+keySig2Scale :: M.Map KeySignature Scale
+keySig2Scale = M.fromList [(cMajKeySig   ,cMajScale)
+                          ,(cNatMinKeySig,cNatMinScale)
+                          ,(dMajKeySig   ,dMajScale)
+                          ,(dNatMinKeySig,dNatMinScale)
+                          ,(eMajKeySig   ,eMajScale)
+                          ,(eNatMinKeySig,eNatMinScale)
+                          ,(fMajKeySig   ,fMajScale)
+                          ,(fNatMinKeySig,fNatMinScale)
+                          ,(gMajKeySig   ,gMajScale)
+                          ,(gNatMinKeySig,gNatMinScale)
+                          ,(aMajKeySig   ,aMajScale)
+                          ,(aNatMinKeySig,aNatMinScale)
+                          ,(bMajKeySig   ,bMajScale)
+                          ,(bNatMinKeySig,bNatMinScale)
+                          ]
+
+-- Put more Scale instances here as needed.
+
 {--
 
 Deprecated: no longer in use

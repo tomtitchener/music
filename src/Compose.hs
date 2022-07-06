@@ -763,6 +763,11 @@ sectionConfig2VoiceEvents _ (SectionConfigFadeAcross (SectionConfigCore scnPath 
           segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
           voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing (Just spotIx) cntVocs numVoc cntSegs numSeg |
                              numVoc <- [0..cntVocs - 1], (numSeg,spotIx) <- zip [0..cntSegs - 1] spotIxs]
+
+sectionConfig2VoiceEvents _ (SectionConfigCreep SectionConfigCore{} _ _ _ _) = do
+  -- for proof of concept, take a fixed total duration and generate a single voice
+  -- that grows from a single instance of the config
+  pure []
     
 voiceConfig2Slice :: VoiceConfig -> [Slice]
 voiceConfig2Slice VoiceConfigXPose{..}    = config2Slices _vcxCore
@@ -904,6 +909,7 @@ secCfg2SecName SectionConfigNeutral{..}    = path2Name (_sccPath _scnCore)
 secCfg2SecName SectionConfigFadeIn{..}     = path2Name (_sccPath _scfiCore)
 secCfg2SecName SectionConfigFadeOut{..}    = path2Name (_sccPath _scfoCore)
 secCfg2SecName SectionConfigFadeAcross{..} = path2Name (_sccPath _scfcCore)
+secCfg2SecName SectionConfigCreep{..}      = path2Name (_sccPath _sccCore)
 
 -- Repeatedly add [[VoiceEvent]] for last section to input until all [[VoiceEvent]] are the same
 -- total duration.  Tricky bit is that sectionConfig2VoiceEvents may not add [VoiceEvent] of

@@ -62,9 +62,15 @@ data SectionConfig =
       -- different lengths
       ,_scfcVoicesAB :: [(VoiceConfig,VoiceConfig)]
       }
+  | SectionConfigCreep {
+      _sccCore        :: SectionConfigCore
+      ,_sccSctnDur    :: Int -- duration of a section in 128th notes, or just ad-hoc it in section for now
+      ,_sccVoices     :: NE.NonEmpty (NE.NonEmpty ((Pitch,Octave),KeySignature))
+      ,_sccIntervalss :: NE.NonEmpty (NE.NonEmpty (Maybe (Either Int (NE.NonEmpty Int)))) 
+      ,_sccDurationss :: NE.NonEmpty (NE.NonEmpty (DurOrDurTuplet,Maybe Accent))
+      }
     deriving Show
 
--- TBD: proper OO path in Haskell is typeclass, not nesting like this.
 data VoiceConfigCore =
   VoiceConfigCore {
    _vcmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
@@ -166,8 +172,8 @@ data VoiceConfig =
   -- different range and duration results, so the voices gradually become separated
   | VoiceConfigXPose {
       _vcxCore    :: VoiceConfigCore
-      ,_vcxScale     :: Scale
-      ,_vcxRange     :: ((Pitch,Octave),(Pitch,Octave))
+      ,_vcxScale  :: Scale
+      ,_vcxRange  :: ((Pitch,Octave),(Pitch,Octave))
       }
     deriving Show
 
@@ -285,11 +291,21 @@ sectionAndVoices2SectionConfigFadeAcross pre voices =
       <*> searchConfigParam  (pre <> ".reps")
       <*> path2VoiceConfigss pre voices
 
+sectionAndVoices2SectionConfigCreep :: SectionAndVoices2SectionConfig
+sectionAndVoices2SectionConfigCreep pre _ = 
+      SectionConfigCreep 
+      <$> path2SectionConfigCore pre
+      <*> searchConfigParam (pre <> ".dur")
+      <*> searchConfigParam (pre <> ".voices")
+      <*> searchConfigParam (pre <> ".intss")
+      <*> searchConfigParam (pre <> ".durss")
+
 name2SectionConfigMap :: M.Map String SectionAndVoices2SectionConfig
 name2SectionConfigMap = M.fromList [("neutral"   ,sectionAndVoices2SectionConfigNeutral)
                                    ,("fadein"    ,sectionAndVoices2SectionConfigFadeIn)
                                    ,("fadeout"   ,sectionAndVoices2SectionConfigFadeOut)
-                                   ,("fadeacross",sectionAndVoices2SectionConfigFadeAcross)]
+                                   ,("fadeacross",sectionAndVoices2SectionConfigFadeAcross)
+                                   ,("creep"     ,sectionAndVoices2SectionConfigCreep)]
 
 path2SectionConfig :: String -> Driver SectionConfig
 path2SectionConfig section = do

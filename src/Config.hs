@@ -27,7 +27,7 @@ import Lily
 
 import Types
 
-import Utils (duration2DurationVal, verifyDurTuplet)
+import Utils 
 
 class FromConfig a where
   -- | Convert a config string to a Haskell value
@@ -162,6 +162,24 @@ instance FromConfig (NE.NonEmpty (Int,Int)) where
 
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Int,Int))) where
   parseConfig = mkParseConfig (mkPss pIntPr)
+
+instance FromConfig (NE.NonEmpty (NE.NonEmpty ((Pitch,Octave),KeySignature))) where
+  parseConfig = mkParseConfig (mkPss pPitOctKeySigPr)
+
+instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe (Either Int (NE.NonEmpty Int))))) where
+  parseConfig = mkParseConfig (mkPss pMIntOrInts)
+
+instance FromConfig (NE.NonEmpty (NE.NonEmpty (DurOrDurTuplet,Maybe Accent))) where
+  parseConfig = mkParseConfig (mkPss pDurTupMAcctPr)
+
+pPitOctKeySigPr :: Parser ((Pitch,Octave),KeySignature)
+pPitOctKeySigPr = between (char '(') (char ')') ((,) <$> pPitOctPr <*> (char ',' *> pKeySignature))
+
+pMIntOrInts :: Parser (Maybe (Either Int (NE.NonEmpty Int)))
+pMIntOrInts = pM (try (Left <$> int) <|> (Right <$> mkPs int))
+
+pDurTupMAcctPr :: Parser (DurOrDurTuplet,Maybe Accent)
+pDurTupMAcctPr = between (char '(') (char ')') ((,) <$> parseDurOrDurTup <*> pM pAccentStr)
 
 -- Tempo
 instance FromConfig Tempo where
