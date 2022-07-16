@@ -63,18 +63,18 @@ data SectionConfig =
       ,_scfcVoicesAB :: [(VoiceConfig,VoiceConfig)]
       }
   | SectionConfigCreep {
-      _sccCore        :: SectionConfigCore
-      ,_sccSctnDur    :: Int -- duration of a section in 128th notes, or just ad-hoc it in section for now
-      ,_sccVoices     :: NE.NonEmpty (NE.NonEmpty ((Pitch,Octave),KeySignature))
-      ,_sccIntervalss :: NE.NonEmpty (NE.NonEmpty (Maybe (Either Int (NE.NonEmpty Int)))) 
-      ,_sccDurationss :: NE.NonEmpty (NE.NonEmpty (DurOrDurTuplet,Maybe Accent))
+      _sccCore           :: SectionConfigCore
+      ,_sccNumBars       :: Int -- duration of a section in bars
+      ,_sccInits         :: NE.NonEmpty (KeySignature,(Pitch,Octave))
+      ,_sccMIntervalss   :: NE.NonEmpty (NE.NonEmpty (Maybe IntOrInts))
+      ,_sccDurOrDurTupss :: NE.NonEmpty (NE.NonEmpty DurValAccOrDurTupletAccs)
       }
     deriving Show
 
 data VoiceConfigCore =
   VoiceConfigCore {
    _vcmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
-  ,_vcDurss     :: NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)
+  ,_vcDurss     :: NE.NonEmpty (NE.NonEmpty DurValOrDurTuplet)
   ,_vcAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
   } deriving Show
 
@@ -83,7 +83,7 @@ data VoiceConfigCore =
 -- e.g. for a note, or 2) a non-empty list of pitch, octave pairs,
 -- e.g. for a chord.
 --
--- A DurOrDurTuplet is either a 1) DurationVal, which tells the length in 128th
+-- A DurValOrDurTuplet is either a 1) DurationVal, which tells the length in 128th
 -- notes of a rest, pitch, or chord, or 2) a DurTuplet, which tells the numerator,
 -- denominator, unit duration, and list of DurationVals to pair with a list
 -- of rest, pitch, or chord.  The total duration of the list of DurationVals
@@ -219,7 +219,7 @@ path2VoiceConfigSlice pre = path2VoiceConfigSlice' pre <&> verifyListsLengths
       | all (== head allLengths) allLengths = vc
       | otherwise = error $ "path2VoiceConfigSlice unequal length listss: " <> show allLengths
       where
-        allLengths = [NE.length (_vcmPOOrPOss _vccCore),NE.length (_vcAcctss _vccCore) ,NE.length (_vcDurss _vccCore)]
+        allLengths = [NE.length (_vcmPOOrPOss _vccCore),NE.length (_vcAcctss _vccCore),NE.length (_vcDurss _vccCore)]
     verifyListsLengths vc = error $ "pagth2VoiceConfigSlice unexpected VoiceConfig: " <> show vc
 
 path2VoiceConfigBlend :: String -> Driver VoiceConfig
@@ -295,8 +295,8 @@ sectionAndVoices2SectionConfigCreep :: SectionAndVoices2SectionConfig
 sectionAndVoices2SectionConfigCreep pre _ = 
       SectionConfigCreep 
       <$> path2SectionConfigCore pre
-      <*> searchConfigParam (pre <> ".dur")
-      <*> searchConfigParam (pre <> ".voices")
+      <*> searchConfigParam (pre <> ".numbars")
+      <*> searchConfigParam (pre <> ".inits")
       <*> searchConfigParam (pre <> ".intss")
       <*> searchConfigParam (pre <> ".durss")
 

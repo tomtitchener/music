@@ -4,17 +4,29 @@
 
 module Utils where
 
-import Data.Bifunctor (second)
+-- import Control.Monad (liftM2)
+import Data.Bifunctor (second, bimap)
 import Data.List hiding (transpose)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
 import Data.Maybe
-import Data.Tuple.Extra hiding (second)
+import Data.Tuple.Extra (uncurry3)
 
 import Types
 
 newtype DurationSum = DurationSum { getDurSum :: Int }
   deriving (Eq, Ord, Show, Num) -- Num requires GeneralizedNewTypeDeriving
+
+{--
+-- Stolen from monad-extras:Control.Monad.Extra to avoid module name clash with extras
+-- | A monadic unfold.
+unfoldM :: Monad m => (s -> m (Maybe (a, s))) -> s -> m [a]
+unfoldM f s = do
+    mres <- f s
+    case mres of
+        Nothing      -> return []
+        Just (a, s') -> liftM2 (:) (return a) (unfoldM f s')
+--}
 
 incrOct :: Octave -> Octave
 incrOct o = toEnum $ min (1 + fromEnum o) (fromEnum (maxBound::Octave))
@@ -198,6 +210,9 @@ ve2DurVal _                       = 0
 ves2DurVal :: [VoiceEvent] -> Int
 ves2DurVal = sum . fmap ve2DurVal
 
+vess2DurVal :: [[VoiceEvent]] -> Int
+vess2DurVal = sum . fmap ves2DurVal
+
 -- validates _tupNotes contains integral count of tuplet, answers count
 tup2CntTups :: Tuplet -> Int
 tup2CntTups Tuplet{..}
@@ -220,6 +235,9 @@ verifyDurTuplet durTup
   | 0 == durTup2CntTups durTup = error $ "invalid DurTuplet" <> show durTup
   | otherwise = durTup
 
+durTuplet2DurVal :: DurTuplet -> DurationVal
+durTuplet2DurVal t@DurTuplet{..} = DurationVal . getDurSum . sumDurs $ replicate (_durtupNumerator * durTup2CntTups t) _durtupUnitDuration
+
 -- partial if Pitch from (Pitch,Octave) is not element of Scale
 xp :: Scale -> (Pitch,Octave) -> Int -> (Pitch,Octave)
 xp (Scale scale) (p,o) off = (p',o')
@@ -231,6 +249,28 @@ xp (Scale scale) (p,o) off = (p',o')
     o' = if off < 0 then fpow (abs cntOcts) decrOct o; else fpow cntOcts incrOct o
     pitIdx = (pitInt + off) `rem` cntSteps
     p' = if pitIdx < 0 then normScale NE.!! (cntSteps + pitIdx); else normScale NE.!! pitIdx
+
+-- transpose motif, will need additional routines to extract last (Pitch,Octave) from [Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]
+-- for successive transpositions of list of motifs:  [[Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]].
+mtranspose :: Scale -> (Pitch,Octave) -> [Maybe (Either Int [Int])] -> [Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]
+mtranspose scale start = map (fmap xpIOrIs) . reverse . snd . foldl' f (Left 0,[])
+  where
+    f :: (Either Int [Int], [Maybe (Either Int [Int])]) -> Maybe (Either Int [Int]) -> (Either Int [Int], [Maybe (Either Int [Int])])
+    f (s,l) Nothing  = (s, Nothing:l)
+    f (Left s,l) (Just (Left i)) = (Left s', Just (Left s'):l)
+      where
+        s' = s + i
+    f (Right ss,l) (Just (Left i)) = (Left s', Just (Left s'):l)
+      where
+        s' = head ss + i
+    f (Left s,l) (Just (Right is)) = (Left (head ss), Just (Right ss):l)
+      where
+        ss = (s +) <$> is
+    f (Right ss,l) (Just (Right is)) = (Left (head ss'), Just (Right ss):l)
+      where
+        ss' = (head ss +) <$> is
+    xpIOrIs :: Either Int [Int] -> Either (Pitch,Octave) [(Pitch, Octave)]
+    xpIOrIs = bimap (xp scale start) (fmap (xp scale start)) 
 
 -- https://stackoverflow.com/questions/7423123/how-to-call-the-same-function-n-times
 fpow :: Int -> (a -> a) -> a -> a

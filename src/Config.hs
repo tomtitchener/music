@@ -132,10 +132,10 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty Dynamic)) where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty Duration)) where
   parseConfig = mkParseConfig (mkPss parseDuration)
 
-instance FromConfig (NE.NonEmpty (NE.NonEmpty DurOrDurTuplet)) where
-  parseConfig = mkParseConfig (mkPss parseDurOrDurTup)
+instance FromConfig (NE.NonEmpty (NE.NonEmpty DurValOrDurTuplet)) where
+  parseConfig = mkParseConfig (mkPss parseDurOrDurTup)  
 
-parseDurOrDurTup :: Parser DurOrDurTuplet
+parseDurOrDurTup :: Parser DurValOrDurTuplet
 parseDurOrDurTup = try (Left . duration2DurationVal <$> parseDuration) <|> (Right <$> parseDurTup)
 
 parseDurTup :: Parser DurTuplet
@@ -163,23 +163,42 @@ instance FromConfig (NE.NonEmpty (Int,Int)) where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Int,Int))) where
   parseConfig = mkParseConfig (mkPss pIntPr)
 
-instance FromConfig (NE.NonEmpty (NE.NonEmpty ((Pitch,Octave),KeySignature))) where
-  parseConfig = mkParseConfig (mkPss pPitOctKeySigPr)
+instance FromConfig (NE.NonEmpty ((Pitch,Octave),KeySignature)) where
+  parseConfig = mkParseConfig (mkPs pPitOctKeySigPr)
+  
+instance FromConfig (NE.NonEmpty (KeySignature,(Pitch,Octave))) where
+  parseConfig = mkParseConfig (mkPs pKeySigPitOctPr)
 
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe (Either Int (NE.NonEmpty Int))))) where
   parseConfig = mkParseConfig (mkPss pMIntOrInts)
 
-instance FromConfig (NE.NonEmpty (NE.NonEmpty (DurOrDurTuplet,Maybe Accent))) where
-  parseConfig = mkParseConfig (mkPss pDurTupMAcctPr)
+--instance FromConfig (NE.NonEmpty (NE.NonEmpty (DurValOrDurTuplet,Maybe Accent))) where
+--  parseConfig = mkParseConfig (mkPss pDurTupMAcctPr)
 
 pPitOctKeySigPr :: Parser ((Pitch,Octave),KeySignature)
 pPitOctKeySigPr = between (char '(') (char ')') ((,) <$> pPitOctPr <*> (char ',' *> pKeySignature))
 
-pMIntOrInts :: Parser (Maybe (Either Int (NE.NonEmpty Int)))
-pMIntOrInts = pM (try (Left <$> int) <|> (Right <$> mkPs int))
+pKeySigPitOctPr :: Parser (KeySignature,(Pitch,Octave))
+pKeySigPitOctPr = between (char '(') (char ')') ((,) <$> pKeySignature <*> (char ',' *> pPitOctPr))
 
-pDurTupMAcctPr :: Parser (DurOrDurTuplet,Maybe Accent)
-pDurTupMAcctPr = between (char '(') (char ')') ((,) <$> parseDurOrDurTup <*> pM pAccentStr)
+-- 0 is not a legal interval, unison is 1/-1, second is 2/-2 and etc. (enforced by int2Off)
+pMIntOrInts :: Parser (Maybe (Either Int (NE.NonEmpty Int)))
+pMIntOrInts = pM (try (Left <$> (int2Off <$> int)) <|> (Right <$> mkPs (int2Off <$> int)))
+
+--pDurTupMAcctPr :: Parser (DurValOrDurTuplet,Maybe Accent)
+--pDurTupMAcctPr = between (char '(') (char ')') ((,) <$> parseDurOrDurTup <*> pM pAccentStr)
+
+instance FromConfig (NE.NonEmpty (NE.NonEmpty DurValAccOrDurTupletAccs)) where
+  parseConfig = mkParseConfig (mkPss parseDurValAccOrDurTupAccs)
+
+parseDurValAccOrDurTupAccs :: Parser DurValAccOrDurTupletAccs
+parseDurValAccOrDurTupAccs = try (Left <$> parseDurValAcc) <|> (Right <$> parseDurTupletAccs)
+
+parseDurValAcc :: Parser (DurationVal,Accent)
+parseDurValAcc = between (char '(') (char ')') ((,) <$> (duration2DurationVal <$> parseDuration) <*> pAccentStr)
+
+parseDurTupletAccs :: Parser (DurTuplet,NE.NonEmpty Accent)
+parseDurTupletAccs = between (char '(') (char ')') ((,) <$> parseDurTup <*> mkPs pAccentStr)
 
 -- Tempo
 instance FromConfig Tempo where
