@@ -17,17 +17,6 @@ import Types
 newtype DurationSum = DurationSum { getDurSum :: Int }
   deriving (Eq, Ord, Show, Num) -- Num requires GeneralizedNewTypeDeriving
 
-{--
--- Stolen from monad-extras:Control.Monad.Extra to avoid module name clash with extras
--- | A monadic unfold.
-unfoldM :: Monad m => (s -> m (Maybe (a, s))) -> s -> m [a]
-unfoldM f s = do
-    mres <- f s
-    case mres of
-        Nothing      -> return []
-        Just (a, s') -> liftM2 (:) (return a) (unfoldM f s')
---}
-
 incrOct :: Octave -> Octave
 incrOct o = toEnum $ min (1 + fromEnum o) (fromEnum (maxBound::Octave))
 

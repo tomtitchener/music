@@ -62,7 +62,7 @@ data SectionConfig =
       -- different lengths
       ,_scfcVoicesAB :: [(VoiceConfig,VoiceConfig)]
       }
-  | SectionConfigCreep {
+  | SectionConfigAccrete {
       _sccCore           :: SectionConfigCore
       ,_sccNumBars       :: Int -- duration of a section in bars
       ,_sccInits         :: NE.NonEmpty (KeySignature,(Pitch,Octave))
@@ -291,9 +291,9 @@ sectionAndVoices2SectionConfigFadeAcross pre voices =
       <*> searchConfigParam  (pre <> ".reps")
       <*> path2VoiceConfigss pre voices
 
-sectionAndVoices2SectionConfigCreep :: SectionAndVoices2SectionConfig
-sectionAndVoices2SectionConfigCreep pre _ = 
-      SectionConfigCreep 
+sectionAndVoices2SectionConfigAccrete :: SectionAndVoices2SectionConfig
+sectionAndVoices2SectionConfigAccrete pre _ = 
+      SectionConfigAccrete 
       <$> path2SectionConfigCore pre
       <*> searchConfigParam (pre <> ".numbars")
       <*> searchConfigParam (pre <> ".inits")
@@ -305,7 +305,7 @@ name2SectionConfigMap = M.fromList [("neutral"   ,sectionAndVoices2SectionConfig
                                    ,("fadein"    ,sectionAndVoices2SectionConfigFadeIn)
                                    ,("fadeout"   ,sectionAndVoices2SectionConfigFadeOut)
                                    ,("fadeacross",sectionAndVoices2SectionConfigFadeAcross)
-                                   ,("creep"     ,sectionAndVoices2SectionConfigCreep)]
+                                   ,("accrete"   ,sectionAndVoices2SectionConfigAccrete)]
 
 path2SectionConfig :: String -> Driver SectionConfig
 path2SectionConfig section = do

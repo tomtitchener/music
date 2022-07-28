@@ -671,6 +671,12 @@ applyMod m modName pr =
 -- between VoiceConfig A and VoiceConfig B where both are VoiceConfigSlice.
 type Slice = ([Maybe PitOctOrNEPitOcts],[DurValOrDurTuplet],[Accent])
 
+-- Helpers for incrementally accreting motifs for SectionConfigAccrete
+type PitOct   = (Pitch,Octave)
+type DurVals  = (DurationVal,DurationVal)
+type Motif    = ([Maybe IntOrInts],[DurValAccOrDurTupletAccs])
+type MotifTup = (PitOct,DurVals,[Motif])
+
 path2Name :: String -> String
 path2Name = last . splitOn "."
 
@@ -767,250 +773,105 @@ sectionConfig2VoiceEvents _ (SectionConfigFadeAcross (SectionConfigCore scnPath 
           voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing (Just spotIx) cntVocs numVoc cntSegs numSeg |
                              numVoc <- [0..cntVocs - 1], (numSeg,spotIx) <- zip [0..cntSegs - 1] spotIxs]
 
--- For proof of concept, generate a single voice that grows from a single instance of the config params:
---   * SectionConfigCore:  don't need any of this for now
---   * DurVal :: Int: total duration for section in 128th notes
---   * Inits :: nonempty list of ((Pitch,Octave),KeySignature), one per voice, use KeySignature to find Scale via keySig2Scale map
---   * Intervalss :: nonempty list of list of (Maybe (Either IntOrInts)) where Nothing => rest, Left => Note, Right => Chord
---   * Durationss :: nonempty list of list of (DurValOrDurTuplet,Maybe Accent)
---
--- 0) verify config is sliceable both by count of motifs and by cardinality of motifs allowing for DurValOrDurTuplet.
---    see Data.List.Extra.allSame (amended, expand or clip intervals to match cont of durations)
--- 1) pick a random bar somewhere in the middle third of the total range, this determines the first starting rest duration.
--- 2) pick a random slice for interval motif and rhythm motif to start i.e.: [([Maybe (Either Int [Int])],[(DurValOrDurTuplet,[Maybe Accent])])]
---    with single item in the list to start.
--- 3) compute the duration for the rhythmic motif, subtract it from the ending rest duration, this is the first ending rest duration
--- 4) pick a new random slice of interval and rhythm motifs
--- 5) compute the duration for the rhythmic motif and subtract it from the initial rest duration as this first addition goes in front
--- 6) if there's space at the front, update the new interval motif so it leads into the first interval of the list of list of interval
---    motif, rhythm motif pairs, still ([Maybe (Either Int [Int])],[(DurValOrDurTuplet,[Maybe Accent])])
--- 7) prepend the new pair (Maybe (Either Int [Int]),[(DurValOrDurTuplet,[Maybe Accent])]) to the list
---    so now it's [([Maybe (Either Int [Int])],[(DurValOrDurTuplet,[Maybe Accent])])]
--- 8) pick a new random pair of interval and rhythm motifs
--- 9) compute the duration for the rhythmic motif and subtract it from the final rest duration as this next addition goes in back
--- 10) if there's space at the back, update the new interval motif so it leads from the last interval of list of list of interval
---     motif, rhythm motif pairs
--- 11) if there's still space in back or space in front, repeat from #2 above otherwise the segment is full
--- Next, convert each of the [Maybe (Either Int [Int])] in [([Maybe (Either Int [Int])],[(DurValOrDurTuplet,[Maybe Accent])])] to [Maybe ((Pit,Oct), [(Pit,Oct)])]
--- given the scale and initial (Pit,Oct)
--- Next, generate the [VoiceEvent] for this voice from:
--- 1) the intial rest
--- 2) the concatenation of the conversion of each ([Maybe (Either Int [Int])],[(DurValOrDurTuplet,[Maybe Accent])]) to [VoiceEvent]
--- 3) the final rest
---
--- Note that to work backward for prepending an interval sequence:
--- 1) convert intervals to offsets
--- 2) sum the offsets
--- 3) negate the result
--- 4) call xp to transpose the start pitch by the offset so there's a new start pitch
---
--- Sketch of incremental growth with shadow second voice, aim is to alternate shadow at end with shadow at begining
--- by splitting second voice motifs into two parts.
---
--- |aa|, |aa|bb|,  |cc|aa|bb|,        |cc|aa|bb|dd|,
---          |-a|a,       |-a|ab|b, |-c|c-|--|-a|ab|b
---
--- Hard to find a mechanical approach to solve this.  Maybe instead, just take motif sequence from first voice
--- but with transpositions and maybe same rhythms but different intervals for second voice and alternately 
--- drape them over the end and beginning of the stop and start of the first voice with rests in the middle.
---
---
-{--
-sectionConfig2VoiceEvents timeSig SectionConfigCreep{..}
-  | not (allSame $ length <$> [_sccMIntervalss,_sccDurOrDurTupss]) =
+-- Verify the lengths of [[Maybe IntOrInts]] and [[DuValAccOrDurTupletAccs]] are then same, then for each voice,
+-- incrementally accrete a [Motif] to fill totDurVal and convert to [VoiceEvent].
+sectionConfig2VoiceEvents timeSig SectionConfigAccrete{..}
+  | not (allSame cfgLens) = 
       error $ "sectionConfig2VoiceEvents config lens are not identical: " <> show cfgLens
-  | otherwise = do
-      startBarNum <- randomIndex thirdCntBars <&> (thirdCntBars +)
-      let x = mapAccumL fun [] _sccInits
-      intIndices  <- randomIndices (length _sccMIntervalss)
-      durIndices  <- randomIndices (length _sccDurOrDurTupss)
-    -- in pure-land, several things to do:
-    -- map over _sccInits for per-voice (KeySignature,(Pitch,Octave)), output can be [VoiceEvent]
-    -- nope, need to carry intIndicces, durIndices forward per iteration then, maybe traverse over
-    -- _sccInits instead to do randomIndices calls inside function, experiment first to see it types
-    -- 
-    -- 
-    -- xx --      
-    -- several things to fix:
-    -- 0) need to accumulate [[(mIntOrInts,dVAOrDTAs)]], convert to [[VE]] at very end
-    --    each [(mIntOrInts,dVAOrDTAs)] is one iteration, logic accumulates iterations until the
-    --    *before* the one that consumes totDurVal,
-    -- 1) at very end, rendering to [[VoiceEvent]] requires starting pitch for each iteration,
-    --    so what we need to accumulate is *actually* (Pitch,Octave) along with [(mIntOrInts,dVAOrDTAs)]
-    -- 2) similarly, need to keep track of the starting rest, which begins at startBarIx * barDurVal
-    --    for each iteration which stays the same for an append and shrinks for a prepend, so that 
-    --    means accumulating four things: (DurationVal,(Pitch,Octave),[Maybe IntOrInts],[DurValAccOrDurTupletAccs])
-    --    also need to track KeySignature per voice to determine Scale, probably this whole things needs to be its
-    --    own monadic routine or mapAccumL so those can just be function arguments instead of a tuple
-    -- 3) when appending, first two items DurationVal and (Pitch,Octave) remain as is, just append to last two
-    -- 4) when prepending, need to do three things:
-    --    a) transpose start pitch by inverse of sum of new intervals, so if new intervals are [1,1,1] then range
-    --       is -3 or an inverse fourth (remember, intervals are as indexes, so 0 is allowed), and if old start 
-    --       pitch is (C,COct), then new start pitch is (G,EightVBOct)
-    --    b) prepend interval list to third slot
-    --    c) prepend duration list to fourth slots
-    -- 5) when converting to [[VoiceEvent]] convert:
-    --    a) Scale, (Pitch,Octave) and [Maybe IntOrInts] to [Maybe (Either (Pitch,Octave) [(Pitch,Octave)])],
-    --    b) [Maybe (Either (Pitch,Octave) [(PitchOctave)])] and [DurValAccOrDurTupletAccs] to [VoiceEvent]
-    --    c) DurationVal to VeRest and prepend to [VoiceEvent]
-    --    d) compute total DurationVal from [VoiceEvent], subtract from totDurVal for VeRest at end and append
-    --    e) concatenate to get [VoiceEvent] for *one* voice
-    -- TBD: see genVEsForDurs to do the actual conversion of the parts to [VoiceEvent]
-    -- TBD: this needs to be a traversal across each of _sccInits with _sccMIntrvals and _sccDurOrDurTupss static
-    --      with result [[VoiceEvent]] deterined by the length of _sccInits
-    -- TBD: most of assembly can be pure, the only monadic bits are the random indexes for the interval 
-    --      and duration lists, all I need to do is call randomIndices, though that'll be an infinite length
-    --      list, which is Ok because the loop will be mapAccumL until we exceed the total duration
-    -- TBD: computation of end of cycle is more complicated, as we're asymmetrically eating through the
-    --      start rest and end rest periods, which won't be equal, so it has to be something like you can't
-    --      add a the next motive to the front AND you can't add the next motive to the back because they'd
-    --      both exhaust the remaining rests
-    -- let go isAppend startRest vess = do
-    --       mIntOrInts <- randomElement (NE.toList _sccMIntervalss) <&> NE.toList
-    --       dVAOrDTAs  <- randomElement (NE.toList _sccDurOrDurTupss) <&> NE.toList
-    --       let motif = mkEqLenLists (mIntOrInts,dVAOrDTAs)
-    --           vess' = if isAppend then appendVEs ves vess else prependVEs ves vess
-    --           newDurVal = vess2DurVal vess'
-    --       if newDurVal > totDurVal
-    --         then pure [concat vess]
-    --         else if isAppend
-    --         then go (not isAppend) (vess ++ [ves])
-    --         -- uh oh: need prepend for ves relative to first 
-    --         else go (not isAppend) _
-    -- go True (startBarNum * barDurVal) []
-    pure []
+  | otherwise =
+    mkStartDurs >>= traverse (accreteVoiceByMotif totDurVal mIntss durOrDurTupss) . zip inits
   where
-    thirdCntBars = _sccNumBars `div` 3
-    barDurVal    = timeSig2Num timeSig * dur2DurVal (timeSig2Denom timeSig)
-    totDurVal    = _sccNumBars * barDurVal
-    -- make length of the list of maybe intervals match count of durs in the list of pairs of dur or durTups
-    mkEqLenLists (mIntOrInts, durValAccOrDurTupAccs) = (take cntDurs (cycle mIntOrInts),durValAccOrDurTupAccs)
-      where
-        cntDurs = sum $ either (const 1) (length . _durtupDurations . fst) <$> durValAccOrDurTupAccs
-    -- TBD:  also fix problem that can't produce VEs until finish assembling full duration lists of
-    -- intervals, with updated start pitch.
-    -- mkVEs (mIntOrInts,durValAcctOrDurTupAccs) = []
-    -- appendVEs ves vess = vess ++ [ves]
-    -- aprependVEs ves vess = ves : vess
---}
+    cfgLens       = [length _sccMIntervalss,length _sccDurOrDurTupss]    
+    mkStartDurs   = randomIndices thirdCntBars <&> fmap (DurationVal . (barDurVal *) . (thirdCntBars +))
+    thirdCntBars  = _sccNumBars `div` 3
+    barDurVal     = timeSig2Num timeSig * dur2DurVal (timeSig2Denom timeSig)
+    totDurVal     = _sccNumBars * barDurVal
+    inits         = NE.toList _sccInits    
+    mIntss        = nes2arrs _sccMIntervalss
+    durOrDurTupss = nes2arrs _sccDurOrDurTupss
+
+-- Accumulate a [Motif] appending or prepending a Motif at a time until filling duration totDur, then convert [Motif] to [VoiceEvent].
+accreteVoiceByMotif :: Int -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> ((KeySignature,PitOct),DurationVal) -> Driver [VoiceEvent]
+accreteVoiceByMotif totDur intss durss ((keySig,startPit),initDur) =
+  unfoldM (unfold2MotifTup totDur scale intss durss) (True,(startPit,(initDur,initDur),[])) <&> concatMap (scaleAndMotifTup2VoiceEvents scale)
+  where
+    scale = keySig2Scale M.! keySig
         
-sectionConfig2VoiceEvents _ SectionConfigCreep{..}
-  | not (allSame cfgLens) = do
-      error $ "sectionConfig2VoiceEvents config lens are not identical: " <> show cfgLens
-  | otherwise = pure []
+-- unfold2MotifTup generates the next MotifTup by adding one more Motif to the start or end (by isAppend) of the [Motif] contained in the MotifTup
+unfold2MotifTup :: Int -> Scale -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> (Bool,MotifTup) -> Driver (Maybe (MotifTup,(Bool,MotifTup)))
+unfold2MotifTup totDur scale intss durss (isAppend,motifTup) = do
+  motif <- (,) <$> randomElement intss <*> randomElement durss <&> mkEqLenLists
+  let motifTup' = addMotif2MotifTup scale isAppend motifTup motif
+  case motifTup2DurInt motifTup' `compare` totDur of
+    GT -> pure Nothing
+    _  -> pure $ Just (motifTup',(not isAppend, motifTup'))
+  where        
+    mkEqLenLists (iss, dss) = (take cntDurs (cycle iss),dss)
+      where
+        cntDurs = sum $ either (const 1) (length . _durtupDurations . fst) <$> dss
+    motifTup2DurInt :: MotifTup -> Int
+    motifTup2DurInt (_,(beg,end),motifs) = sum (begInt : endInt : midInts)
+      where
+        begInt  = fromVal beg
+        endInt  = fromVal end
+        midInts = durValAccOrDurTupletAccs2Int <$> concatMap snd motifs
+        durValAccOrDurTupletAccs2Int = fromVal . durValAccOrDurTupletAccs2DurationVal
+
+-- Given scale and isAppend flag, either append or prepend Motif to MotifTup.
+-- Appending is easy as it doesn't affect the starting pitch.
+-- Prepending means counting backward to transpose the starting pitch so the
+-- MotifTup ends with the correct starting pitch to successively transpose [Motif].
+addMotif2MotifTup :: Scale -> Bool -> MotifTup -> Motif -> MotifTup
+addMotif2MotifTup _     True  (oldStart,(oldStartDur,oldEndDur),motifs) motif =
+  (oldStart,(oldStartDur,oldEndDur - sumMotifDurVals (snd motif)),motifs ++ [motif])
+addMotif2MotifTup scale False (oldStart,(oldStartDur,oldEndDur),motifs) motif =
+  (newStart,(oldStartDur - sumMotifDurVals (snd motif),oldEndDur),motif : motifs)
   where
-    cfgLens = [length _sccMIntervalss,length _sccDurOrDurTupss]
-  --   init = inits NE.!! 0
-  --   initPO = fst init
-  --   initKS = snd init
-  --   initScale = keySig2Scale M.! initKS
+    newStart = xp scale oldStart (negate . sum . map (either id (head . NE.toList)) . catMaybes . fst $ motif)
 
-{--
--- This has been a complete disaster.  Regroup by starting focus on individual routines from the inside out.
---
--- First, pick a new random motif.  NB: doing this as its own routine buries the rest of the stack in the Driver monad.
-nextRandomMotif :: [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> Driver ([Maybe IntOrInts],[DurValAccOrDurTupletAccs])
-nextRandomMotif intss durss = (,) <$> randomElement intss <*> randomElement durss
+sumMotifDurVals :: [DurValAccOrDurTupletAccs] -> DurationVal
+sumMotifDurVals = sum . fmap durValAccOrDurTupletAccs2DurationVal
 
--- Next, accumulate a new random motif at beginning or end of current random motif, carrying start and initial DurationVal forward from the previous one
-accumRandomMotifs :: Bool -> Scale -> [([Maybe IntOrInts],[DurValAccOrDurTupletAccs])] -> ((Pitch,Octave),DurationVal,([Maybe IntOrInts],[DurValAccOrDurTupletAccs])) -> ((Pitch,Octave),DurationVal,[([Maybe IntOrInts],[DurValAccOrDurTupletAccs])])
-accumRandomMotifs True  _     motifs (start,durVal,motif) = (start, durVal,  motifs ++ [motif])
-accumRandomMotifs False scale motifs (start,durVal,motif) = (start',durVal', motif : motifs)
+durValAccOrDurTupletAccs2DurationVal :: DurValAccOrDurTupletAccs -> DurationVal
+durValAccOrDurTupletAccs2DurationVal = either fst (durTuplet2DurVal . fst)
+
+-- Use the start from input (Pitch,Octave), the initial and ending rests, and to create a [VoiceEvent] for this MotifTup.
+scaleAndMotifTup2VoiceEvents ::  Scale -> MotifTup -> [VoiceEvent]
+scaleAndMotifTup2VoiceEvents scale (motStart,(startRest,stopRest),motifs) =
+  VeRest (Rest startRest []) : (concat . snd $ mapAccumL mapAccumF1 motStart motifs) <> [VeRest (Rest stopRest [])]
   where
-    start' = xp scale start (negate . sum . map (either id (head . NE.toList)) . catMaybes . fst $ motif)
-    durVal' = durVal + sumDurVals (snd motif)
-    sumDurVals = sum . fmap (either fst (durTuplet2DurVal . fst))
-
--- Next, pick and apply new random motif to list of motifs, accumulating list of motifs and start
-genRandomMotifs :: Bool -> Scale -> (Pitch,Octave) -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> ((Pitch,Octave),DurationVal,[([Maybe IntOrInts],[DurValAccOrDurTupletAccs])]) -> Driver ((Pitch,Octave),DurationVal,[([Maybe IntOrInts],[DurValAccOrDurTupletAccs])])
-genRandomMotifs isAppend scale intss durss (start,durVal,curMotifs) = do
-  newMotifs <- nextRandomMotif intss durss
-  accumRandomMotifs isAppend scale (start,durVal,curMotifs)
-
--- Next, accumulate leading rest as well
--- * need initial rest for first iteration
--- * need to return final start for mapping to VoiceEvent
--- * it'd be nice to return a final DurationVal too
--- * don't forget to drop latest motif when cumulative DurationVal goes below zero at either end
-genRestAndRandomMotifs :: Bool -> Scale -> (Pitch,Octave) -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> [(DurationVal,([Maybe IntOrInts],[DurValAccOrDurTupletAccs]))] -> Driver ((Pitch,Octave),[(DurationVal,([Maybe IntOrInts],[DurValAccOrDurTupletAccs]))])
-genRestAndRandomMotifs isAppend scale start intss durss durValMotifs = do
-  (start',motifs') <- genRandomMotifs isAppend scale start intss durss (map snd durValMotifs)
-  pure (start',(durVal',motifs'))
---}
-
--- START
--- note that accumulation process is a scanM, where the first iteration is with a single motif, the second of two motifs, and etc, until the total duration is filled
--- the first iteration takes the scale, start, and initial DurationVal from the config, calls nextRandomMotif to pick the first motif, and tuples those three together
--- subsequent iterations take the result of the previous iteration until there's no room left
--- termination could be a takeWhile
--- but that isn't right because a scan iterates over a Traversable, whereas what I have in mind is more like an unfoldM, see monad-extras, Control.Monad.Extra
--- Monad m => (s -> m (Maybe (a, s))) -> s -> m [a]
--- So, a is going to be ((Pitch,Octave),DurationVal,([Maybe IntOrInts],[DurValAccOrDurTupletAccs])) from which to generate [[VoiceEvent]] with terminating rests, then concat to [VoiceEvent]
--- And s is going to be ((Pitch,Octave),DurationVal) because those carry across from iteration to iteration
--- All the lexical scope of constant Scale and ([[Maybe IntOrInts]],[[DurValAccOrDurTupletAccs]])
---
--- Or, I could carry the ((Pitch,Octave),DurationVal) as state and have a be [VoiceEvent] that I generate on the inner loop and then concat to [VoiceEvent] at the end,
--- In the lexical scope of constants Scale, [[Maybe IntOrInts]], [[DurValAccOrDurTupletAccs]], and totalDurationVal so I can derive how long to make the final rest.
-
--- Argh, but wait!  Don't I after all have something to traverse, i.e. inits at one per voice?
--- But the arguments against mapAccumL still apply, namely that the Traversable here would be ordinary [] and not the Driver Monad,
--- and in fact, none of the uses I make here try a mapAccumL in the context of a Monad.
--- So that means using a traverse, which does operate in a Monad.  Unfortunately, that means explicitly managing state, and I don't really see how to do that:
---   traverse :: Applicative f => (a -> f b) -> t a -> f (t b)
--- Now it is the case that there's no carrying forward of state from voice to voice, which is what's conveyed by a -> f b where a would be the config and b [VoiceEvent].
--- So that means f is free to be unfoldM :: Monad m => (s -> m (Maybe (a, s))) -> s -> m [a].
--- I think?  The problem here is that s == a unless I wrap it.  So, raw a will be (KeySignature,(Pitch,Octave)), which aren't exactly state, as they never change.
--- Except that's not entirely right, as (Pitch,Octave) changes with each additional prefix.  But KeySignature, which equates to Scale, is fixed.  As will be numBars
--- and TimeSignature.
--- What changes with each recursive call to the unfold routine will be ((Pitch,Octave),(DurationVal,DurationVal),([Maybe IntOrInts],[DurValAccOrDurTupletAccs])), which
--- comprises:
--- a) (Pitch,Octave): the starting (Pitch,Octave) from the previous iteration (init from config)
--- b) (DurationVal,DurationVal):  the leading and ending rest duration from the previous iteration (init from numBars and TimeSignature as rests up to start, rests following start)
--- c) ([Maybe IntOrInts],[DurValAccOrDurTupletAccs]):  the motif from the previous iteration (init as pair of empty lists)
--- So, to return to the call chain,
--- a) at the outer level it's a traverse :: Applicative f => (a -> f b) -> t a -> f (t b) where t a is NonEmpty (KeySignature,(Pitch,Octave))
---    and (a -> f b) is (KeySignature,(Pitch,Octave)) -> Driver (NonEmpty [VoiceEvent])
--- b) The implementation of (a -> f b) is via unfoldM :: Monad m => (s -> m (Maybe (a, s))) -> s -> m [a]
---    Here, the trick is to take the a from the outer level, which is (KeySignature,(Pitch,Octave)) and map it to
---    (Scale,(Pitch,Octave),(DurationVal,DurationVal),([Maybe IntOrInts],[DurValAccOrDurTupletAccs])) ... will that type?
---    Hard to say.  From the perspective of traverse, the type a disappears into (a -> f b), so if there's a preliminary
---    function :: (KeySignature,(Pitch,Octave)) -> (Scale,(Pitch,Octave),(DurationVal,DurationVal),([Maybe IntOrInts],[DurValAccOrDurTupletAccs]))
---    where the initial values are (scale,(pitch,octave),(initDurVal,termDurVal),([],[])) with which it makes the first call to unfoldM ::
---    (Scale,(Pitch,Octave),(DurationVal,DurationVal),([Maybe IntOrInts],[DurValAccOrDurTupletAccs])) ->
---      Driver (Maybe ([VoiceEvent]),(Scale,(Pitch,Octave),(DurationVal,DurationVal),([Maybe IntOrInts],[DurValAccOrDurTupletAccs])))
---    Then the recursive calls inside the unfoldM function should type.  Output from each call is the current config used to generate [VoiceEvent]
--- c) One tricky bit is the function to generate the initial pair of DurationVals will need a random number unless I do something tricky like
---    monadically generating an infinite list of indices and pairing them up with the outermost (KeySignature,(Pitch,Octave)).
---    Or I could have a routine to create an infinite [(DurationVal,DurationVal)] which I'd zip with the finite [(KeySignature,(Pitch,Octave))]
---
--- Maybe a smart first step would be to write a skeleton with type signatures and place-holder implementations just to see it types at all.
-
-unfoldIt :: TimeSignature -> Int -> [(KeySignature,(Pitch,Octave))] -> [Maybe IntOrInts] -> [DurValAccOrDurTupletAccs] -> Driver [[VoiceEvent]]
-unfoldIt timeSig numBars inits intss durss = do
-  startDurs <- mkStartDurs timeSig numBars
-  let voiceInits = zip inits startDurs
-  traverse tfun voiceInits
-  where
-    tfun :: ((KeySignature,(Pitch,Octave)),DurationVal) -> Driver [VoiceEvent]
-    tfun ((keySig,startPit),initDur) = unfoldM ufun (keySig2Scale M.! keySig,startPit,(initDur,initDur),([],[])) <&> concat
-    ufun :: (Scale,(Pitch,Octave),(DurationVal,DurationVal),([Maybe IntOrInts],[DurValAccOrDurTupletAccs])) -> Driver (Maybe ([VoiceEvent],(Scale,(Pitch,Octave),(DurationVal,DurationVal),([Maybe IntOrInts],[DurValAccOrDurTupletAccs]))))
-    ufun (scale,startPit,(startDur,endDur),(ints,durs)) = do
-      -- tbd: pick new (ints,durs) from intss and durss
-      -- tbd: append or prepend to existing (ints,durs)
-      -- tbd: compute begin and end rests
-      -- tbd: convert to [VoiceEvent] for this iteration
-      -- tbd: test for duration that exceeds max and answer Nothing or Just ([VoiceEvent],...) for next iteration
-      pure $ Just ([],(scale,startPit,(startDur,endDur),(ints,durs)))
-
--- Don't need start and stop, as initial start and stop are the same.
--- After append, stop gets updated by length of appended motif, start gets left as is.
--- After prepend, start gets updated by length of appended motif, stop gets left as is.
-mkStartDurs :: TimeSignature -> Int -> Driver [DurationVal]
-mkStartDurs timeSig numBars = do
-  randomIndices thirdCntBars <&> fmap (DurationVal . (barDurVal *) . (thirdCntBars +))
-  where
-    thirdCntBars = numBars `div` 3
-    barDurVal    = timeSig2Num timeSig * dur2DurVal (timeSig2Denom timeSig)
+    -- Generate [VoiceEvent] using starting (Pitch,Octave), carrying updated (Pitch,Octave) for next Motif
+    mapAccumF1 :: PitOct -> Motif -> (PitOct,[VoiceEvent])
+    mapAccumF1 start (ints,durs) = (start',concat vess)
+      where
+        ((start',_),vess) = mapAccumL mapAccumF2 (start,ints) durs
+        -- Pair as many [Maybe IntOrInts] as needed for next DurValAccOrDurTupletAccs to generate next [VoiceEvent]
+        mapAccumF2 :: (PitOct,[Maybe IntOrInts]) -> DurValAccOrDurTupletAccs -> ((PitOct,[Maybe IntOrInts]),[VoiceEvent])
+        -- Trivial case:  (Left (DurationVal,Accent)) only requires one Maybe IntOrInts.
+        mapAccumF2 (strt,i:is) (Left (durVal,accent)) = ((strt',is),[ve])
+          where
+            (strt',ve) = nextVE strt i durVal accent
+        mapAccumF2 (strt,is) (Right (DurTuplet{..},accents)) = ((strt',is'),concat vess')
+          where
+            ((strt',is'),vess') = mapAccumL mapAccumF2 (strt,is) durs'
+            durs' = zipWith (curry Left) (NE.toList _durtupDurations) (NE.toList accents)
+        mapAccumF2 x y = error $ "mapAccumF2 unexpected input: " <> show x  <> " " <> show y
+        -- Generate Rest, Note, or Chord  depending on Maybe IntOrInts, DurationVal, and Accent, carry forward input (Pitch,Oct).
+        nextVE :: PitOct -> Maybe IntOrInts -> DurationVal -> Accent -> (PitOct,VoiceEvent)
+        -- Trivial case:  Nothing maps to Rest.
+        nextVE pitOct Nothing durVal acc = (pitOct,VeRest $ Rest durVal (acc2Ctrls acc))
+        -- Trivial case:  (Just (Left Int)) maps to a Note, carry updated (Pitch,Oct) for next transpose.
+        nextVE (pit,oct) (Just (Left int)) durVal acc = ((pit',oct'),VeNote $ Note pit' oct' durVal [] (acc2Ctrls acc) False)
+          where
+            (pit',oct') = xp scale (pit,oct) int
+        -- Complex case: (Just (Right [Int])) maps to a Chord, carry updated (Pitch,Oct) for root to next transpose.
+        nextVE (pit,oct) (Just (Right is)) durVal acc = (NE.head pitOcts,VeChord $ Chord pitOcts durVal [] (acc2Ctrls acc) False)
+          where
+            pitOcts = xp scale (pit,oct) <$> is
+        -- Swallow NoAccent when generating [Control]
+        acc2Ctrls :: Accent -> [Control]
+        acc2Ctrls NoAccent = []
+        acc2Ctrls acc = [CtrlAccent acc]
 
 voiceConfig2Slice :: VoiceConfig -> [Slice]
 voiceConfig2Slice VoiceConfigXPose{..}    = config2Slices _vcxCore
@@ -1152,7 +1013,7 @@ secCfg2SecName SectionConfigNeutral{..}    = path2Name (_sccPath _scnCore)
 secCfg2SecName SectionConfigFadeIn{..}     = path2Name (_sccPath _scfiCore)
 secCfg2SecName SectionConfigFadeOut{..}    = path2Name (_sccPath _scfoCore)
 secCfg2SecName SectionConfigFadeAcross{..} = path2Name (_sccPath _scfcCore)
-secCfg2SecName SectionConfigCreep{..}      = path2Name (_sccPath _sccCore)
+secCfg2SecName SectionConfigAccrete{..}    = path2Name (_sccPath _sccCore)
 
 -- Repeatedly add [[VoiceEvent]] for last section to input until all [[VoiceEvent]] are the same
 -- total duration.  Tricky bit is that sectionConfig2VoiceEvents may not add [VoiceEvent] of
