@@ -345,6 +345,12 @@ aMajScale = Scale $ A NE.:| [B,Cs,D,E,Fs,Gs]
 aMajKeySig :: KeySignature
 aMajKeySig = KeySignature A Major
 
+aesMajScale :: Scale
+aesMajScale = Scale $ Af NE.:| [Bf,C,Df,Ef,F,G]
+
+aesMajKeySig :: KeySignature
+aesMajKeySig = KeySignature Af Major
+
 aNatMinScale :: Scale
 aNatMinScale = Scale $ A NE.:| [B,C,D,E,F,G]
 
@@ -364,20 +370,21 @@ bNatMinKeySig :: KeySignature
 bNatMinKeySig = KeySignature B Minor
 
 keySig2Scale :: M.Map KeySignature Scale
-keySig2Scale = M.fromList [(cMajKeySig   ,cMajScale)
-                          ,(cNatMinKeySig,cNatMinScale)
-                          ,(dMajKeySig   ,dMajScale)
-                          ,(dNatMinKeySig,dNatMinScale)
-                          ,(eMajKeySig   ,eMajScale)
-                          ,(eNatMinKeySig,eNatMinScale)
-                          ,(fMajKeySig   ,fMajScale)
-                          ,(fNatMinKeySig,fNatMinScale)
-                          ,(gMajKeySig   ,gMajScale)
-                          ,(gNatMinKeySig,gNatMinScale)
-                          ,(aMajKeySig   ,aMajScale)
-                          ,(aNatMinKeySig,aNatMinScale)
-                          ,(bMajKeySig   ,bMajScale)
-                          ,(bNatMinKeySig,bNatMinScale)
+keySig2Scale = M.fromList [(cMajKeySig     ,cMajScale)
+                          ,(cNatMinKeySig  ,cNatMinScale)
+                          ,(dMajKeySig     ,dMajScale)
+                          ,(dNatMinKeySig  ,dNatMinScale)
+                          ,(eMajKeySig     ,eMajScale)
+                          ,(eNatMinKeySig  ,eNatMinScale)
+                          ,(fMajKeySig     ,fMajScale)
+                          ,(fNatMinKeySig  ,fNatMinScale)
+                          ,(gMajKeySig     ,gMajScale)
+                          ,(gNatMinKeySig  ,gNatMinScale)
+                          ,(aMajKeySig     ,aMajScale)
+                          ,(aesMajKeySig   ,aesMajScale)
+                          ,(aNatMinKeySig  ,aNatMinScale)
+                          ,(bMajKeySig     ,bMajScale)
+                          ,(bNatMinKeySig  ,bNatMinScale)
                           ]
 
 -- Put more Scale instances here as needed.

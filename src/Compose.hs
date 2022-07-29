@@ -778,8 +778,8 @@ sectionConfig2VoiceEvents _ (SectionConfigFadeAcross (SectionConfigCore scnPath 
 sectionConfig2VoiceEvents timeSig SectionConfigAccrete{..}
   | not (allSame cfgLens) = 
       error $ "sectionConfig2VoiceEvents config lens are not identical: " <> show cfgLens
-  | otherwise =
-    mkStartDurs >>= traverse (accreteVoiceByMotif totDurVal mIntss durOrDurTupss) . zip inits
+  | otherwise = 
+      mkStartDurs >>= traverse (accreteVoiceByMotif totDurVal mIntss durOrDurTupss) . zip inits
   where
     cfgLens       = [length _sccMIntervalss,length _sccDurOrDurTupss]    
     mkStartDurs   = randomIndices thirdCntBars <&> fmap (DurationVal . (barDurVal *) . (thirdCntBars +))
@@ -792,42 +792,46 @@ sectionConfig2VoiceEvents timeSig SectionConfigAccrete{..}
 
 -- Accumulate a [Motif] appending or prepending a Motif at a time until filling duration totDur, then convert [Motif] to [VoiceEvent].
 accreteVoiceByMotif :: Int -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> ((KeySignature,PitOct),DurationVal) -> Driver [VoiceEvent]
-accreteVoiceByMotif totDur intss durss ((keySig,startPit),initDur) =
-  unfoldM (unfold2MotifTup totDur scale intss durss) (True,(startPit,(initDur,initDur),[])) <&> concatMap (scaleAndMotifTup2VoiceEvents scale)
+accreteVoiceByMotif totDur intss durss ((keySig,startPit),initDur) = 
+  unfoldM (unfold2MotifTup scale intss durss) (True,False,False,(startPit,(initDur,DurationVal (totDur - fromVal initDur)),[])) <&> concatMap (scaleAndMotifTup2VoiceEvents scale)
   where
     scale = keySig2Scale M.! keySig
         
 -- unfold2MotifTup generates the next MotifTup by adding one more Motif to the start or end (by isAppend) of the [Motif] contained in the MotifTup
-unfold2MotifTup :: Int -> Scale -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> (Bool,MotifTup) -> Driver (Maybe (MotifTup,(Bool,MotifTup)))
-unfold2MotifTup totDur scale intss durss (isAppend,motifTup) = do
+unfold2MotifTup :: Scale -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> (Bool,Bool,Bool,MotifTup) -> Driver (Maybe (MotifTup,(Bool,Bool,Bool,MotifTup)))
+unfold2MotifTup scale intss durss (isAppend,isStart,isStop,motifTup) = do
   motif <- (,) <$> randomElement intss <*> randomElement durss <&> mkEqLenLists
-  let motifTup' = addMotif2MotifTup scale isAppend motifTup motif
-  case motifTup2DurInt motifTup' `compare` totDur of
-    GT -> pure Nothing
-    _  -> pure $ Just (motifTup',(not isAppend, motifTup'))
+  let (isStart', isStop', motifTup') = addMotif2MotifTup scale isAppend isStart isStop motifTup motif
+  if isStart' && isStop'
+  then pure Nothing
+  else pure $ Just (motifTup',(not isAppend, isStart', isStop', motifTup'))
   where        
     mkEqLenLists (iss, dss) = (take cntDurs (cycle iss),dss)
       where
         cntDurs = sum $ either (const 1) (length . _durtupDurations . fst) <$> dss
-    motifTup2DurInt :: MotifTup -> Int
-    motifTup2DurInt (_,(beg,end),motifs) = sum (begInt : endInt : midInts)
-      where
-        begInt  = fromVal beg
-        endInt  = fromVal end
-        midInts = durValAccOrDurTupletAccs2Int <$> concatMap snd motifs
-        durValAccOrDurTupletAccs2Int = fromVal . durValAccOrDurTupletAccs2DurationVal
 
 -- Given scale and isAppend flag, either append or prepend Motif to MotifTup.
 -- Appending is easy as it doesn't affect the starting pitch.
 -- Prepending means counting backward to transpose the starting pitch so the
 -- MotifTup ends with the correct starting pitch to successively transpose [Motif].
-addMotif2MotifTup :: Scale -> Bool -> MotifTup -> Motif -> MotifTup
-addMotif2MotifTup _     True  (oldStart,(oldStartDur,oldEndDur),motifs) motif =
-  (oldStart,(oldStartDur,oldEndDur - sumMotifDurVals (snd motif)),motifs ++ [motif])
-addMotif2MotifTup scale False (oldStart,(oldStartDur,oldEndDur),motifs) motif =
-  (newStart,(oldStartDur - sumMotifDurVals (snd motif),oldEndDur),motif : motifs)
+addMotif2MotifTup :: Scale -> Bool -> Bool -> Bool -> MotifTup -> Motif -> (Bool, Bool, MotifTup)
+addMotif2MotifTup _     True  isStart _ (oldStart,(oldStartDur,oldEndDur),motifs) motif =
+  (isStart, isStop', (oldStart,(oldStartDur,newEndDur),motifs ++ [motif]))
+  where
+    newEndDur = diffDurs oldEndDur (sumMotifDurVals (snd motif))
+    isStop' = oldEndDur == newEndDur
+addMotif2MotifTup scale False _ isStop (oldStart,(oldStartDur,oldEndDur),motifs) motif =
+  (isStart', isStop, (newStart,(newStartDur,oldEndDur),motif : motifs))
   where
     newStart = xp scale oldStart (negate . sum . map (either id (head . NE.toList)) . catMaybes . fst $ motif)
+    newStartDur = diffDurs oldStartDur (sumMotifDurVals (snd motif))
+    isStart' = oldStartDur == newStartDur
+
+-- When diff would be negative, answer origin.
+diffDurs :: DurationVal -> DurationVal -> DurationVal
+diffDurs x y
+  | x > y = x - y
+  | otherwise = x
 
 sumMotifDurVals :: [DurValAccOrDurTupletAccs] -> DurationVal
 sumMotifDurVals = sum . fmap durValAccOrDurTupletAccs2DurationVal

@@ -195,10 +195,10 @@ parseDurValAccOrDurTupAccs :: Parser DurValAccOrDurTupletAccs
 parseDurValAccOrDurTupAccs = try (Left <$> parseDurValAcc) <|> (Right <$> parseDurTupletAccs)
 
 parseDurValAcc :: Parser (DurationVal,Accent)
-parseDurValAcc = between (char '(') (char ')') ((,) <$> (duration2DurationVal <$> parseDuration) <*> pAccentStr)
+parseDurValAcc = between (char '(') (char ')') ((,) <$> (duration2DurationVal <$> parseDuration) <*> (char ',' *> pAccentStr))
 
 parseDurTupletAccs :: Parser (DurTuplet,NE.NonEmpty Accent)
-parseDurTupletAccs = between (char '(') (char ')') ((,) <$> parseDurTup <*> mkPs pAccentStr)
+parseDurTupletAccs = between (char '(') (char ')') ((,) <$> parseDurTup <*> (char ',' *> mkPs pAccentStr))
 
 -- Tempo
 instance FromConfig Tempo where
