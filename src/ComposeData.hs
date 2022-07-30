@@ -64,7 +64,7 @@ data SectionConfig =
       }
   | SectionConfigAccrete {
       _sccCore           :: SectionConfigCore
-      ,_sccNumBars       :: Int -- duration of a section in bars
+      ,_sccNumBars       :: Int
       ,_sccInits         :: NE.NonEmpty (KeySignature,(Pitch,Octave))
       ,_sccMIntervalss   :: NE.NonEmpty (NE.NonEmpty (Maybe IntOrInts))
       ,_sccDurOrDurTupss :: NE.NonEmpty (NE.NonEmpty DurValAccOrDurTupletAccs)

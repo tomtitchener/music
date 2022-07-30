@@ -1,0 +1,69 @@
+# 
+# order.yml:  experiment with increasing degrees of order, finding patterns in a single voice,
+# then experimenting with multiple voices
+#
+
+# for the pattern-free starting point, a blend with unequal length component sublists
+
+pattern-free:
+  common:
+    tempo:       (80,4)
+    key:         c major
+    instr:       marimba
+    time:        (4,4)
+  group:
+    grtype: neutral
+    section:
+      stype:      neutral
+      reps:       int 9
+      uniformDyn: pp
+      vesmods:    (uniformDyns)
+      common:
+        durval: int 512 # four bars in 4/4 time
+        vtype:  blend
+      voice1:
+        # additional constraints here:
+        # - want something identifiable as a single voice:
+        #   no huge intervals, overall span of a 12th,
+        # - want interesting harmony from eventual combination 
+        #   with other voices so keep from strict diatonic
+        # - need enough sublists to avoid easily-recognizable
+        #   mottos
+        # - for simplicity, keep it monophonic, no chords
+        # - one thing to watch out for is unique patterns
+        #   in the upper or lower range, so for example
+        #   I started with a single (f,1),(e,1) in the
+        #   top register, which you started hearing as a
+        #   repeat because there were other similar bits
+        # result is meandering mush, no real tonal center,
+        # not very pretty to listen to, some recognizable 
+        # pitch sequences 
+        mPitOctsss: (((g,0),(f,0),(c,0)),
+                     ((dis,0),(b,0)),
+                     (r,r),
+                     ((a,0),(f,1),(e,1)),
+                     ((d,0),(bes,0),(g,1),(g,1),(f,0),(a,0),(g,0)),
+                     ((g,1),(d,1),(e,1),(f,1)))
+        durss:      ((8,16,16,8,8),
+                     (4,8.,16,8),
+                     (16,16,16,16,8.,16,8,4))
+        accentss:   ((^,>,>,^,^),
+                     (~,~,^,^,~,~),
+                     (-,-,.,.,.))
+        rotval:     int 0
+      voice2:
+      # same as voice1, but now two voices playing mush, 
+      # doesn't improve effect at all, just more intense mush
+        mPitOctsss: (((g,0),(f,0),(c,0)),
+                     ((dis,0),(b,0)),
+                     (r,r),
+                     ((a,0),(f,1),(e,1)),
+                     ((d,0),(bes,0),(g,1),(g,1),(f,0),(a,0),(g,0)),
+                     ((g,1),(d,1),(e,1),(f,1)))
+        durss:      ((8,16,16,8,8),
+                     (4,8.,16,8),
+                     (16,16,16,16,8.,16,8,4))
+        accentss:   ((^,>,>,^,^),
+                     (~,~,^,^,~,~),
+                     (-,-,.,.,.))
+        rotval:     int 0

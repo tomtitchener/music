@@ -773,75 +773,120 @@ sectionConfig2VoiceEvents _ (SectionConfigFadeAcross (SectionConfigCore scnPath 
           voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing (Just spotIx) cntVocs numVoc cntSegs numSeg |
                              numVoc <- [0..cntVocs - 1], (numSeg,spotIx) <- zip [0..cntSegs - 1] spotIxs]
 
+-- TBD:
+--  * abandon random offset to start, replacing with a fixed period of one measure (in configuration?)
+--  * to terminate, test total length of generated [Motif] in MotifTup against maximum in configuration and end with previous [Motif]
+--  * to polish off a MotifTup, center the [Motif] in a beginning and ending measure of rests and extend the start and stop DurVals in MotifTup
+-- 
+-- To center the [Motif],
+-- * take the total DurationVal modulo the bar length for the bit that would extend into the next partial bar,
+-- * subtract that from the bar length for the total pad
+-- * split the pad into two parts with the remainder added to the second
+-- * add those lengths to the DurationVal pair in MotifTup, e.g.
+--   split :: Int -> (Int,Int)
+--   split x = (d,d + r)
+--     where
+--       d = x `div` 2
+--       r = x `rem` 2
+--   except that's down to an even count of 128th notes, which is stupid
+--   would eighths (16) make more sense?
+--   only, I suppose, if the amount to split was big enough
+--   ugh, this is more complicated than I expected
+--   there'll never be an odd number of 128th notes, so a unit
+--   of 64ths would make sense (2) as a minimum
+--   or maybe this is just premature optimization and the code that
+--   unrolls a rest is going to do the smart thing anyway, so leave
+--   it as is above.
+
 -- Verify the lengths of [[Maybe IntOrInts]] and [[DuValAccOrDurTupletAccs]] are then same, then for each voice,
 -- incrementally accrete a [Motif] to fill totDurVal and convert to [VoiceEvent].
 sectionConfig2VoiceEvents timeSig SectionConfigAccrete{..}
   | not (allSame cfgLens) = 
-      error $ "sectionConfig2VoiceEvents config lens are not identical: " <> show cfgLens
+      error $ "sectionConfig2VoiceEvents accrete config lens are not identical: " <> show cfgLens
   | otherwise = 
-      mkStartDurs >>= traverse (accreteVoiceByMotif totDurVal mIntss durOrDurTupss) . zip inits
+      traverse (accreteVoiceByMotif barDurVal totDurVal intss durss) inits
   where
-    cfgLens       = [length _sccMIntervalss,length _sccDurOrDurTupss]    
-    mkStartDurs   = randomIndices thirdCntBars <&> fmap (DurationVal . (barDurVal *) . (thirdCntBars +))
-    thirdCntBars  = _sccNumBars `div` 3
-    barDurVal     = timeSig2Num timeSig * dur2DurVal (timeSig2Denom timeSig)
-    totDurVal     = _sccNumBars * barDurVal
-    inits         = NE.toList _sccInits    
-    mIntss        = nes2arrs _sccMIntervalss
-    durOrDurTupss = nes2arrs _sccDurOrDurTupss
+    cfgLens   = [length _sccMIntervalss,length _sccDurOrDurTupss]    
+    barDurVal = timeSig2Num timeSig * dur2DurVal (timeSig2Denom timeSig)
+    totDurVal = _sccNumBars * barDurVal
+    inits     = NE.toList _sccInits    
+    intss     = nes2arrs _sccMIntervalss
+    durss     = nes2arrs _sccDurOrDurTupss
 
 -- Accumulate a [Motif] appending or prepending a Motif at a time until filling duration totDur, then convert [Motif] to [VoiceEvent].
-accreteVoiceByMotif :: Int -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> ((KeySignature,PitOct),DurationVal) -> Driver [VoiceEvent]
-accreteVoiceByMotif totDur intss durss ((keySig,startPit),initDur) = 
-  unfoldM (unfold2MotifTup scale intss durss) (True,False,False,(startPit,(initDur,DurationVal (totDur - fromVal initDur)),[])) <&> concatMap (scaleAndMotifTup2VoiceEvents scale)
+accreteVoiceByMotif :: Int -> Int -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> (KeySignature,PitOct) -> Driver [VoiceEvent]
+accreteVoiceByMotif barDurVal totDurVal intss durss (keySig,startPit) = 
+  unfoldM (unfold2MotifTup scale barDurVal totDurVal intss durss) (False,initMotifTup) <&> concatMap (scaleAndMotifTup2VoiceEvents scale) -- TBD: keySig, then VeEvent KeySig
   where
+    initMotifTup = (startPit,(DurationVal barDurVal,DurationVal barDurVal),[])
     scale = keySig2Scale M.! keySig
         
 -- unfold2MotifTup generates the next MotifTup by adding one more Motif to the start or end (by isAppend) of the [Motif] contained in the MotifTup
-unfold2MotifTup :: Scale -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> (Bool,Bool,Bool,MotifTup) -> Driver (Maybe (MotifTup,(Bool,Bool,Bool,MotifTup)))
-unfold2MotifTup scale intss durss (isAppend,isStart,isStop,motifTup) = do
+unfold2MotifTup :: Scale -> Int -> Int -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> (Bool,MotifTup) -> Driver (Maybe (MotifTup,(Bool,MotifTup)))
+unfold2MotifTup scale barDurVal totDurVal intss durss (isAppend,motifTup) = do
   motif <- (,) <$> randomElement intss <*> randomElement durss <&> mkEqLenLists
-  let (isStart', isStop', motifTup') = addMotif2MotifTup scale isAppend isStart isStop motifTup motif
-  if isStart' && isStop'
-  then pure Nothing
-  else pure $ Just (motifTup',(not isAppend, isStart', isStop', motifTup'))
-  where        
+  let motifTup' = addMotif2MotifTup scale barDurVal isAppend motifTup motif
+  pure $
+    if totDurVal > motifTup2DurInt motifTup'
+    then Just (motifTup',(not isAppend, motifTup'))
+    else Nothing
+  where
+    -- make length of intervals match count of durations
     mkEqLenLists (iss, dss) = (take cntDurs (cycle iss),dss)
       where
         cntDurs = sum $ either (const 1) (length . _durtupDurations . fst) <$> dss
+
+motifTup2DurInt :: MotifTup -> Int
+motifTup2DurInt (_,(beg,end),motifs) = fromVal beg + fromVal end + motifs2DurInt motifs
+
+motifs2DurInt :: [Motif] -> Int
+motifs2DurInt motifs = fromVal . sum $ durValAccOrDurTupletAccs2DurVal <$> concatMap snd motifs
+
+durValAccOrDurTupletAccs2DurVal :: DurValAccOrDurTupletAccs -> DurationVal
+durValAccOrDurTupletAccs2DurVal = either fst (durTuplet2DurVal . fst)
 
 -- Given scale and isAppend flag, either append or prepend Motif to MotifTup.
 -- Appending is easy as it doesn't affect the starting pitch.
 -- Prepending means counting backward to transpose the starting pitch so the
 -- MotifTup ends with the correct starting pitch to successively transpose [Motif].
-addMotif2MotifTup :: Scale -> Bool -> Bool -> Bool -> MotifTup -> Motif -> (Bool, Bool, MotifTup)
-addMotif2MotifTup _     True  isStart _ (oldStart,(oldStartDur,oldEndDur),motifs) motif =
-  (isStart, isStop', (oldStart,(oldStartDur,newEndDur),motifs ++ [motif]))
+addMotif2MotifTup :: Scale -> Int -> Bool -> MotifTup -> Motif -> MotifTup
+addMotif2MotifTup _     barDurVal True  (start,_,motifs) motif = (start, durs',motifs')
   where
-    newEndDur = diffDurs oldEndDur (sumMotifDurVals (snd motif))
-    isStop' = oldEndDur == newEndDur
-addMotif2MotifTup scale False _ isStop (oldStart,(oldStartDur,oldEndDur),motifs) motif =
-  (isStart', isStop, (newStart,(newStartDur,oldEndDur),motif : motifs))
+    motifs' = motifs ++ [motif]
+    durs'   = mots2Durs barDurVal motifs'
+addMotif2MotifTup scale barDurVal False (start,_,motifs) motif = (start',durs',motif : motifs)
   where
-    newStart = xp scale oldStart (negate . sum . map (either id (head . NE.toList)) . catMaybes . fst $ motif)
-    newStartDur = diffDurs oldStartDur (sumMotifDurVals (snd motif))
-    isStart' = oldStartDur == newStartDur
+    start' = xp scale start (negate . sumInts $ motif)
+    sumInts = sum . map (either id (head . NE.toList)) . catMaybes . fst
+    motifs' = motif : motifs
+    durs'   = mots2Durs barDurVal motifs'
 
--- When diff would be negative, answer origin.
-diffDurs :: DurationVal -> DurationVal -> DurationVal
-diffDurs x y
-  | x > y = x - y
-  | otherwise = x
+-- Take the duration of a bar and the list of motifs, sum the duration vals in the motifs
+-- to get their total duration in 128th notes, then compute the amount left over to reach
+-- the next bar, and split that amount between the rest at the start and the rest at the end.
+mots2Durs :: Int -> [Motif] -> (DurationVal,DurationVal)
+mots2Durs barDurVal = both DurationVal . splitIn2 . (-) barDurVal . (`rem` barDurVal) . motifs2DurInt
 
-sumMotifDurVals :: [DurValAccOrDurTupletAccs] -> DurationVal
-sumMotifDurVals = sum . fmap durValAccOrDurTupletAccs2DurationVal
-
-durValAccOrDurTupletAccs2DurationVal :: DurValAccOrDurTupletAccs -> DurationVal
-durValAccOrDurTupletAccs2DurationVal = either fst (durTuplet2DurVal . fst)
+-- TBD: tricky to get make this easier to read and perform.
+-- Starting solution aims to keep beginning rest in units of eighth notes.
+-- But when appending, next iteration often shifts with respect to first rest, which buries repetition of motif.
+-- Would be better to keep duration of first rest and just make the final rest enough to reach the end of the
+-- current measure when taking the first rest into account.
+-- When prepending, it would make better sense to maintain the starting point in the measure of the previous
+-- motif, then prepend the new motif and further pad to reach the beginning of the bar if necessary, then keep
+-- the ending duration which should still be the correct amount to reach the end of the bar.
+-- But all I see here is leftover bit to split between beginning and end rests to total one measure.
+-- y = 8 is a heuristic to yield eighth note multiple, 2 and 4 yield too fine, 16 messes with total bar
+-- length which probably means I need to take bar duration into account somehow
+splitIn2 :: Integral a => a -> (a,a)
+splitIn2 x = both (*y) (x' `div` 2,(x' `div` 2) + (x' `rem` 2))
+  where
+    y  = 8
+    x' = x `div` y
 
 -- Use the start from input (Pitch,Octave), the initial and ending rests, and to create a [VoiceEvent] for this MotifTup.
 scaleAndMotifTup2VoiceEvents ::  Scale -> MotifTup -> [VoiceEvent]
-scaleAndMotifTup2VoiceEvents scale (motStart,(startRest,stopRest),motifs) =
+scaleAndMotifTup2VoiceEvents scale (motStart,(startRest,stopRest),motifs) = 
   VeRest (Rest startRest []) : (concat . snd $ mapAccumL mapAccumF1 motStart motifs) <> [VeRest (Rest stopRest [])]
   where
     -- Generate [VoiceEvent] using starting (Pitch,Octave), carrying updated (Pitch,Octave) for next Motif
