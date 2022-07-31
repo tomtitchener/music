@@ -818,7 +818,7 @@ accreteVoiceByMotif :: Int -> Int -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupl
 accreteVoiceByMotif barDurVal totDurVal intss durss (keySig,startPit) = 
   unfoldM (unfold2MotifTup scale barDurVal totDurVal intss durss) (False,initMotifTup) <&> concatMap (scaleAndMotifTup2VoiceEvents scale) -- TBD: keySig, then VeEvent KeySig
   where
-    initMotifTup = (startPit,(DurationVal barDurVal,DurationVal barDurVal),[])
+    initMotifTup = (startPit,(DurationVal 0,DurationVal 0),[])
     scale = keySig2Scale M.! keySig
         
 -- unfold2MotifTup generates the next MotifTup by adding one more Motif to the start or end (by isAppend) of the [Motif] contained in the MotifTup
@@ -850,26 +850,69 @@ durValAccOrDurTupletAccs2DurVal = either fst (durTuplet2DurVal . fst)
 -- Prepending means counting backward to transpose the starting pitch so the
 -- MotifTup ends with the correct starting pitch to successively transpose [Motif].
 addMotif2MotifTup :: Scale -> Int -> Bool -> MotifTup -> Motif -> MotifTup
-addMotif2MotifTup _     barDurVal True  (start,_,motifs) motif = (start, durs',motifs')
+addMotif2MotifTup _     barDurInt True  (start,durs,motifs) motif = (start, durs',motifs')
   where
     motifs' = motifs ++ [motif]
-    durs'   = mots2Durs barDurVal motifs'
-addMotif2MotifTup scale barDurVal False (start,_,motifs) motif = (start',durs',motif : motifs)
+    durs'   = mots2Durs True barDurInt durs motifs'
+addMotif2MotifTup scale barDurInt False (start,durs,motifs) motif = (start',durs',motif : motifs)
   where
-    start' = xp scale start (negate . sumInts $ motif)
+    start'  = xp scale start (negate . sumInts $ motif)
     sumInts = sum . map (either id (head . NE.toList)) . catMaybes . fst
     motifs' = motif : motifs
-    durs'   = mots2Durs barDurVal motifs'
+    durs'   = mots2Durs False barDurInt durs motifs'
 
 -- Take the duration of a bar and the list of motifs, sum the duration vals in the motifs
 -- to get their total duration in 128th notes, then compute the amount left over to reach
 -- the next bar, and split that amount between the rest at the start and the rest at the end.
-mots2Durs :: Int -> [Motif] -> (DurationVal,DurationVal)
-mots2Durs barDurVal = both DurationVal . splitIn2 . (-) barDurVal . (`rem` barDurVal) . motifs2DurInt
+--
+-- At start, want motif to start after reasonable rest at start, e.g. quarter, dotted quarter.
+-- So just watch for (0,0) for DurationVals, make first as random choice of first, second, or
+-- third quarter note.  Could eventually try to do something like look at how long the Motif
+-- is and start after a shorter duration if there's a way to fit it into a single bar.  
+-- Then terminating duration is just distance to the next bar.
+--
+-- Then when isAppend is True, leave first duration as is, and make last duration enough to
+-- fill out the current bar.
+--
+-- When isAppend is False, leave last duration as is, and make first duration enough to fill
+-- back to the start of the previous bar.
+--
+mots2Durs :: Bool -> Int -> (DurationVal,DurationVal) -> [Motif] -> (DurationVal,DurationVal)
+mots2Durs _ barDurInt (DurationVal 0,DurationVal 0) motifs =
+  (DurationVal initBegDurInt,DurationVal initEndDurInt)
+  where
+  initBegDurInt = dur2DurVal QDur
+  initEndDurInt = remDurVal barDurInt initBegDurInt motifs
+mots2Durs True barDurInt (DurationVal prevBegDurInt,_) motifs =
+  (DurationVal prevBegDurInt,DurationVal newEndDurInt)
+  where
+    newEndDurInt = remDurVal barDurInt prevBegDurInt motifs
+mots2Durs False barDurInt (_,DurationVal prevEndDurInt) motifs =
+  (DurationVal newBegDurInt,DurationVal prevEndDurInt)
+  where
+    newBegDurInt = remDurVal barDurInt prevEndDurInt motifs
+
+-- Remaining count of 128ths to reach start or end of bar given count of 
+-- 128ths in a bar, count of 128ths for start or end offset, list of Motifs.
+-- If the sum of the offset and the length of the motifs is exactly divisible
+-- by the bar count, then answer 0 to avoid answering a full bar.
+remDurVal :: Int -> Int -> [Motif] -> Int
+remDurVal barDurInt offDurInt motifs =
+  if 0 == remBar then 0 else barDurInt - remBar
+  where
+  remBar = (`rem` barDurInt) . (+ offDurInt) . motifs2DurInt $ motifs
+  
+{-- Deprecated
+--
+-- Additional input needed:  isAppend, (DurationVal,DurationVal) for previous rests, init to 0.
+-- Cond:  (0,0) for DurationVal => generate first Motif, 
+-- 
+mots2Durs' :: Int -> [Motif] -> (DurationVal,DurationVal)
+mots2Durs' barDurVal = both DurationVal . splitIn2 . (-) barDurVal . (`rem` barDurVal) . motifs2DurInt
 
 -- TBD: tricky to get make this easier to read and perform.
 -- Starting solution aims to keep beginning rest in units of eighth notes.
--- But when appending, next iteration often shifts with respect to first rest, which buries repetition of motif.
+-- But when appending, next iteration often shifts with respect to first rest, which burie repetition of motif.
 -- Would be better to keep duration of first rest and just make the final rest enough to reach the end of the
 -- current measure when taking the first rest into account.
 -- When prepending, it would make better sense to maintain the starting point in the measure of the previous
@@ -878,11 +921,13 @@ mots2Durs barDurVal = both DurationVal . splitIn2 . (-) barDurVal . (`rem` barDu
 -- But all I see here is leftover bit to split between beginning and end rests to total one measure.
 -- y = 8 is a heuristic to yield eighth note multiple, 2 and 4 yield too fine, 16 messes with total bar
 -- length which probably means I need to take bar duration into account somehow
+-- Inputs can still be isAppend, 
 splitIn2 :: Integral a => a -> (a,a)
 splitIn2 x = both (*y) (x' `div` 2,(x' `div` 2) + (x' `rem` 2))
   where
     y  = 8
     x' = x `div` y
+--}
 
 -- Use the start from input (Pitch,Octave), the initial and ending rests, and to create a [VoiceEvent] for this MotifTup.
 scaleAndMotifTup2VoiceEvents ::  Scale -> MotifTup -> [VoiceEvent]
