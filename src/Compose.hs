@@ -901,33 +901,6 @@ remDurVal barDurInt offDurInt motifs =
   if 0 == remBar then 0 else barDurInt - remBar
   where
   remBar = (`rem` barDurInt) . (+ offDurInt) . motifs2DurInt $ motifs
-  
-{-- Deprecated
---
--- Additional input needed:  isAppend, (DurationVal,DurationVal) for previous rests, init to 0.
--- Cond:  (0,0) for DurationVal => generate first Motif, 
--- 
-mots2Durs' :: Int -> [Motif] -> (DurationVal,DurationVal)
-mots2Durs' barDurVal = both DurationVal . splitIn2 . (-) barDurVal . (`rem` barDurVal) . motifs2DurInt
-
--- TBD: tricky to get make this easier to read and perform.
--- Starting solution aims to keep beginning rest in units of eighth notes.
--- But when appending, next iteration often shifts with respect to first rest, which burie repetition of motif.
--- Would be better to keep duration of first rest and just make the final rest enough to reach the end of the
--- current measure when taking the first rest into account.
--- When prepending, it would make better sense to maintain the starting point in the measure of the previous
--- motif, then prepend the new motif and further pad to reach the beginning of the bar if necessary, then keep
--- the ending duration which should still be the correct amount to reach the end of the bar.
--- But all I see here is leftover bit to split between beginning and end rests to total one measure.
--- y = 8 is a heuristic to yield eighth note multiple, 2 and 4 yield too fine, 16 messes with total bar
--- length which probably means I need to take bar duration into account somehow
--- Inputs can still be isAppend, 
-splitIn2 :: Integral a => a -> (a,a)
-splitIn2 x = both (*y) (x' `div` 2,(x' `div` 2) + (x' `rem` 2))
-  where
-    y  = 8
-    x' = x `div` y
---}
 
 -- Use the start from input (Pitch,Octave), the initial and ending rests, and to create a [VoiceEvent] for this MotifTup.
 scaleAndMotifTup2VoiceEvents ::  Scale -> MotifTup -> [VoiceEvent]

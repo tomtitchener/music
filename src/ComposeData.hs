@@ -62,6 +62,8 @@ data SectionConfig =
       -- different lengths
       ,_scfcVoicesAB :: [(VoiceConfig,VoiceConfig)]
       }
+  -- TBD: make this into a VoiceConfig instance instead,
+  -- though that'll probably mean changing to VoiceConfigCore?
   | SectionConfigAccrete {
       _sccCore           :: SectionConfigCore
       ,_sccNumBars       :: Int
