@@ -106,6 +106,11 @@ data VoiceConfig =
   _vcvCore   :: VoiceConfigCore
   , _vcvDurVal :: Int
   }
+  --
+  -- Intermediate version here or option to verbatim config to extend components to
+  -- be equal lengths?  Does it really matter?  Could also just edit configuration
+  -- to do the same.  So maybe not.
+  --
   -- introduction of some irregularity vs. verbatim:  extend sublists of pitches,
   -- durations, and accents so they're all equal lengths, then randomly pick the
   -- same sublist from the list of lists to create the next batch of pitches until
@@ -143,13 +148,14 @@ data VoiceConfig =
       _vcrCore   :: VoiceConfigCore
       ,_vcrDurVal :: Int
       } 
+  -- maximum amount of irregularity:
   -- a) for each of list of list of pitches, durations, accents:
   --    - create an infinite list of indices 0..N-1 where N is length of outer list
   --    - use the list indices to select an infinite list of inner lists by index
   --    - rotate each inner list by _vccRotVal and concatenate the result
   -- b) combine pitch, duration, and accent sublists into list of notes until
   --    total duration matches configuration value in 128th notes
-  -- maximum amount of irregularity:
+  -- irregular because:
   --  - no (regular) repetitions in the sequence of sublists, so sequences of pitch,
   --    duration, accent rarely (if ever) repeat
   --  - with different length sublists and random selection of sublists themselves,
@@ -157,7 +163,6 @@ data VoiceConfig =
   -- only way to generate recognizable blend is for each outer list to contain one 
   -- sublist only, all voices use same list of pitches, durations, and accents 
   -- (even then, you need to use a config mod to stagger the arrival of the voices)
-  -- poor name choice, maybe VoiceConfigRandomizedSublists would be better?
   | VoiceConfigBlend {
       _vccCore   :: VoiceConfigCore
       ,_vccDurVal :: Int

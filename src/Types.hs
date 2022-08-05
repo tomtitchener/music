@@ -216,13 +216,13 @@ data DurTuplet = DurTuplet {
   ,_durtupDurations    :: NonEmpty DurationVal
   } deriving Show
 
+makeLenses ''DurTuplet
+
 type DurValOrDurTuplet = Either DurationVal DurTuplet
 
 type DurValAccOrDurTupletAccs = Either (DurationVal,Accent) (DurTuplet,NonEmpty Accent)
 
 type IntOrInts = Either Int (NonEmpty Int)
-
-makeLenses ''DurTuplet
 
 type PitOctOrNEPitOcts =  Either (Pitch,Octave) (NonEmpty (Pitch,Octave))
 

@@ -275,8 +275,8 @@ nes2arrs = map NE.toList . NE.toList
 arrs2nes :: [[a]] -> NE.NonEmpty (NE.NonEmpty a)
 arrs2nes = NE.fromList . map NE.fromList 
 
-ness2Marrss :: forall a . NE.NonEmpty (NE.NonEmpty (Maybe (Either a (NE.NonEmpty a)))) -> [[Maybe (Either a [a])]]
-ness2Marrss = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
+nes2Marrs :: forall a . NE.NonEmpty (NE.NonEmpty (Maybe (Either a (NE.NonEmpty a)))) -> [[Maybe (Either a [a])]]
+nes2Marrs = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
 
 -- Scales (fill out as needed)
 cMajScale :: Scale
