@@ -23,6 +23,102 @@ incrOct o = toEnum $ min (1 + fromEnum o) (fromEnum (maxBound::Octave))
 decrOct :: Octave -> Octave
 decrOct o = toEnum $ max (fromEnum o - 1) (fromEnum (minBound::Octave))
 
+data TransposeDirection = TransposeUp | TransposeNeutral | TransposeDown
+  deriving (Eq, Ord, Show)
+
+pitToIx :: Scale -> Pitch -> Int
+pitToIx Scale{..} p = fromMaybe errMsg (elemIndex p (NE.toList _scPitches))
+  where
+    errMsg = error $ "pitToIx no pitch " <> show p <> " in scale pitches list " <> show _scPitches
+
+ixToOct :: Scale -> (Octave,Octave) -> Int -> Octave
+ixToOct Scale{..} (lo,hi) ix = [lo..hi] !! (ix `div` length _scPitches)
+
+octToIx :: (Octave,Octave) -> Octave -> Int
+octToIx (lo,hi) o = fromMaybe errmsg (elemIndex o octaves)
+  where
+    octaves = [lo..hi]
+    errmsg  = error $ "octToIx no octave " <> show o <> " in octaves list " <> show octaves
+
+ixToPit :: Scale -> Int -> Pitch
+ixToPit Scale{..} x = _scPitches NE.!! (x `rem` length _scPitches)
+
+pitOctToInt :: Scale -> PitOct -> Int
+pitOctToInt s@Scale{..} (p,o) = pitInt + (octInt * length _scPitches)
+  where
+    pitInt = pitToIx s p
+    octInt = octToIx (minBound::Octave,maxBound::Octave) o
+
+intToPitOct :: Scale -> Int -> PitOct
+intToPitOct s i = (pit,oct)
+  where
+    pit = ixToPit s i
+    oct = ixToOct s (minBound::Octave,maxBound::Octave) i
+    
+comparePitOcts :: Scale -> PitOct -> PitOct -> TransposeDirection
+comparePitOcts s poA poB =
+  case pitOctToInt s poA `compare` pitOctToInt s poB of
+    LT -> TransposeUp
+    EQ -> TransposeNeutral
+    GT -> TransposeDown
+
+-- Placeholder for [Maybe Int] to show interval differences relative to a scale.
+-- Value is bigger than any interval could ever be for even the instrument with
+-- the widest range.
+intDiffPlaceHolder :: Int
+intDiffPlaceHolder = 1024 * 1024
+
+-- Idea is that with [Int], e.g. [1,1,3,-2] to produce a new [Int] list, one element
+-- shorter, with just the adjacent diffs, e.g. [1 - 1,3 - 1,-2 - 3] or [0,2,-5]
+-- But what about [Maybe Int] e.g. [Nothing,Just 1,Nothing,Just 1,Nothing,Just 3,Nothing, Just -2]?
+-- It's not ok for that to wind up being [Nothing,Nothing,Just 0,Nothing,Just 2,Nothing,Just -5].
+-- Need something to mean "place starting pitch here", like an int diff too big to be an interval.
+-- Then later on, when applying the int diffs, shove the start pitch in there and take all subsequent
+-- Int diffs as offsets from that starting pitch.
+-- Cayley transform to avoid reverse?
+mPitOctsToMPitOctDiffs :: Scale -> [Maybe PitOct] -> [Maybe Int]
+mPitOctsToMPitOctDiffs s = reverse . snd . foldl' foldlf (Nothing,[])
+  where
+    foldlf (Nothing,l)     Nothing      = (Nothing,Nothing:l)
+    -- Rule:  intDiffPlaceHolder is *ALWAYS FIRST* Just Int in [Maybe Int]
+    foldlf (Nothing,l)     (Just newPO) = (Just newPO,Just intDiffPlaceHolder:l)
+    foldlf (Just prevPO,l) Nothing      = (Just prevPO,Nothing:l)
+    foldlf (Just prevPO,l) (Just newPO) = (Just newPO,Just (diffPitOcts newPO prevPO):l)
+      where
+        diffPitOcts :: PitOct -> PitOct -> Int
+        diffPitOcts po1 po2 = pitOctToInt s po1 - pitOctToInt s po2
+
+-- Cayley transform to avoid reverse?
+mPitOctsToMPitOcts :: Scale -> PitOct -> [Maybe PitOct] -> [Maybe PitOct]
+mPitOctsToMPitOcts s startPO pitOcts =
+  mPitOctDiffs2MPitOcts $ mPitOctsToMPitOctDiffs s pitOcts
+  where
+    mPitOctDiffs2MPitOcts = reverse . snd . foldl' foldlf (startPO,[]) 
+    foldlf :: (PitOct,[Maybe PitOct]) -> Maybe Int -> (PitOct,[Maybe PitOct])
+    foldlf (prevPO,l) Nothing                   = (prevPO,Nothing:l)
+    -- Rule:  intDiffPlaceHolder is *ALWAYS FIRST* Just Int in [Maybe Int]
+    foldlf (prevPO,l) (Just intDiff) 
+      | intDiff == intDiffPlaceHolder = (prevPO,Just prevPO:l)
+      | otherwise                     = (newPO,Just newPO:l)
+      where
+        newPO = intToPitOct s (intDiff + pitOctToInt s prevPO)
+
+-- This is too simple and sensitive e.g. exactly zero for Neutral.
+-- Another strategy:  accept Range, then seed with pitch at midpoint
+-- and run pitch-to-pitch transpositions until exceed Range or
+-- some arbitrary count of say 10,000 transpositions goes by and
+-- you're still in the middle somewhere.
+mPitOctsToTransposeDirection :: Scale -> [Maybe PitOct] -> TransposeDirection
+mPitOctsToTransposeDirection s mPOs =
+  case sumDiffs `compare` 0 of
+    LT -> TransposeUp
+    EQ -> TransposeNeutral
+    GT -> TransposeDown
+  where
+    sumDiffs = sum $ take 1000 $ catMaybes . mPitOctsToMPitOctDiffs s $ take 1000 (cycle mPOs)
+
+-- End Experimental Try 2 ---
+
 -- in terms of 128ths, same order as Duration
 durVals :: [Int]
 durVals = [1,      2,     2 + 1,  4,     4 + 2,  8,    8 + 4, 16,   16 + 8, 32,   32 + 16, 64,   64 + 32, 128,  128 + 64]
@@ -71,7 +167,7 @@ divDur i dur
   | otherwise = error $ "divDur: durVal " <> show durVal <> " is not evenly divisble by " <> show i
     where
       durVal = dur2DurVal dur
-    
+
 -- Simple-minded disaggregation, will prefer dotted durations, e.g.:
 -- > durSum2Durs (addDur WDur (addDur WDur (addDur WDur zDurSum)))
 --  [DWDur,DWDur]
@@ -227,8 +323,8 @@ verifyDurTuplet durTup
 durTuplet2DurVal :: DurTuplet -> DurationVal
 durTuplet2DurVal t@DurTuplet{..} = DurationVal . getDurSum . sumDurs $ replicate (_durtupNumerator * durTup2CntTups t) _durtupUnitDuration
 
--- partial if Pitch from (Pitch,Octave) is not element of Scale
-xp :: Scale -> (Pitch,Octave) -> Int -> (Pitch,Octave)
+-- partial if Pitch from PitOct is not element of Scale
+xp :: Scale -> PitOct -> Int -> PitOct
 xp (Scale scale) (p,o) off = (p',o')
   where
     cntSteps = length scale
@@ -239,9 +335,9 @@ xp (Scale scale) (p,o) off = (p',o')
     pitIdx = (pitInt + off) `rem` cntSteps
     p' = if pitIdx < 0 then normScale NE.!! (cntSteps + pitIdx); else normScale NE.!! pitIdx
 
--- transpose motif, will need additional routines to extract last (Pitch,Octave) from [Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]
--- for successive transpositions of list of motifs:  [[Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]].
-mtranspose :: Scale -> (Pitch,Octave) -> [Maybe (Either Int [Int])] -> [Maybe (Either (Pitch,Octave) [(Pitch,Octave)])]
+-- transpose motif, will need additional routines to extract last PitOct from [Maybe (Either PitOct [PitOct])]
+-- for successive transpositions of list of motifs:  [[Maybe (Either PitOct [PitOct])]].
+mtranspose :: Scale -> PitOct -> [Maybe (Either Int [Int])] -> [Maybe (Either PitOct [PitOct])]
 mtranspose scale start = map (fmap xpIOrIs) . reverse . snd . foldl' f (Left 0,[])
   where
     f :: (Either Int [Int], [Maybe (Either Int [Int])]) -> Maybe (Either Int [Int]) -> (Either Int [Int], [Maybe (Either Int [Int])])
@@ -258,7 +354,7 @@ mtranspose scale start = map (fmap xpIOrIs) . reverse . snd . foldl' f (Left 0,[
     f (Right ss,l) (Just (Right is)) = (Left (head ss'), Just (Right ss):l)
       where
         ss' = (head ss +) <$> is
-    xpIOrIs :: Either Int [Int] -> Either (Pitch,Octave) [(Pitch, Octave)]
+    xpIOrIs :: Either Int [Int] -> Either PitOct [(Pitch, Octave)]
     xpIOrIs = bimap (xp scale start) (fmap (xp scale start)) 
 
 -- https://stackoverflow.com/questions/7423123/how-to-call-the-same-function-n-times
@@ -395,10 +491,10 @@ Deprecated: no longer in use
 
 import Data.Tuple
 
-transpose :: Scale -> (Pitch,Octave) -> [Int] -> [(Pitch,Octave)]
+transpose :: Scale -> PitOct -> [Int] -> [PitOct]
 transpose scale pr = map (xp scale pr) . scanl1 (+)
 
-mtranspose :: Scale -> (Pitch,Octave) -> [Maybe Int] -> [Maybe (Pitch,Octave)]
+mtranspose :: Scale -> PitOct -> [Maybe Int] -> [Maybe PitOct]
 mtranspose scale start = map (xp scale start <$>) . reverse . snd . foldl' f (0,[])
   where
     f (s,l) Nothing  = (s, Nothing:l)
@@ -406,8 +502,8 @@ mtranspose scale start = map (xp scale start <$>) . reverse . snd . foldl' f (0,
       where
         s' = s + i
 
--- sequentially transpose for Scale from start given mIntList until current (Pitch,Octave) equals or exceeds stop
-seqMTranspose :: Scale -> NE.NonEmpty (Maybe Int) -> ((Pitch,Octave),(Pitch,Octave)) -> NE.NonEmpty (Maybe (Pitch,Octave))
+-- sequentially transpose for Scale from start given mIntList until current PitOct equals or exceeds stop
+seqMTranspose :: Scale -> NE.NonEmpty (Maybe Int) -> (PitOct,PitOct) -> NE.NonEmpty (Maybe PitOct)
 seqMTranspose scale mIntList (start,stop)
   | intDir == GT && pitDir == GT = NE.unfoldr (f (<)) (0,0)
   | intDir == LT && pitDir == LT = NE.unfoldr (f (>)) (0,0)
@@ -501,7 +597,7 @@ normalizePitchOctave p o = normPitch p + normOctave o
 normalizePitchOctavePair :: (Pitch, Octave) -> Int
 normalizePitchOctavePair = uncurry normalizePitchOctave
 
-allClefRanges :: M.Map Clef ((Pitch,Octave),(Pitch,Octave))
+allClefRanges :: M.Map Clef (PitOct,PitOct)
 allClefRanges = M.fromList
   [(Treble8VA, ((A,COct),(C,TwentyTwoVAOct)))
   ,(Treble,    ((A,EightVBOct),(C,FifteenVAOct)))
@@ -515,7 +611,7 @@ allClefNormalizedRanges = M.map normPair allClefRanges
   where
     normPair = normalizePitchOctavePair *** normalizePitchOctavePair
 
-stdClefRanges :: M.Map Clef ((Pitch,Octave),(Pitch,Octave))
+stdClefRanges :: M.Map Clef (PitOct,PitOct)
 stdClefRanges = M.fromList
   [(Treble8VA, ((A,COct),(C,TwentyTwoVAOct)))
   ,(Treble,    ((A,EightVBOct),(C,FifteenVAOct)))

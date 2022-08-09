@@ -226,3 +226,9 @@ type IntOrInts = Either Int (NonEmpty Int)
 
 type PitOctOrNEPitOcts =  Either (Pitch,Octave) (NonEmpty (Pitch,Octave))
 
+type PitOct = (Pitch,Octave)
+
+type PitOctOrPitOcts = Either PitOct [PitOct]
+
+newtype Range = Range (PitOct,PitOct) deriving (Eq, Show)
+

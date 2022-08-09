@@ -36,11 +36,6 @@ import Lily (accent2Name)
 import Types
 import Utils
 
--- Synonyms
-type PitOctOrPitOcts = Either (Pitch,Octave) [(Pitch,Octave)]
-
-newtype Range = Range ((Pitch,Octave),(Pitch,Octave)) deriving (Eq, Show)
-
 ------------------------------------------
 -- Section Config and Voice Config Mods --
 ------------------------------------------
@@ -387,7 +382,23 @@ sustainNotes vrtc@VoiceRuntimeConfig{..} ves = do
 --  c) fold over scale degree or scale degree list to an interval list, carrying current interval across Nothing (mIOrIs2MIOrIsDiffs fold via accumDiff)
 mPrOrPrss2MIOrIsDiffs :: Scale -> [Maybe PitOctOrPitOcts] -> [Maybe (Either Int [Int])]
 mPrOrPrss2MIOrIsDiffs scale =
+  -- Pipeline:
+  -- a) [Maybe (Either (Pitch,Octave) [(Pitch,Octave)])] -> [Maybe (Either (Pitch,Int) [(Pitch,Int)]], Int is abs octave, [(Pitch,Int)] are low -> high
+  -- b) Scale & [Maybe (Either (Pitch,Int) [(Pitch,Int)]] -> [Maybe (Either Int [Int])], Int is abs index in range of [(Pitch,Int)] across all octaves
+  -- c) [Maybe (Either Int [Int])] -> [Maybe (Either Int [Int])] where output is diffs between adjacent entries in first
   mIOrIs2MIOrIsDiffs . mPrOrPrss2MIOrIss . map (fmap (orderChords . bimap po2pi (fmap po2pi)))
+  -- The diffs get consumed to cumulatively transpose the starting pitch to a pitch list.
+  -- Seems like way too much work for a small amount of result.
+  -- Inputs from config are absolute:  Either (Pitch,Octave) [(Pitch,Octave)]
+  -- Given Scale, starting (Pitch,Octave), and Range ((Pitch,Octave),(Pitch,Octave)), goal is to cumulative transpose list from start in Range,
+  --   remembering that start could be low for an ascending pattern or high for descending pattern, until you cross stop in Range.
+  -- Question is, can't I just interpret a starting (Pitch,Octave) and a new (Pitch,Octave) ... nope, the series of (Pitch,Octave)
+  -- have to be turned into intervals.  Or more specifically, the [Maybe (Either (Pitch,Octave) [(Pitch,Octave)))] has to get turned into
+  -- a [Maybe Int], which is made easier by sorting [(Pitch,Octave)] or first mapping to [Maybe (Pitch,Octave)] by picking the lowest first.
+  -- And along the way you turn (Pitch,Octave) into an absolute Int so you can accumulate numeric differences or you hide it in a diff op,
+  -- though the output is going to be an Int.
+  -- So that looks like a fold over [Maybe (Either (Pitch,Octave) [(Pitch,Octave)])] where the seed is the start part of the range,
+  -- uh oh but the stop is going to be arbitrary by comparison with the stop part of the range, which looks like more low-level recursion.
   where
     po2pi = second octave2Int
     octaveInts = [-4,-3,-2,-1,0,1,2,3]
@@ -399,6 +410,16 @@ mPrOrPrss2MIOrIsDiffs scale =
         accumDiff prev  Nothing          = (prev,Nothing)
         accumDiff prev (Just (Left i))   = (i,Just (Left (i - prev)))
         accumDiff prev (Just (Right is)) = (minimum is,Just (Right (flip (-) prev <$> is)))
+        
+-- Given a scale and a (pitch,scale offset) pair with the octave starting at middle C [-4,-3,-2,-1,0,1,2,3],
+-- answer the absolute index for the pitch at the scale for the full range of 8 octaves where the index is
+-- the lowest.
+pitchInt2ScaleDegree :: Scale -> (Pitch,Int) -> Int
+pitchInt2ScaleDegree Scale{..} (pitch,octOff) =
+  maybe err (length pitches * octOff +) (elemIndex pitch pitches)
+  where
+    pitches = NE.toList _scPitches
+    err = error $ "mPitch2ScaleDegree no pitch: " <> show pitch <> " in pitches for scale: " <> show pitches
         
 {--
 -- Deprecated for 
@@ -675,8 +696,21 @@ takeNDurs _ []     = error "takeNDurs unexpected end of list"
 
 -- 
 
--- End experimental 
+-- End experimental
 
+-- To make this conform to the existing shape would take some violence:
+--    Need to fit shape: String Core -> Int -> Driver [VoiceEvent]
+--    Except that'll probably have to transform to a callback where
+--    Int as maxDurVal ... except no, that's in the caller genVoiceEvents,
+--    which takes Int that is maxDurVal which is used by accumVoiceEvents
+--    to trim [DurValOrDurTuplet] from infinite to finite for mapAccumL.
+--    So to generalize, that's a function Int -> Mottos -> [VoiceEvent]
+--    which at least would have to take a Range instead, as the terminating
+--    flag.  
+-- Probably not worth it, too abstract.  Is it worthwhile to nudge it in the
+-- general direction?  Seems like it'd be useful to:
+-- a) map [Maybe PitOctOrPitOcts] to [Maybe IntOrInts], as in mPrOrPrss2MIOrIsDiffs
+--
 -- Unfold repeated transpositions of [[Maybe Pitch]] across Range
 -- matching up with repetitions of [[DurValOrDurTuplet]] and [[Accent] to generate VoiceEvent.
 genXPose :: String -> VoiceConfigCore -> Scale -> Range -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
@@ -736,15 +770,11 @@ mkNoteChordOrRest (Just (Left (p,o))) d a = VeNote (Note p o d [] [CtrlAccent a]
 mkNoteChordOrRest (Just (Right pos))  d a = VeChord (Chord (NE.fromList pos) d [] [CtrlAccent a] False)
 mkNoteChordOrRest Nothing             d _ = VeRest (Rest d [])
 
-
 appendAnnFirstNote :: String -> [VoiceEvent] -> [VoiceEvent]
 appendAnnFirstNote ann = annFirstEvent ann (\new old -> if null old then new else old <> ", " <> new)
 
 prependAnnFirstNote :: String -> [VoiceEvent] -> [VoiceEvent]
 prependAnnFirstNote ann = annFirstEvent ann (\new old -> if null old then new else  new <> ", " <> old)
-
--- replaceAnnFirstNote :: String -> [VoiceEvent] -> [VoiceEvent]
--- replaceAnnFirstNote ann = annFirstEvent ann const
 
 annFirstEvent :: String -> (String -> String -> String ) -> [VoiceEvent] -> [VoiceEvent]
 annFirstEvent ann append = snd . mapAccumL accumSeen False
@@ -769,12 +799,6 @@ isAnnotation _                  = False
 rotN :: Int -> [a] -> [a]
 rotN cnt as = drop cnt as <> take cnt as
 
-pitchInt2ScaleDegree :: Scale -> (Pitch,Int) -> Int
-pitchInt2ScaleDegree Scale{..} (pitch,octOff) =
-  maybe err (length pitches * octOff +) (elemIndex pitch pitches)
-  where
-    pitches = NE.toList _scPitches
-    err = error $ "mPitch2ScaleDegree no pitch: " <> show pitch <> " in pitches for scale: " <> show pitches
 
 -- When called from genXPose -> unfoldVEs, [Maybe PitOctOrPitOcts] is finite length, [Accent] is infinite length, can answer Nothing
 -- When called from genSlice | genVEsForDurs -> accumDurOrDurTupToVEs, [Maybe PitOctOrPitOcts] and [Accent] are infinite lengths, should never answer Nothing
@@ -791,7 +815,7 @@ mkMaybeTuplet mPOOrPOs DurTuplet{..} accents
 
 mkTuplet :: [Maybe PitOctOrPitOcts] -> DurTuplet -> [Accent] -> (VoiceEvent,[Maybe PitOctOrPitOcts],[Accent])
 mkTuplet mPOOrPOs DurTuplet{..} accents
-  | cntDurs > min (length accents') (length mPOOrPOs') = error "mkTuplet: not enough left, maybe retry with next DurValOrDurTuplet?"
+  | cntDurs > min (length accents') (length mPOOrPOs') = error $ "mkTuplet: cntDurs: " <> show cntDurs <> " >  min " <> show (length accents') <> " " <> show (length mPOOrPOs')
   | otherwise = (veTup,drop cntDurs mPOOrPOs,drop cntDurs accents)
   where
     ves         = zipWith3 mkNoteChordOrRest mPOOrPOs' (NE.toList _durtupDurations) accents'
@@ -799,7 +823,6 @@ mkTuplet mPOOrPOs DurTuplet{..} accents
     cntDurs     = length _durtupDurations
     mPOOrPOs'   = take cntDurs mPOOrPOs -- may return < cntDurs (Maybe PitOctOrPitOcts)
     accents'    = take cntDurs accents -- always returns cntDurs Accent
-
 
 verifyVeTuplet :: VoiceEvent -> Maybe VoiceEvent
 verifyVeTuplet (VeTuplet tuplet)
@@ -947,7 +970,6 @@ incrBlendedIndices is = maybe (fmap succ is) (uncurry (<>) . first (fmap succ) .
 -- SectionConfigAccrete helpers --
 ----------------------------------
 
-type PitOct   = (Pitch,Octave)
 type DurVals  = (DurationVal,DurationVal)
 type Motif    = ([Maybe IntOrInts],[DurValAccOrDurTupletAccs])
 type MotifTup = (PitOct,DurVals,[Motif])
