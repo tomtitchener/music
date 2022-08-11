@@ -96,6 +96,7 @@ deriving instance Generic Octave
 deriving instance Generic Pitch
 deriving instance Generic Rest
 deriving instance Generic TimeSignature
+deriving instance Generic PitOct
 
 --
 -- Select from enum
@@ -176,13 +177,13 @@ instance Arbitrary (NE.NonEmpty Accent) where
   arbitrary = genericArbitrary
 
 -- required for genericShrink in Arbitrary Chord
-instance Arbitrary (NE.NonEmpty (Pitch,Octave)) where
-  arbitrary = genericArbitrary
+instance Arbitrary PitOct where
+  arbitrary = PitOct <$> arbitrary <*> arbitrary
+  shrink = genericShrink
 
 -- chord has non-empty list of (pitch,octave) pairs plus duration, accent, dynamic, swell, and slur
 instance Arbitrary Chord where
   arbitrary = Chord . NE.fromList <$> listOfThree arbitrary <*> arbitrary <*> pure [] <*> pure [] <*> arbitrary
-  shrink = genericShrink
 
 instance Arbitrary Tuplet where
   arbitrary = do

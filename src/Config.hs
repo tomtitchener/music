@@ -2,6 +2,7 @@
 
 module Config (FromConfig(..)) where
 
+-- import Data.Function (on)
 import Data.Functor ((<&>))
 import Data.Natural (Natural)
 import Text.Parsec
@@ -21,6 +22,8 @@ import Text.Parsec.Number ( int )
 import Text.Parsec.String ( Parser )
 
 import qualified Data.List.NonEmpty as NE
+
+import Data.List (sort)
 
 import Lily
     ( parseDuration, parseInstrument, parsePitch, parseNat, parseNatural )
@@ -63,26 +66,32 @@ instance FromConfig (NE.NonEmpty Octave) where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty Octave)) where
   parseConfig = mkParseConfig (mkPss pOctaveStr)
 
-instance FromConfig (Pitch,Octave) where
-  parseConfig = mkParseConfig pPitOctPr
+--instance FromConfig (Pitch,Octave) where
+--  parseConfig = mkParseConfig pPitOctPr
 
-instance FromConfig (NE.NonEmpty (Int,NE.NonEmpty (Pitch,Octave))) where
-  parseConfig = mkParseConfig (mkPs pIntPitOctPrs)
+instance FromConfig PitOct where
+  parseConfig = mkParseConfig pPitOct
+
+instance FromConfig Range where
+  parseConfig = mkParseConfig pPitOctPr 
   
-instance FromConfig ((Pitch,Octave),(Pitch,Octave)) where
-  parseConfig = mkParseConfig pPitOctsPr
+--instance FromConfig (NE.NonEmpty (Int,NE.NonEmpty (Pitch,Octave))) where
+--  parseConfig = mkParseConfig (mkPs pIntPitOctPrs)
+  
+--instance FromConfig ((Pitch,Octave),(Pitch,Octave)) where
+--  parseConfig = mkParseConfig pPitOctsPr
 
-instance FromConfig (NE.NonEmpty (Pitch,Octave)) where
-  parseConfig = mkParseConfig (mkPs pPitOctPr)
+--instance FromConfig (NE.NonEmpty (Pitch,Octave)) where
+--  parseConfig = mkParseConfig (mkPs pPitOctPr)
 
-instance FromConfig (NE.NonEmpty (NE.NonEmpty (Pitch,Octave))) where
-  parseConfig = mkParseConfig (mkPss pPitOctPr)
+--instance FromConfig (NE.NonEmpty (NE.NonEmpty (Pitch,Octave))) where
+--  parseConfig = mkParseConfig (mkPss pPitOctPr)
 
-instance FromConfig (NE.NonEmpty ((Pitch,Octave),(Pitch,Octave))) where
-  parseConfig = mkParseConfig (mkPs pPitOctsPr)
+--instance FromConfig (NE.NonEmpty (PitOct,PitOct)) where
+--  parseConfig = mkParseConfig (mkPs pPitOctPr)
 
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))) where
-  parseConfig = mkParseConfig (mkPs (mkPs (pM pPitOctPrOrPitOctPrs)))
+  parseConfig = mkParseConfig (mkPs (mkPs (pM pPitOctOrPitOcts)))
 
 instance FromConfig Scale where
   parseConfig = mkParseConfig (Scale <$> mkPs parsePitch)
@@ -163,10 +172,10 @@ instance FromConfig (NE.NonEmpty (Int,Int)) where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Int,Int))) where
   parseConfig = mkParseConfig (mkPss pIntPr)
 
-instance FromConfig (NE.NonEmpty ((Pitch,Octave),KeySignature)) where
+instance FromConfig (NE.NonEmpty (PitOct,KeySignature)) where
   parseConfig = mkParseConfig (mkPs pPitOctKeySigPr)
   
-instance FromConfig (NE.NonEmpty (KeySignature,(Pitch,Octave))) where
+instance FromConfig (NE.NonEmpty (KeySignature,PitOct)) where
   parseConfig = mkParseConfig (mkPs pKeySigPitOctPr)
 
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe (Either Int (NE.NonEmpty Int))))) where
@@ -175,11 +184,11 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe (Either Int (NE.NonEmpty In
 --instance FromConfig (NE.NonEmpty (NE.NonEmpty (DurValOrDurTuplet,Maybe Accent))) where
 --  parseConfig = mkParseConfig (mkPss pDurTupMAcctPr)
 
-pPitOctKeySigPr :: Parser ((Pitch,Octave),KeySignature)
-pPitOctKeySigPr = between (char '(') (char ')') ((,) <$> pPitOctPr <*> (char ',' *> pKeySignature))
+pPitOctKeySigPr :: Parser (PitOct,KeySignature)
+pPitOctKeySigPr = between (char '(') (char ')') ((,) <$> pPitOct <*> (char ',' *> pKeySignature))
 
-pKeySigPitOctPr :: Parser (KeySignature,(Pitch,Octave))
-pKeySigPitOctPr = between (char '(') (char ')') ((,) <$> pKeySignature <*> (char ',' *> pPitOctPr))
+pKeySigPitOctPr :: Parser (KeySignature,PitOct)
+pKeySigPitOctPr = between (char '(') (char ')') ((,) <$> pKeySignature <*> pPitOct)
 
 -- 0 is not a legal interval, unison is 1/-1, second is 2/-2 and etc. (enforced by int2Off)
 pMIntOrInts :: Parser (Maybe (Either Int (NE.NonEmpty Int)))
@@ -275,8 +284,8 @@ pTimeSignatureGrouping = pIntsIntDurPr <&> \(groups,(num,denom)) -> TimeSignatur
 pIntsIntDurPr :: Parser (NE.NonEmpty Int,(Int,Duration))
 pIntsIntDurPr = between (char '(') (char ')') ((,) <$> mkPs int <*> (char ',' *> pIntDurPr))
 
-pIntPitOctPrs :: Parser (Int,NE.NonEmpty (Pitch,Octave))
-pIntPitOctPrs = between (char '(') (char ')') ((,) <$> int <*> mkPs pPitOctPr)
+--pIntPitOctPrs :: Parser (Int,NE.NonEmpty (Pitch,Octave))
+--pIntPitOctPrs = between (char '(') (char ')') ((,) <$> int <*> mkPs pPitOctPr)
 
 pTimeSig :: Parser TimeSignature
 pTimeSig = pIntDurPr <&> uncurry TimeSignatureSimple
@@ -302,11 +311,17 @@ octaveIntStrings = ["-4","-3","-2","-1","0","1","2","3"]
 pOctaveStr :: Parser Octave
 pOctaveStr = choice (zipWith mkParser octaveIntStrings [TwentyNineVBOct .. TwentyTwoVAOct])
 
-pPitOctPr :: Parser (Pitch,Octave)
-pPitOctPr = between (char '(') (char ')') ((,) <$> parsePitch <*> (char ',' *> pOctaveStr))
+--pPitOctPr :: Parser (Pitch,Octave)
+--pPitOctPr = between (char '(') (char ')') ((,) <$> parsePitch <*> (char ',' *> pOctaveStr))
 
-pPitOctsPr :: Parser ((Pitch,Octave),(Pitch,Octave))
-pPitOctsPr = between (char '(') (char ')') ((,) <$> pPitOctPr <*> (char ',' *> pPitOctPr))
+pPitOctPr :: Parser (PitOct,PitOct)
+pPitOctPr = between (char '(') (char ')') ((,) <$> pPitOct <*> (char ',' *> pPitOct))
+
+pPitOct :: Parser PitOct
+pPitOct = PitOct <$> parsePitch <*> (char ',' *> pOctaveStr)
+
+--pPitOctsPr :: Parser ((Pitch,Octave),(Pitch,Octave))
+--pPitOctsPr = between (char '(') (char ')') ((,) <$> pPitOctPr <*> (char ',' *> pPitOctPr))
 
 pMPitOctPr :: Parser (Maybe Pitch,Int)
 pMPitOctPr = between (char '(') (char ')') ((,) <$> pMPitch <*> (char ',' *> int))
@@ -317,8 +332,17 @@ pPitIntPr = between (char '(') (char ')') ((,) <$> parsePitch <*> (char ',' *> i
 pPitIntPrOrPitIntPrs :: Parser (Either (Pitch,Int) (NE.NonEmpty (Pitch,Int)))
 pPitIntPrOrPitIntPrs = try (Left <$> pPitIntPr) <|> (Right <$> mkPs pPitIntPr)
 
-pPitOctPrOrPitOctPrs :: Parser PitOctOrNEPitOcts
-pPitOctPrOrPitOctPrs = try (Left <$> pPitOctPr) <|> (Right <$> mkPs pPitOctPr)
+--pPitOctPrOrPitOctPrs :: Parser PitOctOrNEPitOcts
+--pPitOctPrOrPitOctPrs = try (Left <$> pPitOctPr) <|> (Right . sortLoToHi <$> mkPs pPitOctPr)
+--  where
+--    sortLoToHi = NE.fromList . sortBy (compare `on` swap) . NE.toList
+
+-- sort by NE.List (Pitch,Octave) pairs by (Octave,Pitch) from low to hi for
+-- easier transpose of lists of PitOctOrPitOcts
+pPitOctOrPitOcts :: Parser PitOctOrNEPitOcts
+pPitOctOrPitOcts = try (Left <$> pPitOct) <|> (Right . sortLoToHi <$> mkPs pPitOct)
+  where
+    sortLoToHi = NE.fromList . sort . NE.toList
   
 clefStrs :: [String]
 clefStrs = ["bass_8", "bass", "tenor", "alto", "treble", "treble^8"]

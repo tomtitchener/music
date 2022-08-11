@@ -5,6 +5,7 @@ module ComposeData where
 
 import Driver (Driver, searchConfigParam, searchMConfigParam, cfgPath2Keys)
 import Types
+import Utils 
 
 import Control.Lens hiding (pre)
 import Data.List (isPrefixOf)
@@ -66,9 +67,9 @@ data SectionConfig =
   -- though that'll probably mean changing to VoiceConfigCore?
   | SectionConfigAccrete {
       _sccCore           :: SectionConfigCore
-      ,_sccNumBars       :: Int
-      ,_sccInits         :: NE.NonEmpty (KeySignature,(Pitch,Octave))
-      ,_sccMIntervalss   :: NE.NonEmpty (NE.NonEmpty (Maybe IntOrInts))
+      ,_sccNumBars       :: Int -- TBD Range?
+      ,_sccInits         :: NE.NonEmpty (KeySignature,PitOct)
+      ,_sccMIntervalss   :: NE.NonEmpty (NE.NonEmpty (Maybe IntOrInts)) -- TBD, replace with PitOctOrPitOcts
       ,_sccDurOrDurTupss :: NE.NonEmpty (NE.NonEmpty DurValAccOrDurTupletAccs)
       }
     deriving Show
@@ -180,7 +181,7 @@ data VoiceConfig =
   | VoiceConfigXPose {
       _vcxCore    :: VoiceConfigCore
       ,_vcxScale  :: Scale
-      ,_vcxRange  :: ((Pitch,Octave),(Pitch,Octave))
+      ,_vcxRange  :: (PitOct,PitOct)
       }
     deriving Show
 
@@ -190,16 +191,31 @@ makeLenses ''VoiceConfig
 path2VoiceConfigCore :: String -> Driver VoiceConfigCore
 path2VoiceConfigCore pre =
   VoiceConfigCore
-  <$> searchConfigParam  (pre <> ".mPitOctsss")
+  <$> searchConfigParam  (pre <> ".mPitOctsss") 
   <*> searchConfigParam  (pre <> ".durss")
   <*> searchConfigParam  (pre <> ".accentss")
+
+-- Add comparison of ordering in (start,stop) in Range
+-- to ordering in mPirtOctsss in Core
+path2VoiceConfigXPose' :: String -> Driver VoiceConfig
+path2VoiceConfigXPose' pre = 
+  VoiceConfigXPose 
+  <$> path2VoiceConfigCore pre
+  <*> searchConfigParam  (pre <> ".scale")
+  <*> searchConfigParam  (pre <> ".range")
   
+-- Verify direction of range in config matches direction of list of list of maybe pitch or pitches,
+-- e.g. if range goes low to high, then sum of diffs between first and last pitch must be > 0.
 path2VoiceConfigXPose :: String -> Driver VoiceConfig
-path2VoiceConfigXPose pre =
-      VoiceConfigXPose 
-        <$> path2VoiceConfigCore pre
-        <*> searchConfigParam  (pre <> ".scale")
-        <*> searchConfigParam  (pre <> ".range")
+path2VoiceConfigXPose pre = path2VoiceConfigXPose' pre <&> verifyRange
+  where
+    verifyRange vc@VoiceConfigXPose{..}
+      | rangeOrd == mPOOrPOsssOrd = vc
+      | otherwise = error $ "path2VoiceConfigXPose range ord: " <> show rangeOrd <> " does not match ord of list of list of maybe pitch or pitches: " <> show mPOOrPOsssOrd
+      where
+        rangeOrd = rangeToOrd _vcxRange
+        mPOOrPOsssOrd = mPitOctOrPitOctsssToOrd _vcxScale (neMPOs2MarrsMPOs $ _vcmPOOrPOss _vcxCore)
+    verifyRange vc = error $ "path2VoiceConfigXPose unexpected VoiceConfig: " <> show vc
 
 path2VoiceConfigRepeat :: String -> Driver VoiceConfig
 path2VoiceConfigRepeat pre =
@@ -227,7 +243,7 @@ path2VoiceConfigSlice pre = path2VoiceConfigSlice' pre <&> verifyListsLengths
       | otherwise = error $ "path2VoiceConfigSlice unequal length listss: " <> show allLengths
       where
         allLengths = [NE.length (_vcmPOOrPOss _vccCore),NE.length (_vcAcctss _vccCore),NE.length (_vcDurss _vccCore)]
-    verifyListsLengths vc = error $ "pagth2VoiceConfigSlice unexpected VoiceConfig: " <> show vc
+    verifyListsLengths vc = error $ "path2VoiceConfigSlice unexpected VoiceConfig: " <> show vc
 
 path2VoiceConfigBlend :: String -> Driver VoiceConfig
 path2VoiceConfigBlend pre =
@@ -239,11 +255,11 @@ path2VoiceConfigBlend pre =
 type Path2VoiceConfig = String -> Driver VoiceConfig
 
 name2VoiceConfigMap :: M.Map String Path2VoiceConfig
-name2VoiceConfigMap = M.fromList [("xpose"   ,path2VoiceConfigXPose)
-                                 ,("repeat"  ,path2VoiceConfigRepeat)
-                                 ,("verbatim",path2VoiceConfigVerbatim)
+name2VoiceConfigMap = M.fromList [("verbatim",path2VoiceConfigVerbatim)
                                  ,("slice"   ,path2VoiceConfigSlice)
-                                 ,("blend"   ,path2VoiceConfigBlend)]
+                                 ,("repeat"  ,path2VoiceConfigRepeat)
+                                 ,("blend"   ,path2VoiceConfigBlend)
+                                 ,("xpose"   ,path2VoiceConfigXPose)]
 
 path2VoiceConfig :: Path2VoiceConfig
 path2VoiceConfig path =

@@ -311,24 +311,24 @@ instance FromLily Tuplet where
 -- Chord --
 -----------
 
-pitchOctavePairToLily :: (Pitch,Octave) -> String
-pitchOctavePairToLily (p,o) = toLily p <> toLily o
+pitchOctavePairToLily :: PitOct -> String
+pitchOctavePairToLily (PitOct p o) = toLily p <> toLily o
 
-pitchOctavePairsToLily :: NE.NonEmpty (Pitch,Octave) -> String
+pitchOctavePairsToLily :: NE.NonEmpty PitOct -> String
 pitchOctavePairsToLily = unwords . NE.toList . NE.map pitchOctavePairToLily
 
 instance ToLily Chord where
   toLily (Chord prs dur midiCtrls ctrls slr) =
     "<" <> pitchOctavePairsToLily prs <> ">" <> toLily dur <> toLilyFromList midiCtrls <> toLilyFromList ctrls <> if slr then "~" else ""
 
-parsePair :: Parser (Pitch,Octave)
-parsePair = (,) <$> parsePitch <*> parseOctave
+parsePitOct :: Parser PitOct
+parsePitOct = PitOct <$> parsePitch <*> parseOctave
 
-parsePairs :: Parser (NE.NonEmpty (Pitch,Octave))
-parsePairs = NE.fromList <$> (parsePair `sepBy` spaces)
+parsePitOcts :: Parser (NE.NonEmpty PitOct)
+parsePitOcts = NE.fromList <$> (parsePitOct `sepBy` spaces)
 
 parseChord :: Parser Chord
-parseChord = Chord <$> (string "<" *> parsePairs <* string ">") <*> parseDurationVal <*> many parseMidiControl <*> many parseControl <*> parseBool
+parseChord = Chord <$> (string "<" *> parsePitOcts <* string ">") <*> parseDurationVal <*> many parseMidiControl <*> many parseControl <*> parseBool
 
 instance FromLily Chord  where
   parseLily = mkParseLily parseChord
@@ -381,11 +381,11 @@ instance ToLily Tremolo where
     where
       (reps,barring) = splitTremolo (durationVal2Durations dur) [SFDur, HTEDur]
   toLily (ChordTremolo (Chord prsL durL midiCtrlsL ctrlsL slrL) (Chord prsR durR midiCtrlsR ctrlsR slrR)) =
-    [str|\repeat tremolo $:reps$ {<$prs2Lily prsL$>$toLily barring <> toLilyFromList midiCtrlsL <> toLilyFromList ctrlsL <> if slrL then "~" else ""$ <$prs2Lily prsR$>$toLily barring <> toLilyFromList midiCtrlsR <> toLilyFromList ctrlsR <> if slrR then "~" else ""$}|]
+    [str|\repeat tremolo $:reps$ {<$pos2Lily prsL$>$toLily barring <> toLilyFromList midiCtrlsL <> toLilyFromList ctrlsL <> if slrL then "~" else ""$ <$pos2Lily prsR$>$toLily barring <> toLilyFromList midiCtrlsR <> toLilyFromList ctrlsR <> if slrR then "~" else ""$}|]
     where
       (reps,barring) = splitTremolo (durationVal2Durations durL <> durationVal2Durations durR) [SFDur, HTEDur]
-      pr2Lily (p,o) = toLily p <> toLily o
-      prs2Lily = unwords . map pr2Lily . NE.toList
+      poToLily (PitOct p o) = toLily p <> toLily o
+      pos2Lily = unwords . map poToLily . NE.toList
 
 splitTremolo :: [Duration] -> [Duration] -> (Int,Duration)
 splitTremolo durTot [] = error $ "splitTremolo unable to split " <> show durTot

@@ -4,8 +4,8 @@
 
 module Utils where
 
--- import Control.Monad (liftM2)
-import Data.Bifunctor (second, bimap)
+
+import Data.Bifunctor (bimap, second)
 import Data.List hiding (transpose)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
@@ -23,44 +23,47 @@ incrOct o = toEnum $ min (1 + fromEnum o) (fromEnum (maxBound::Octave))
 decrOct :: Octave -> Octave
 decrOct o = toEnum $ max (fromEnum o - 1) (fromEnum (minBound::Octave))
 
-data TransposeDirection = TransposeUp | TransposeNeutral | TransposeDown
-  deriving (Eq, Ord, Show)
+poPrToPO :: (Pitch,Octave) -> PitOct
+poPrToPO  = uncurry PitOct
 
+-- What's the index for a Pitch in a Scale?
 pitToIx :: Scale -> Pitch -> Int
 pitToIx Scale{..} p = fromMaybe errMsg (elemIndex p (NE.toList _scPitches))
   where
     errMsg = error $ "pitToIx no pitch " <> show p <> " in scale pitches list " <> show _scPitches
 
-ixToOct :: Scale -> (Octave,Octave) -> Int -> Octave
-ixToOct Scale{..} (lo,hi) ix = [lo..hi] !! (ix `div` length _scPitches)
+-- What's the Pitch for an index given a Scale?
+ixToPit :: Scale -> Int -> Pitch
+ixToPit Scale{..} x = _scPitches NE.!! (x `rem` length _scPitches)
 
+-- What's the index for an Octave given an Octave range?
 octToIx :: (Octave,Octave) -> Octave -> Int
 octToIx (lo,hi) o = fromMaybe errmsg (elemIndex o octaves)
   where
     octaves = [lo..hi]
     errmsg  = error $ "octToIx no octave " <> show o <> " in octaves list " <> show octaves
 
-ixToPit :: Scale -> Int -> Pitch
-ixToPit Scale{..} x = _scPitches NE.!! (x `rem` length _scPitches)
+-- What's the Octave for an index given an Octave range?
+ixToOct :: Scale -> (Octave,Octave) -> Int -> Octave
+ixToOct Scale{..} (lo,hi) ix = [lo..hi] !! (ix `div` length _scPitches)
 
+-- What's the index for a (Pitch,Oct) given a Scale and assuming an absolute Octave range?
 pitOctToInt :: Scale -> PitOct -> Int
-pitOctToInt s@Scale{..} (p,o) = pitInt + (octInt * length _scPitches)
+pitOctToInt s@Scale{..} (PitOct p o) = pitInt + (octInt * length _scPitches)
   where
     pitInt = pitToIx s p
     octInt = octToIx (minBound::Octave,maxBound::Octave) o
 
+-- What's the absolute index for Left PitOct or Right [PitOct] where [PitOct] is sorted low to high?
+pitOctOrPOsToInt :: Scale -> PitOctOrPitOcts -> Int
+pitOctOrPOsToInt s = pitOctToInt s . pitOctOrPitOctsToPitOct
+
+-- What's the (Pitch,Octave) given a Scale and an index assuming an absolute Octave range?
 intToPitOct :: Scale -> Int -> PitOct
-intToPitOct s i = (pit,oct)
+intToPitOct s i = PitOct pit oct
   where
     pit = ixToPit s i
     oct = ixToOct s (minBound::Octave,maxBound::Octave) i
-    
-comparePitOcts :: Scale -> PitOct -> PitOct -> TransposeDirection
-comparePitOcts s poA poB =
-  case pitOctToInt s poA `compare` pitOctToInt s poB of
-    LT -> TransposeUp
-    EQ -> TransposeNeutral
-    GT -> TransposeDown
 
 -- Placeholder for [Maybe Int] to show interval differences relative to a scale.
 -- Value is bigger than any interval could ever be for even the instrument with
@@ -68,56 +71,86 @@ comparePitOcts s poA poB =
 intDiffPlaceHolder :: Int
 intDiffPlaceHolder = 1024 * 1024
 
+-- Haven't discovered any library to left accumulate a carried a from [b] -> [c],
+-- so roll my own recursion.
+-- Could use foldl' with DList for efficient snoc but this seems easier to follow
+-- as it separates carried value from list generation.
+
 -- Idea is that with [Int], e.g. [1,1,3,-2] to produce a new [Int] list, one element
 -- shorter, with just the adjacent diffs, e.g. [1 - 1,3 - 1,-2 - 3] or [0,2,-5]
 -- But what about [Maybe Int] e.g. [Nothing,Just 1,Nothing,Just 1,Nothing,Just 3,Nothing, Just -2]?
--- It's not ok for that to wind up being [Nothing,Nothing,Just 0,Nothing,Just 2,Nothing,Just -5].
+-- It's not ok for that to wind up being [Nothing, -- Nothing,Just 0,Nothing,Just 2,Nothing,Just -5].
 -- Need something to mean "place starting pitch here", like an int diff too big to be an interval.
 -- Then later on, when applying the int diffs, shove the start pitch in there and take all subsequent
 -- Int diffs as offsets from that starting pitch.
--- Cayley transform to avoid reverse?
+-- Doesn't work on infinite list of [Maybe PitOct]
 mPitOctsToMPitOctDiffs :: Scale -> [Maybe PitOct] -> [Maybe Int]
-mPitOctsToMPitOctDiffs s = reverse . snd . foldl' foldlf (Nothing,[])
+mPitOctsToMPitOctDiffs s = f Nothing
   where
-    foldlf (Nothing,l)     Nothing      = (Nothing,Nothing:l)
+    f :: Maybe PitOct -> [Maybe PitOct] -> [Maybe Int]
+    f Nothing       (Nothing:mPOs)    = Nothing : f Nothing mPOs
     -- Rule:  intDiffPlaceHolder is *ALWAYS FIRST* Just Int in [Maybe Int]
-    foldlf (Nothing,l)     (Just newPO) = (Just newPO,Just intDiffPlaceHolder:l)
-    foldlf (Just prevPO,l) Nothing      = (Just prevPO,Nothing:l)
-    foldlf (Just prevPO,l) (Just newPO) = (Just newPO,Just (diffPitOcts newPO prevPO):l)
-      where
-        diffPitOcts :: PitOct -> PitOct -> Int
-        diffPitOcts po1 po2 = pitOctToInt s po1 - pitOctToInt s po2
+    f Nothing       (Just newPO:mPOs) = Just intDiffPlaceHolder : f (Just newPO) mPOs
+    f (Just prevPO) (Nothing:mPOs)    = Nothing : f (Just prevPO) mPOs
+    f (Just prevPO) (Just newPO:mPOs) = Just (diffPitOcts s newPO prevPO):f (Just newPO) mPOs
+    f _             []                = []
 
--- Cayley transform to avoid reverse?
+diffPitOcts :: Scale -> PitOct -> PitOct -> Int
+diffPitOcts s po1 po2 = pitOctToInt s po1 - pitOctToInt s po2
+
+-- Relies on [PitOct] being sorted low to high (see Config.hs::pPitOctPrOrPirtOctPrs).
+pitOctOrPitOctsToPitOct :: PitOctOrPitOcts -> PitOct
+pitOctOrPitOctsToPitOct = either id head 
+
+diffPitOctOrPitOcts :: Scale -> PitOctOrPitOcts -> PitOctOrPitOcts -> Int
+diffPitOctOrPitOcts s po1 po2 = pitOctToInt s (pitOctOrPitOctsToPitOct po1) - pitOctToInt s (pitOctOrPitOctsToPitOct po2)
+
+-- Doesn't work on infinite list of [Maybe PitOct]
 mPitOctsToMPitOcts :: Scale -> PitOct -> [Maybe PitOct] -> [Maybe PitOct]
-mPitOctsToMPitOcts s startPO pitOcts =
-  mPitOctDiffs2MPitOcts $ mPitOctsToMPitOctDiffs s pitOcts
+mPitOctsToMPitOcts s startPO = f startPO . mPitOctsToMPitOctDiffs s 
   where
-    mPitOctDiffs2MPitOcts = reverse . snd . foldl' foldlf (startPO,[]) 
-    foldlf :: (PitOct,[Maybe PitOct]) -> Maybe Int -> (PitOct,[Maybe PitOct])
-    foldlf (prevPO,l) Nothing                   = (prevPO,Nothing:l)
-    -- Rule:  intDiffPlaceHolder is *ALWAYS FIRST* Just Int in [Maybe Int]
-    foldlf (prevPO,l) (Just intDiff) 
-      | intDiff == intDiffPlaceHolder = (prevPO,Just prevPO:l)
-      | otherwise                     = (newPO,Just newPO:l)
-      where
-        newPO = intToPitOct s (intDiff + pitOctToInt s prevPO)
+    f :: PitOct -> [Maybe Int] -> [Maybe PitOct]
+    f prevPO (Nothing:mPIs) = Nothing : f prevPO mPIs
+    f prevPO (Just intDiff:mPIs)
+      -- Rule:  intDiffPlaceHolder is *ALWAYS FIRST* Just Int in [Maybe Int]
+      | intDiff == intDiffPlaceHolder = Just prevPO : f prevPO mPIs
+      | otherwise                     = Just newPO  : f newPO mPIs
+        where
+          newPO = intToPitOct s (intDiff + pitOctToInt s prevPO)
+    f _ [] = []
 
--- This is too simple and sensitive e.g. exactly zero for Neutral.
--- Another strategy:  accept Range, then seed with pitch at midpoint
--- and run pitch-to-pitch transpositions until exceed Range or
--- some arbitrary count of say 10,000 transpositions goes by and
--- you're still in the middle somewhere.
-mPitOctsToTransposeDirection :: Scale -> [Maybe PitOct] -> TransposeDirection
-mPitOctsToTransposeDirection s mPOs =
-  case sumDiffs `compare` 0 of
-    LT -> TransposeUp
-    EQ -> TransposeNeutral
-    GT -> TransposeDown
+-- To determine the overall ordering of a list of list of Maybe PitOctOrPitOcts,
+-- sum the diffs of each list of Maybe PitOctOrPitOcts and compare with 0.
+mPitOctOrPitOctsssToOrd :: Scale -> [[Maybe PitOctOrPitOcts]] -> Ordering
+mPitOctOrPitOctsssToOrd s mPOOrPOsss =
+  sum ranges `compare` 0 
   where
-    sumDiffs = sum $ take 1000 $ catMaybes . mPitOctsToMPitOctDiffs s $ take 1000 (cycle mPOs)
+    ranges = poOrPOsToIntRange s . catMaybes <$> mPOOrPOsss
 
--- End Experimental Try 2 ---
+-- To determine the ordering list of PitOctOrPitOcts,
+-- diff the absolute index of the last with that of the first.
+poOrPOsToIntRange :: Scale -> [PitOctOrPitOcts] -> Int
+poOrPOsToIntRange s poOrPOs
+  | length poOrPOs < 2 = error $ "poOrPOsToIntRange list is too short: " <> show poOrPOs
+  | otherwise          = pitOctOrPOsToInt s (last poOrPOs) - pitOctOrPOsToInt s (head poOrPOs)
+
+rangeToOrd :: Range -> Ordering
+rangeToOrd (po1,po2) = po2 `compare` po1
+
+-- Doesn't really work this way.  In practice, there'll likely be
+-- temporary points where the transpositions exceed the start and
+-- so we really only want to test against the end.
+-- rangeContainsPitOctOrPitOcts :: Range -> PitOctOrPitOcts -> Bool
+-- rangeContainsPitOctOrPitOcts (po1,po2) poOrPOs =
+--   (loPO `comparePitOcts` po == LT || loPO `comparePitOcts` po == EQ) &&
+--   (hiPO `comparePitOcts` po == GT || hiPO `comparePitOcts` po == EQ)
+--   where
+--     (loPO,hiPO) = if po1 `comparePitOcts` po2 == LT then (po1,po2) else (po2,po1)
+--     po = pitOctOrPitOctsToPitOct poOrPOs
+
+-- Next:  change from [Maybe PitOct] to [Maybe PitOctOrPitOcts]
+-- Next:  range-limited version terminates when [Maybe PitOct] is infinite.
+-- Next:  duration-limited version for synchronized voices.
 
 -- in terms of 128ths, same order as Duration
 durVals :: [Int]
@@ -325,7 +358,7 @@ durTuplet2DurVal t@DurTuplet{..} = DurationVal . getDurSum . sumDurs $ replicate
 
 -- partial if Pitch from PitOct is not element of Scale
 xp :: Scale -> PitOct -> Int -> PitOct
-xp (Scale scale) (p,o) off = (p',o')
+xp (Scale scale) (PitOct p o) off = PitOct p' o'
   where
     cntSteps = length scale
     normScale = NE.sort scale -- To [C..B] or closest enharmonic to compute new octave
@@ -354,7 +387,7 @@ mtranspose scale start = map (fmap xpIOrIs) . reverse . snd . foldl' f (Left 0,[
     f (Right ss,l) (Just (Right is)) = (Left (head ss'), Just (Right ss):l)
       where
         ss' = (head ss +) <$> is
-    xpIOrIs :: Either Int [Int] -> Either PitOct [(Pitch, Octave)]
+    xpIOrIs :: Either Int [Int] -> Either PitOct [PitOct]
     xpIOrIs = bimap (xp scale start) (fmap (xp scale start)) 
 
 -- https://stackoverflow.com/questions/7423123/how-to-call-the-same-function-n-times
@@ -371,8 +404,14 @@ nes2arrs = map NE.toList . NE.toList
 arrs2nes :: [[a]] -> NE.NonEmpty (NE.NonEmpty a)
 arrs2nes = NE.fromList . map NE.fromList 
 
-nes2Marrs :: forall a . NE.NonEmpty (NE.NonEmpty (Maybe (Either a (NE.NonEmpty a)))) -> [[Maybe (Either a [a])]]
-nes2Marrs = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
+-- nes2Marrs :: forall a . NE.NonEmpty (NE.NonEmpty (Maybe (Either a (NE.NonEmpty a)))) -> [[Maybe (Either a [a])]]
+-- nes2Marrs = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
+
+--nes2Marrs :: NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave))))) -> [[Maybe (Either PitOct [PitOct])]]
+--nes2Marrs = map (map (fmap (bimap (uncurry PitOct) ((uncurry PitOct <$>) . NE.toList))) . NE.toList) . NE.toList
+
+neMPOs2MarrsMPOs :: NE.NonEmpty (NE.NonEmpty (Maybe (Either PitOct (NE.NonEmpty PitOct)))) -> [[Maybe (Either PitOct [PitOct])]]
+neMPOs2MarrsMPOs = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
 
 -- Scales (fill out as needed)
 cMajScale :: Scale

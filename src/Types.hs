@@ -1,5 +1,5 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE DerivingVia     #-}
+{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE DerivingVia          #-}
 
 {- | Music types for translating to and from Lilypond strings.
      Atomic types (Pitch, Scale, Octave, Accent, Duration, Dynamic, etc.)
@@ -17,9 +17,22 @@
 
 module Types where
 
-import Control.Lens 
+import Control.Lens
 import Data.List.NonEmpty
 import Data.Natural
+
+-- Total duration is (denom / num) * (sum durations / unit) * unit
+data DurTuplet = DurTuplet {
+   _durtupNumerator    :: Int
+  ,_durtupDenominator  :: Int
+  ,_durtupUnitDuration :: Duration
+  ,_durtupDurations    :: NonEmpty DurationVal
+  } deriving Show
+
+data PitOct = PitOct Pitch Octave deriving (Eq, Show)
+
+instance Ord PitOct where
+  compare (PitOct p1 o1) (PitOct p2 o2) = (o1,p1) `compare` (o2,p2)
 
 -- Derive Eq and Ord from symbols for simplicity.
 -- In practice some symbols are enharmonically
@@ -94,7 +107,7 @@ data Rhythm = Rhythm { _rhythmInstr :: String, _rhythmDur :: DurationVal, _rhyth
 data Tuplet = Tuplet { _tupNum :: Int, _tupDenom :: Int, _tupDur :: Duration, _tupNotes :: NonEmpty VoiceEvent }
   deriving (Eq, Ord, Show)
 
-data Chord = Chord { _chordPitOctPairs :: NonEmpty (Pitch, Octave) , _chordDur :: DurationVal, _chordMidiCtrls :: [MidiControl], _chordCtrls :: [Control], _chordTie :: Bool }
+data Chord = Chord { _chordPitOctPairs :: NonEmpty PitOct, _chordDur :: DurationVal, _chordMidiCtrls :: [MidiControl], _chordCtrls :: [Control], _chordTie :: Bool }
   deriving (Eq, Ord, Show)
 
 data Clef = Bass8VB | Bass | Tenor | Alto | Treble | Treble8VA
@@ -208,15 +221,9 @@ data Voice =
 data Score = Score { _scoreTitle :: String, _scoreSeed :: String,  _scoreVoices :: NonEmpty Voice }
   deriving (Eq, Ord, Show)
 
--- Total duration is (denom / num) * (sum durations / unit) * unit
-data DurTuplet = DurTuplet {
-   _durtupNumerator    :: Int
-  ,_durtupDenominator  :: Int
-  ,_durtupUnitDuration :: Duration
-  ,_durtupDurations    :: NonEmpty DurationVal
-  } deriving Show
-
 makeLenses ''DurTuplet
+
+-- synonyms
 
 type DurValOrDurTuplet = Either DurationVal DurTuplet
 
@@ -224,11 +231,9 @@ type DurValAccOrDurTupletAccs = Either (DurationVal,Accent) (DurTuplet,NonEmpty 
 
 type IntOrInts = Either Int (NonEmpty Int)
 
-type PitOctOrNEPitOcts =  Either (Pitch,Octave) (NonEmpty (Pitch,Octave))
-
-type PitOct = (Pitch,Octave)
+type PitOctOrNEPitOcts =  Either PitOct (NonEmpty PitOct)
 
 type PitOctOrPitOcts = Either PitOct [PitOct]
 
-newtype Range = Range (PitOct,PitOct) deriving (Eq, Show)
+type Range = (PitOct,PitOct) 
 
