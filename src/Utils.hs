@@ -55,8 +55,12 @@ pitOctToInt s@Scale{..} (PitOct p o) = pitInt + (octInt * length _scPitches)
     octInt = octToIx (minBound::Octave,maxBound::Octave) o
 
 -- What's the absolute index for Left PitOct or Right [PitOct] where [PitOct] is sorted low to high?
-pitOctOrPOsToInt :: Scale -> PitOctOrPitOcts -> Int
-pitOctOrPOsToInt s = pitOctToInt s . pitOctOrPitOctsToPitOct
+pitOctOrPitOctsToInt :: Scale -> PitOctOrPitOcts -> Int
+pitOctOrPitOctsToInt s = pitOctToInt s . poOrPOsToPO
+
+-- Relies on [PitOct] being sorted low to high (see Config.hs::pPitOctPrOrPirtOctPrs).
+poOrPOsToPO :: PitOctOrPitOcts -> PitOct
+poOrPOsToPO = either id head 
 
 -- What's the (Pitch,Octave) given a Scale and an index assuming an absolute Octave range?
 intToPitOct :: Scale -> Int -> PitOct
@@ -65,59 +69,50 @@ intToPitOct s i = PitOct pit oct
     pit = ixToPit s i
     oct = ixToOct s (minBound::Octave,maxBound::Octave) i
 
--- Placeholder for [Maybe Int] to show interval differences relative to a scale.
--- Value is bigger than any interval could ever be for even the instrument with
--- the widest range.
-intDiffPlaceHolder :: Int
-intDiffPlaceHolder = 1024 * 1024
+-- NB:  answer po2 - po1, NOT po1 - po2.
+diffPrevPitOct :: Scale -> PitOct -> PitOct -> Int
+diffPrevPitOct s po1 po2 = pitOctToInt s po2 - pitOctToInt s po1
 
--- Haven't discovered any library to left accumulate a carried a from [b] -> [c],
--- so roll my own recursion.
--- Could use foldl' with DList for efficient snoc but this seems easier to follow
--- as it separates carried value from list generation.
-
--- Idea is that with [Int], e.g. [1,1,3,-2] to produce a new [Int] list, one element
--- shorter, with just the adjacent diffs, e.g. [1 - 1,3 - 1,-2 - 3] or [0,2,-5]
--- But what about [Maybe Int] e.g. [Nothing,Just 1,Nothing,Just 1,Nothing,Just 3,Nothing, Just -2]?
--- It's not ok for that to wind up being [Nothing, -- Nothing,Just 0,Nothing,Just 2,Nothing,Just -5].
--- Need something to mean "place starting pitch here", like an int diff too big to be an interval.
--- Then later on, when applying the int diffs, shove the start pitch in there and take all subsequent
--- Int diffs as offsets from that starting pitch.
--- Doesn't work on infinite list of [Maybe PitOct]
-mPitOctsToMPitOctDiffs :: Scale -> [Maybe PitOct] -> [Maybe Int]
-mPitOctsToMPitOctDiffs s = f Nothing
+-- Doesn't work on infinite list of [Maybe PitOctOrPitOcts], needs termination criteria like total duration or Range.
+-- TBD: convert to mapAccumL
+mPOOrPOsToMIOrIsDiffs :: Scale -> [Maybe PitOctOrPitOcts] -> [Maybe IntOrIntss]
+mPOOrPOsToMIOrIsDiffs s = f Nothing
   where
-    f :: Maybe PitOct -> [Maybe PitOct] -> [Maybe Int]
-    f Nothing       (Nothing:mPOs)    = Nothing : f Nothing mPOs
-    -- Rule:  intDiffPlaceHolder is *ALWAYS FIRST* Just Int in [Maybe Int]
-    f Nothing       (Just newPO:mPOs) = Just intDiffPlaceHolder : f (Just newPO) mPOs
-    f (Just prevPO) (Nothing:mPOs)    = Nothing : f (Just prevPO) mPOs
-    f (Just prevPO) (Just newPO:mPOs) = Just (diffPitOcts s newPO prevPO):f (Just newPO) mPOs
-    f _             []                = []
-
-diffPitOcts :: Scale -> PitOct -> PitOct -> Int
-diffPitOcts s po1 po2 = pitOctToInt s po1 - pitOctToInt s po2
-
--- Relies on [PitOct] being sorted low to high (see Config.hs::pPitOctPrOrPirtOctPrs).
-pitOctOrPitOctsToPitOct :: PitOctOrPitOcts -> PitOct
-pitOctOrPitOctsToPitOct = either id head 
-
-diffPitOctOrPitOcts :: Scale -> PitOctOrPitOcts -> PitOctOrPitOcts -> Int
-diffPitOctOrPitOcts s po1 po2 = pitOctToInt s (pitOctOrPitOctsToPitOct po1) - pitOctToInt s (pitOctOrPitOctsToPitOct po2)
-
--- Doesn't work on infinite list of [Maybe PitOct]
-mPitOctsToMPitOcts :: Scale -> PitOct -> [Maybe PitOct] -> [Maybe PitOct]
-mPitOctsToMPitOcts s startPO = f startPO . mPitOctsToMPitOctDiffs s 
+    f _                []                       = []
+    f (Just prevPO)    (Nothing:mPOOrPOss)      = Nothing    : f (Just prevPO)  mPOOrPOss
+    f Nothing          (mPOOrPOs:mPOOrPOss)     = Nothing    : f mPO mPOOrPOss
+      where
+        mPO = poOrPOsToPO <$> mPOOrPOs
+    f (Just oldPrevPO) (Just poOrPOs:mPOOrPOss) = Just iOrIs : f (Just newPrevPO) mPOOrPOss
+      where
+        newPrevPO = poOrPOsToPO poOrPOs
+        iOrIs     = bimap (diffPrevPitOct s oldPrevPO) (fmap (diffPrevPitOct s oldPrevPO)) poOrPOs
+    
+-- TBD: convert to mapAccumL
+xposeFromMPitOctOrPitOctss :: Scale -> PitOct -> [Maybe PitOctOrPitOcts] -> [Maybe PitOctOrPitOcts]
+xposeFromMPitOctOrPitOctss s start = f start . mPOOrPOsToMIOrIsDiffs s 
   where
-    f :: PitOct -> [Maybe Int] -> [Maybe PitOct]
-    f prevPO (Nothing:mPIs) = Nothing : f prevPO mPIs
-    f prevPO (Just intDiff:mPIs)
-      -- Rule:  intDiffPlaceHolder is *ALWAYS FIRST* Just Int in [Maybe Int]
-      | intDiff == intDiffPlaceHolder = Just prevPO : f prevPO mPIs
-      | otherwise                     = Just newPO  : f newPO mPIs
-        where
-          newPO = intToPitOct s (intDiff + pitOctToInt s prevPO)
-    f _ [] = []
+    f _    []                  = []
+    f prev (Nothing:mIOrIs)    = Nothing      : f prev mIOrIs
+    f prev (Just iOrIs:mIOrIs) = Just poOrPOs : f prev' mIOrIs
+      where
+        poOrPOs = bimap (xp s prev) (fmap $ xp s prev) iOrIs
+        prev'   = either id head  poOrPOs
+
+xposeFromMPitOctOrPitOctssWhile :: (PitOctOrPitOcts -> Bool) -> Scale -> PitOct -> [Maybe PitOctOrPitOcts] -> [Maybe PitOctOrPitOcts]
+xposeFromMPitOctOrPitOctssWhile test s start = f start . mPOOrPOsToMIOrIsDiffs s 
+  where
+    f _    []                  = error "xposeFromMPitOctOrPitOctssWhile: underflow"
+    f prev (Nothing:mIOrIs)    = Nothing : f prev mIOrIs
+    f prev (Just iOrIs:mIOrIs) = if not (test poOrPOs)
+                                 then []
+                                 else Just poOrPOs : f prev' mIOrIs
+      where
+        poOrPOs = bimap (xp s prev) (fmap $ xp s prev) iOrIs
+        prev'   = either id head  poOrPOs
+
+-- Next:  range-limited version terminates when [Maybe PitOct] is infinite.
+-- Next:  duration-limited version for synchronized voices.
 
 -- To determine the overall ordering of a list of list of Maybe PitOctOrPitOcts,
 -- sum the diffs of each list of Maybe PitOctOrPitOcts and compare with 0.
@@ -132,25 +127,10 @@ mPitOctOrPitOctsssToOrd s mPOOrPOsss =
 poOrPOsToIntRange :: Scale -> [PitOctOrPitOcts] -> Int
 poOrPOsToIntRange s poOrPOs
   | length poOrPOs < 2 = error $ "poOrPOsToIntRange list is too short: " <> show poOrPOs
-  | otherwise          = pitOctOrPOsToInt s (last poOrPOs) - pitOctOrPOsToInt s (head poOrPOs)
+  | otherwise          = pitOctOrPitOctsToInt s (last poOrPOs) - pitOctOrPitOctsToInt s (head poOrPOs)
 
 rangeToOrd :: Range -> Ordering
 rangeToOrd (po1,po2) = po2 `compare` po1
-
--- Doesn't really work this way.  In practice, there'll likely be
--- temporary points where the transpositions exceed the start and
--- so we really only want to test against the end.
--- rangeContainsPitOctOrPitOcts :: Range -> PitOctOrPitOcts -> Bool
--- rangeContainsPitOctOrPitOcts (po1,po2) poOrPOs =
---   (loPO `comparePitOcts` po == LT || loPO `comparePitOcts` po == EQ) &&
---   (hiPO `comparePitOcts` po == GT || hiPO `comparePitOcts` po == EQ)
---   where
---     (loPO,hiPO) = if po1 `comparePitOcts` po2 == LT then (po1,po2) else (po2,po1)
---     po = pitOctOrPitOctsToPitOct poOrPOs
-
--- Next:  change from [Maybe PitOct] to [Maybe PitOctOrPitOcts]
--- Next:  range-limited version terminates when [Maybe PitOct] is infinite.
--- Next:  duration-limited version for synchronized voices.
 
 -- in terms of 128ths, same order as Duration
 durVals :: [Int]
@@ -403,12 +383,6 @@ nes2arrs = map NE.toList . NE.toList
 
 arrs2nes :: [[a]] -> NE.NonEmpty (NE.NonEmpty a)
 arrs2nes = NE.fromList . map NE.fromList 
-
--- nes2Marrs :: forall a . NE.NonEmpty (NE.NonEmpty (Maybe (Either a (NE.NonEmpty a)))) -> [[Maybe (Either a [a])]]
--- nes2Marrs = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
-
---nes2Marrs :: NE.NonEmpty (NE.NonEmpty (Maybe (Either (Pitch,Octave) (NE.NonEmpty (Pitch,Octave))))) -> [[Maybe (Either PitOct [PitOct])]]
---nes2Marrs = map (map (fmap (bimap (uncurry PitOct) ((uncurry PitOct <$>) . NE.toList))) . NE.toList) . NE.toList
 
 neMPOs2MarrsMPOs :: NE.NonEmpty (NE.NonEmpty (Maybe (Either PitOct (NE.NonEmpty PitOct)))) -> [[Maybe (Either PitOct [PitOct])]]
 neMPOs2MarrsMPOs = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList

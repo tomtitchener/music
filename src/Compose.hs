@@ -18,7 +18,7 @@ import "extra" Control.Monad.Extra (concatMapM)
 import "monad-extras" Control.Monad.Extra (unfoldM)
 import Data.Foldable
 import Data.Function (on)
-import Data.List (elemIndex, findIndex, findIndices, groupBy, isPrefixOf, sortBy, unfoldr, transpose)
+import Data.List (elemIndex, findIndex, findIndices, groupBy, isPrefixOf, unfoldr, transpose)
 import Data.List.Extra (allSame)
 import qualified Data.List.NonEmpty as NE
 import Data.List.Split (chunksOf, splitOn)
@@ -26,7 +26,6 @@ import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe, catMaybes)
 import Data.Sequence (adjust', fromList)
 import Data.Traversable (mapAccumL)
-import Data.Tuple (swap)
 import Data.Tuple.Extra (both, dupe, first, fst3, secondM, snd3, thd3, (&&&))
 import Safe (lastMay)
 
@@ -372,6 +371,7 @@ sustainNotes vrtc@VoiceRuntimeConfig{..} ves = do
 -- VoiceConfig gen[XPose | Slice | Verbatim | Repeat | Blend] helper routines --
 --------------------------------------------------------------------------------
 
+{--
 -- Convert a list of maybe pitch/octave pair or list of pitch/octave pairs into a list of maybe interval or list of intervals
 -- showing intervals relative to input Scale to transpose a list given a starting pitch/octave pair.  For a list of pitch/interval
 -- pairs (a chord), transpose by the interval to the lowest pitch in the chord.  A Nothing signifies a rest, which needs to be 
@@ -420,7 +420,8 @@ pitchInt2ScaleDegree Scale{..} (pitch,octOff) =
   where
     pitches = NE.toList _scPitches
     err = error $ "mPitch2ScaleDegree no pitch: " <> show pitch <> " in pitches for scale: " <> show pitches
-        
+--}
+
 {--
 -- Deprecated for 
 
@@ -591,10 +592,34 @@ durTup2Dur tup@DurTuplet{..} = getDurSum (sumDurs (replicate (durTup2CntTups tup
 -- TBD: unify Slice and Motto (PitOctOrNEPitOcts vs. PitOctOrPitOcts).
 type Mottos = ([Maybe PitOctOrPitOcts],[DurValOrDurTuplet],[Accent])
 
-accumVoiceEvents :: Int -> Mottos -> [VoiceEvent]
-accumVoiceEvents maxDurVal (mpits,durs,accts) =
-  snd $ mapAccumL mapAccumF (mpits,accts) (trimDurValOrDurTups maxDurVal durs)
+accumVoiceEventsByRange :: Scale -> Range -> Mottos -> [VoiceEvent]
+accumVoiceEventsByRange scale (start,stop) (mpits,durs,accts) =
+  accumVoiceEventsForFiniteMPits (mpits',durs,accts)
   where
+    mpits' = takeWhile testRange $ xposeFromMPitOctOrPitOctss scale start mpits
+    testRange = maybe True (poInRange . poOrPOsToPO)
+    poInRange po = if start < stop then po <= stop else po >= start
+
+-- This is tricky: mpits is finite, durs and accs are infinite.
+-- Need to accumulate by one DurOrDurTuplet at a time.
+-- Each iteration may consume one or more mpits and accs.
+-- But mpits is finite so it's going to run out first.
+accumVoiceEventsForFiniteMPits :: Mottos -> [VoiceEvent]
+accumVoiceEventsForFiniteMPits (mpits,dur:durs,accs) = ve : accumVoiceEventsForFiniteMPits (mpits',durs,accs')
+  where
+    (ve,(mpits',accs')) = mkve mpits accs dur
+    mkve :: [Maybe PitOctOrPitOcts] -> [Accent] -> DurValOrDurTuplet -> (VoiceEvent,([Maybe PitOctOrPitOcts],[Accent]))
+    mkve mps acs (Left d)  = (mkNoteChordOrRest (head mps) d (head acs),(tail mps,tail acs))
+    mkve mps acs (Right t) = (tup,(mps',acs'))
+      where
+        (tup,mps',acs') = mkTuplet mps t acs
+accumVoiceEventsForFiniteMPits ([],_,_) = []
+accumVoiceEventsForFiniteMPits (_,_,_)  = error "accumVoiceEventsForFiniteMPits"
+    
+accumVoiceEventsForFiniteDurs :: Mottos -> [VoiceEvent]
+accumVoiceEventsForFiniteDurs (mpits,durs,accts) =
+  snd $ mapAccumL mapAccumF (mpits,accts) durs
+   where
     -- One pitch, and accent for for a DurationVal, multiple for a DurTuplet
     mapAccumF (mp:mps,ac:accs) (Left dur) = ((mps,accs),mkNoteChordOrRest mp dur ac)
     mapAccumF (mps,accs) (Right durtup) = ((mps',accs'),tuplet)
@@ -602,11 +627,24 @@ accumVoiceEvents maxDurVal (mpits,durs,accts) =
         (tuplet,mps',accs') = mkTuplet mps durtup accs
     mapAccumF (mps,accs) _ = error $ "accumVoiceEvents unexpected inputs, mpits: " <> show mps <> " accts: " <> show accs
 
-genVoiceEvents :: String -> (VoiceConfigCore -> Int -> Driver Mottos) -> String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
-genVoiceEvents vtName core2Mottos path core maxDurVal = do
+genVoiceEventsByRange :: String -> (VoiceConfigCore -> Int -> Driver Mottos) -> String -> VoiceConfigCore -> Scale -> Range -> Driver [VoiceEvent]
+genVoiceEventsByRange vtName core2Mottos path core scale range = do
   showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
   rotVal::Int    <- searchMConfigParam (path <> ".rotVal") <&> fromMaybe 0
-  ves <- core2Mottos core rotVal <&> accumVoiceEvents maxDurVal
+  ves <- core2Mottos core rotVal <&> accumVoiceEventsByRange scale range 
+  pure $ if 0 == showVType then ves else appendAnnFirstNote vtName ves
+  
+accumVoiceEventsByDur :: Int -> Mottos -> [VoiceEvent]
+accumVoiceEventsByDur maxDurVal (mpits,durs,accts) =
+  accumVoiceEventsForFiniteDurs (mpits,durs',accts)
+  where
+    durs' = trimDurValOrDurTups maxDurVal durs
+
+genVoiceEventsByDur :: String -> (VoiceConfigCore -> Int -> Driver Mottos) -> String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
+genVoiceEventsByDur vtName core2Mottos path core maxDurVal = do
+  showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
+  rotVal::Int    <- searchMConfigParam (path <> ".rotVal") <&> fromMaybe 0
+  ves <- core2Mottos core rotVal <&> accumVoiceEventsByDur maxDurVal
   pure $ if 0 == showVType then ves else appendAnnFirstNote vtName ves
 
 -- For each of the core list of lists:
@@ -694,10 +732,7 @@ takeNDurs 0 _      = []
 takeNDurs n (d:ds) = d : takeNDurs (n - cntDurValOrDurTup d) ds
 takeNDurs _ []     = error "takeNDurs unexpected end of list"
 
--- 
-
--- End experimental
-
+{--
 -- To make this conform to the existing shape would take some violence:
 --    Need to fit shape: String Core -> Int -> Driver [VoiceEvent]
 --    Except that'll probably have to transform to a callback where
@@ -713,8 +748,8 @@ takeNDurs _ []     = error "takeNDurs unexpected end of list"
 --
 -- Unfold repeated transpositions of [[Maybe Pitch]] across Range
 -- matching up with repetitions of [[DurValOrDurTuplet]] and [[Accent] to generate VoiceEvent.
-genXPose :: String -> VoiceConfigCore -> Scale -> Range -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
-genXPose path VoiceConfigCore{..} scale (start,stop) = do
+genXPose' :: String -> VoiceConfigCore -> Scale -> Range -> Driver [VoiceEvent] -- in practice, VeRest | VeNote | VeChord
+genXPose' path VoiceConfigCore{..} scale (start,stop) = do
   showVType::Int   <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
   manyMIOrIssDiffs <- randomElements (neMPOs2MarrsMPOs _vcmPOOrPOss) <&> concatMap (mPrOrPrss2MIOrIsDiffs scale)
   manyDurOrDurTups <- randomElements (nes2arrs _vcDurss)  <&> concat
@@ -764,6 +799,7 @@ unfoldVEs (mPOOrPOss,Right durTup:durOrDurTups,accents) =
   where
     (veTup,mPOOrPOss',accents') = mkTuplet mPOOrPOss durTup accents
 unfoldVEs (_,_,_) = Nothing
+--}
 
 mkNoteChordOrRest :: Maybe PitOctOrPitOcts -> DurationVal -> Accent -> VoiceEvent
 mkNoteChordOrRest (Just (Left (PitOct p o))) d a = VeNote (Note p o d [] [CtrlAccent a] False)
@@ -841,16 +877,20 @@ mkTuplet mPOOrPOs tup@DurTuplet{..} accents
 ----------------------------------------------------------------------------
 
 genVerbatim :: String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
-genVerbatim = genVoiceEvents "verbatim" core2InfVerbatimMottos
+genVerbatim = genVoiceEventsByDur "verbatim" core2InfVerbatimMottos
 
 genRepeat :: String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
-genRepeat = genVoiceEvents "repeat" core2InfRepeatMottos
+genRepeat = genVoiceEventsByDur "repeat" core2InfRepeatMottos
 
 genSlice :: String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
-genSlice = genVoiceEvents "cell" core2InfSliceMottos
+genSlice = genVoiceEventsByDur "cell" core2InfSliceMottos
 
 genBlend :: String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
-genBlend = genVoiceEvents "blend" core2InfBlendMottos
+genBlend = genVoiceEventsByDur "blend" core2InfBlendMottos
+
+-- TBD: core2InfBlendMottos could be one of core2Inf[Verbatim|Repeat|Slice|Blend]Mottos by config
+genXPose :: String -> VoiceConfigCore -> Scale -> Range -> Driver [VoiceEvent]
+genXPose = genVoiceEventsByRange "xpose" core2InfBlendMottos 
 
 voiceConfig2VoiceEvents :: String -> VoiceConfig -> Driver [VoiceEvent]
 voiceConfig2VoiceEvents path VoiceConfigVerbatim{..} = genVerbatim path _vcvCore _vcvDurVal

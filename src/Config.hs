@@ -66,30 +66,12 @@ instance FromConfig (NE.NonEmpty Octave) where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty Octave)) where
   parseConfig = mkParseConfig (mkPss pOctaveStr)
 
---instance FromConfig (Pitch,Octave) where
---  parseConfig = mkParseConfig pPitOctPr
-
 instance FromConfig PitOct where
   parseConfig = mkParseConfig pPitOct
 
 instance FromConfig Range where
   parseConfig = mkParseConfig pPitOctPr 
   
---instance FromConfig (NE.NonEmpty (Int,NE.NonEmpty (Pitch,Octave))) where
---  parseConfig = mkParseConfig (mkPs pIntPitOctPrs)
-  
---instance FromConfig ((Pitch,Octave),(Pitch,Octave)) where
---  parseConfig = mkParseConfig pPitOctsPr
-
---instance FromConfig (NE.NonEmpty (Pitch,Octave)) where
---  parseConfig = mkParseConfig (mkPs pPitOctPr)
-
---instance FromConfig (NE.NonEmpty (NE.NonEmpty (Pitch,Octave))) where
---  parseConfig = mkParseConfig (mkPss pPitOctPr)
-
---instance FromConfig (NE.NonEmpty (PitOct,PitOct)) where
---  parseConfig = mkParseConfig (mkPs pPitOctPr)
-
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))) where
   parseConfig = mkParseConfig (mkPs (mkPs (pM pPitOctOrPitOcts)))
 
@@ -181,9 +163,6 @@ instance FromConfig (NE.NonEmpty (KeySignature,PitOct)) where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe (Either Int (NE.NonEmpty Int))))) where
   parseConfig = mkParseConfig (mkPss pMIntOrInts)
 
---instance FromConfig (NE.NonEmpty (NE.NonEmpty (DurValOrDurTuplet,Maybe Accent))) where
---  parseConfig = mkParseConfig (mkPss pDurTupMAcctPr)
-
 pPitOctKeySigPr :: Parser (PitOct,KeySignature)
 pPitOctKeySigPr = between (char '(') (char ')') ((,) <$> pPitOct <*> (char ',' *> pKeySignature))
 
@@ -193,9 +172,6 @@ pKeySigPitOctPr = between (char '(') (char ')') ((,) <$> pKeySignature <*> pPitO
 -- 0 is not a legal interval, unison is 1/-1, second is 2/-2 and etc. (enforced by int2Off)
 pMIntOrInts :: Parser (Maybe (Either Int (NE.NonEmpty Int)))
 pMIntOrInts = pM (try (Left <$> (int2Off <$> int)) <|> (Right <$> mkPs (int2Off <$> int)))
-
---pDurTupMAcctPr :: Parser (DurValOrDurTuplet,Maybe Accent)
---pDurTupMAcctPr = between (char '(') (char ')') ((,) <$> parseDurOrDurTup <*> pM pAccentStr)
 
 instance FromConfig (NE.NonEmpty (NE.NonEmpty DurValAccOrDurTupletAccs)) where
   parseConfig = mkParseConfig (mkPss parseDurValAccOrDurTupAccs)

@@ -231,6 +231,8 @@ type DurValAccOrDurTupletAccs = Either (DurationVal,Accent) (DurTuplet,NonEmpty 
 
 type IntOrInts = Either Int (NonEmpty Int)
 
+type IntOrIntss = Either Int [Int] -- TBD: replace IntOrInts after eliminating it
+
 type PitOctOrNEPitOcts =  Either PitOct (NonEmpty PitOct)
 
 type PitOctOrPitOcts = Either PitOct [PitOct]
