@@ -21,7 +21,7 @@ bridge:
         # these are two choices from (c,0) to (d,0) and (dis,0) to (e,0),
         # so that's pretty close, whole step up, then half-step up
         mPitOctsss: (((c,0),(dis,0),r,(gis,0),(d,0)),((dis,0),r,(c,0),(gis,0),(d,0),(e,0)))
-        range:      ((c,-2),(c,3)))
+        range:      ((c,-2),(c,3))
         vtype:      xpose
       voice1:
         # trick here is for duration choices to be equal in duration
@@ -51,7 +51,7 @@ bridge:
         # these are two choices from (c,0) to (d,0) and (dis,0) to (e,0),
         # so that's pretty close, whole step up, then half-step up
         mPitOctsss: (((c,0),(dis,0),r,(gis,0),(f,0)),((dis,0),r,(c,0),(gis,0),(d,0),(a,0)))
-        range:      ((g,-2),(g,2)))
+        range:      ((g,-2),(g,2))
         vtype:      xpose
       voice1:
         # trick here is for duration choices to be equal in duration

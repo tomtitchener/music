@@ -154,8 +154,6 @@ instance FromConfig (NE.NonEmpty (Int,Int)) where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Int,Int))) where
   parseConfig = mkParseConfig (mkPss pIntPr)
 
-instance FromConfig (NE.NonEmpty (PitOct,KeySignature)) where
-  parseConfig = mkParseConfig (mkPs pPitOctKeySigPr)
   
 instance FromConfig (NE.NonEmpty (KeySignature,PitOct)) where
   parseConfig = mkParseConfig (mkPs pKeySigPitOctPr)
@@ -163,11 +161,8 @@ instance FromConfig (NE.NonEmpty (KeySignature,PitOct)) where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe (Either Int (NE.NonEmpty Int))))) where
   parseConfig = mkParseConfig (mkPss pMIntOrInts)
 
-pPitOctKeySigPr :: Parser (PitOct,KeySignature)
-pPitOctKeySigPr = between (char '(') (char ')') ((,) <$> pPitOct <*> (char ',' *> pKeySignature))
-
 pKeySigPitOctPr :: Parser (KeySignature,PitOct)
-pKeySigPitOctPr = between (char '(') (char ')') ((,) <$> pKeySignature <*> (char ',' *> between (char '(') (char ')') pPitOct))
+pKeySigPitOctPr = between (char '(') (char ')') ((,) <$> pKeySignature <*> (char ',' *> pPitOct))
 
 -- 0 is not a legal interval, unison is 1/-1, second is 2/-2 and etc. (enforced by int2Off)
 pMIntOrInts :: Parser (Maybe (Either Int (NE.NonEmpty Int)))
@@ -294,7 +289,7 @@ pPitOctPr :: Parser (PitOct,PitOct)
 pPitOctPr = between (char '(') (char ')') ((,) <$> pPitOct <*> (char ',' *> pPitOct))
 
 pPitOct :: Parser PitOct
-pPitOct = PitOct <$> parsePitch <*> (char ',' *> pOctaveStr)
+pPitOct = between (char '(') (char ')') (PitOct <$> parsePitch <*> (char ',' *> pOctaveStr))
 
 --pPitOctsPr :: Parser ((Pitch,Octave),(Pitch,Octave))
 --pPitOctsPr = between (char '(') (char ')') ((,) <$> pPitOctPr <*> (char ',' *> pPitOctPr))
