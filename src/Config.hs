@@ -167,7 +167,7 @@ pPitOctKeySigPr :: Parser (PitOct,KeySignature)
 pPitOctKeySigPr = between (char '(') (char ')') ((,) <$> pPitOct <*> (char ',' *> pKeySignature))
 
 pKeySigPitOctPr :: Parser (KeySignature,PitOct)
-pKeySigPitOctPr = between (char '(') (char ')') ((,) <$> pKeySignature <*> pPitOct)
+pKeySigPitOctPr = between (char '(') (char ')') ((,) <$> pKeySignature <*> (char ',' *> between (char '(') (char ')') pPitOct))
 
 -- 0 is not a legal interval, unison is 1/-1, second is 2/-2 and etc. (enforced by int2Off)
 pMIntOrInts :: Parser (Maybe (Either Int (NE.NonEmpty Int)))

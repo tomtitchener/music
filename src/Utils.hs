@@ -73,10 +73,19 @@ intToPitOct s i = PitOct pit oct
 diffPrevPitOct :: Scale -> PitOct -> PitOct -> Int
 diffPrevPitOct s po1 po2 = pitOctToInt s po2 - pitOctToInt s po1
 
--- Doesn't work on infinite list of [Maybe PitOctOrPitOcts], needs termination criteria like total duration or Range.
--- TBD: convert to mapAccumL
+-- TBD: verify this is the same
 mPOOrPOsToMIOrIsDiffs :: Scale -> [Maybe PitOctOrPitOcts] -> [Maybe IntOrIntss]
-mPOOrPOsToMIOrIsDiffs s = f Nothing
+mPOOrPOsToMIOrIsDiffs s = snd . mapAccumL mapAccumF Nothing
+  where
+    mapAccumF (Just prevPO)    Nothing        = (Just prevPO, Nothing)
+    mapAccumF Nothing          mPOOrPOs       = (poOrPOsToPO <$> mPOOrPOs,Nothing)
+    mapAccumF (Just oldPrevPO) (Just poOrPOs) = (Just newPrevPO,Just iOrIs)
+      where
+        newPrevPO = poOrPOsToPO poOrPOs
+        iOrIs     = bimap (diffPrevPitOct s oldPrevPO) (fmap (diffPrevPitOct s oldPrevPO)) poOrPOs
+        
+mPOOrPOsToMIOrIsDiffs' :: Scale -> [Maybe PitOctOrPitOcts] -> [Maybe IntOrIntss]
+mPOOrPOsToMIOrIsDiffs' s = f Nothing
   where
     f _                []                       = []
     f (Just prevPO)    (Nothing:mPOOrPOss)      = Nothing    : f (Just prevPO)  mPOOrPOss
@@ -87,6 +96,7 @@ mPOOrPOsToMIOrIsDiffs s = f Nothing
       where
         newPrevPO = poOrPOsToPO poOrPOs
         iOrIs     = bimap (diffPrevPitOct s oldPrevPO) (fmap (diffPrevPitOct s oldPrevPO)) poOrPOs
+
     
 -- TBD: convert to mapAccumL
 xposeFromMPitOctOrPitOctss :: Scale -> PitOct -> [Maybe PitOctOrPitOcts] -> [Maybe PitOctOrPitOcts]
@@ -99,6 +109,7 @@ xposeFromMPitOctOrPitOctss s start = f start . mPOOrPOsToMIOrIsDiffs s
         poOrPOs = bimap (xp s prev) (fmap $ xp s prev) iOrIs
         prev'   = either id head  poOrPOs
 
+-- TBD: convert to mapAccumL
 xposeFromMPitOctOrPitOctssWhile :: (PitOctOrPitOcts -> Bool) -> Scale -> PitOct -> [Maybe PitOctOrPitOcts] -> [Maybe PitOctOrPitOcts]
 xposeFromMPitOctOrPitOctssWhile test s start = f start . mPOOrPOsToMIOrIsDiffs s 
   where
