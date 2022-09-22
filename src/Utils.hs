@@ -48,8 +48,10 @@ ixToOct :: Scale -> (Octave,Octave) -> Int -> Octave
 ixToOct Scale{..} (lo,hi) ix = [lo..hi] !! (ix `div` length _scPitches)
 
 -- What's the index for a (Pitch,Oct) given a Scale and assuming an absolute Octave range?
+-- TBD: is -4 really necessary?  It's there to match with original implementation.  But in
+-- principal it seems like as we just deal in differences that it shouldn't matter.
 pitOctToInt :: Scale -> PitOct -> Int
-pitOctToInt s@Scale{..} (PitOct p o) = pitInt + (octInt * length _scPitches)
+pitOctToInt s@Scale{..} (PitOct p o) = pitInt + ((octInt - 4) * length _scPitches)
   where
     pitInt = pitToIx s p
     octInt = octToIx (minBound::Octave,maxBound::Octave) o
@@ -69,62 +71,27 @@ intToPitOct s i = PitOct pit oct
     pit = ixToPit s i
     oct = ixToOct s (minBound::Octave,maxBound::Octave) i
 
--- NB:  answer po2 - po1, NOT po1 - po2.
-diffPrevPitOct :: Scale -> PitOct -> PitOct -> Int
-diffPrevPitOct s po1 po2 = pitOctToInt s po2 - pitOctToInt s po1
+poOrPOsToIOrIss :: Scale -> PitOctOrPitOcts -> IntOrIntss
+poOrPOsToIOrIss s = bimap (pitOctToInt s) (map (pitOctToInt s))
 
--- TBD: verify this is the same
 mPOOrPOsToMIOrIsDiffs :: Scale -> [Maybe PitOctOrPitOcts] -> [Maybe IntOrIntss]
-mPOOrPOsToMIOrIsDiffs s = snd . mapAccumL mapAccumF Nothing
+mPOOrPOsToMIOrIsDiffs s = snd . mapAccumL accumF 0 . map (fmap (poOrPOsToIOrIss s))
   where
-    mapAccumF (Just prevPO)    Nothing        = (Just prevPO, Nothing)
-    mapAccumF Nothing          mPOOrPOs       = (poOrPOsToPO <$> mPOOrPOs,Nothing)
-    mapAccumF (Just oldPrevPO) (Just poOrPOs) = (Just newPrevPO,Just iOrIs)
+    accumF prev Nothing           = (prev,Nothing)
+    accumF prev (Just (Left i))   = (i,Just (Left (i - prev)))
+    accumF prev (Just (Right is)) = (minimum is,Just (Right (flip (-) prev <$> is)))
+
+xposeFromMPitOctOrPitOctss :: Scale -> PitOct -> [[Maybe PitOctOrPitOcts]] -> [Maybe PitOctOrPitOcts]
+xposeFromMPitOctOrPitOctss s start = snd . mapAccumL accumF start . concatMap (mPOOrPOsToMIOrIsDiffs s)
+  where
+    accumF prev Nothing         = (prev,Nothing)
+    accumF prev (Just (Left i)) = (po,Just (Left po))
       where
-        newPrevPO = poOrPOsToPO poOrPOs
-        iOrIs     = bimap (diffPrevPitOct s oldPrevPO) (fmap (diffPrevPitOct s oldPrevPO)) poOrPOs
+        po = xp s prev i
+    accumF prev (Just (Right is)) = (head pos,Just (Right pos))
+      where
+        pos = xp s prev <$> is
         
-mPOOrPOsToMIOrIsDiffs' :: Scale -> [Maybe PitOctOrPitOcts] -> [Maybe IntOrIntss]
-mPOOrPOsToMIOrIsDiffs' s = f Nothing
-  where
-    f _                []                       = []
-    f (Just prevPO)    (Nothing:mPOOrPOss)      = Nothing    : f (Just prevPO)  mPOOrPOss
-    f Nothing          (mPOOrPOs:mPOOrPOss)     = Nothing    : f mPO mPOOrPOss
-      where
-        mPO = poOrPOsToPO <$> mPOOrPOs
-    f (Just oldPrevPO) (Just poOrPOs:mPOOrPOss) = Just iOrIs : f (Just newPrevPO) mPOOrPOss
-      where
-        newPrevPO = poOrPOsToPO poOrPOs
-        iOrIs     = bimap (diffPrevPitOct s oldPrevPO) (fmap (diffPrevPitOct s oldPrevPO)) poOrPOs
-
-    
--- TBD: convert to mapAccumL
-xposeFromMPitOctOrPitOctss :: Scale -> PitOct -> [Maybe PitOctOrPitOcts] -> [Maybe PitOctOrPitOcts]
-xposeFromMPitOctOrPitOctss s start = f start . mPOOrPOsToMIOrIsDiffs s 
-  where
-    f _    []                  = []
-    f prev (Nothing:mIOrIs)    = Nothing      : f prev mIOrIs
-    f prev (Just iOrIs:mIOrIs) = Just poOrPOs : f prev' mIOrIs
-      where
-        poOrPOs = bimap (xp s prev) (fmap $ xp s prev) iOrIs
-        prev'   = either id head  poOrPOs
-
--- TBD: convert to mapAccumL
-xposeFromMPitOctOrPitOctssWhile :: (PitOctOrPitOcts -> Bool) -> Scale -> PitOct -> [Maybe PitOctOrPitOcts] -> [Maybe PitOctOrPitOcts]
-xposeFromMPitOctOrPitOctssWhile test s start = f start . mPOOrPOsToMIOrIsDiffs s 
-  where
-    f _    []                  = error "xposeFromMPitOctOrPitOctssWhile: underflow"
-    f prev (Nothing:mIOrIs)    = Nothing : f prev mIOrIs
-    f prev (Just iOrIs:mIOrIs) = if not (test poOrPOs)
-                                 then []
-                                 else Just poOrPOs : f prev' mIOrIs
-      where
-        poOrPOs = bimap (xp s prev) (fmap $ xp s prev) iOrIs
-        prev'   = either id head  poOrPOs
-
--- Next:  range-limited version terminates when [Maybe PitOct] is infinite.
--- Next:  duration-limited version for synchronized voices.
-
 -- To determine the overall ordering of a list of list of Maybe PitOctOrPitOcts,
 -- sum the diffs of each list of Maybe PitOctOrPitOcts and compare with 0.
 mPitOctOrPitOctsssToOrd :: Scale -> [[Maybe PitOctOrPitOcts]] -> Ordering
