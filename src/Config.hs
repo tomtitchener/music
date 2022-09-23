@@ -162,7 +162,7 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe (Either Int (NE.NonEmpty In
   parseConfig = mkParseConfig (mkPss pMIntOrInts)
 
 pKeySigPitOctPr :: Parser (KeySignature,PitOct)
-pKeySigPitOctPr = between (char '(') (char ')') ((,) <$> pKeySignature <*> (char ',' *> pPitOct))
+pKeySigPitOctPr = pPr pKeySignature pPitOct
 
 -- 0 is not a legal interval, unison is 1/-1, second is 2/-2 and etc. (enforced by int2Off)
 pMIntOrInts :: Parser (Maybe (Either Int (NE.NonEmpty Int)))
@@ -175,10 +175,10 @@ parseDurValAccOrDurTupAccs :: Parser DurValAccOrDurTupletAccs
 parseDurValAccOrDurTupAccs = try (Left <$> parseDurValAcc) <|> (Right <$> parseDurTupletAccs)
 
 parseDurValAcc :: Parser (DurationVal,Accent)
-parseDurValAcc = between (char '(') (char ')') ((,) <$> (duration2DurationVal <$> parseDuration) <*> (char ',' *> pAccentStr))
+parseDurValAcc = pPr (duration2DurationVal <$> parseDuration) pAccentStr
 
 parseDurTupletAccs :: Parser (DurTuplet,NE.NonEmpty Accent)
-parseDurTupletAccs = between (char '(') (char ')') ((,) <$> parseDurTup <*> (char ',' *> mkPs pAccentStr))
+parseDurTupletAccs = pPr parseDurTup (mkPs pAccentStr)
 
 -- Tempo
 instance FromConfig Tempo where
@@ -226,10 +226,10 @@ pDynamicStr = choice (zipWith mkParser dynamicStrs dynamicVals)
 -- in interval arithmetic 0 doesn't make any sense, 1/-1 is unison, etc.
 -- convert to zero-based offset, 0 => exception, 1/-1 => 0, 2/-2 = 1/-1, etc.
 int2Off :: Int -> Int
-int2Off i
-  | i < 0 = i + 1
-  | i == 0 = error "int2Off invalid interval 0"
-  | otherwise = i - 1
+int2Off i = case i `compare` 0 of
+  LT -> i + 1
+  EQ -> error "int2Off invalid interval 0"
+  GT -> i - 1
 
 pM :: Parser a -> Parser (Maybe a)
 pM p = Just <$> p <|> (char 'r' >> pure Nothing)
@@ -253,10 +253,7 @@ pTimeSignatureGrouping :: Parser TimeSignature
 pTimeSignatureGrouping = pIntsIntDurPr <&> \(groups,(num,denom)) -> TimeSignatureGrouping groups num denom
 
 pIntsIntDurPr :: Parser (NE.NonEmpty Int,(Int,Duration))
-pIntsIntDurPr = between (char '(') (char ')') ((,) <$> mkPs int <*> (char ',' *> pIntDurPr))
-
---pIntPitOctPrs :: Parser (Int,NE.NonEmpty (Pitch,Octave))
---pIntPitOctPrs = between (char '(') (char ')') ((,) <$> int <*> mkPs pPitOctPr)
+pIntsIntDurPr = pPr (mkPs int) pIntDurPr
 
 pTimeSig :: Parser TimeSignature
 pTimeSig = pIntDurPr <&> uncurry TimeSignatureSimple
@@ -265,16 +262,16 @@ parseTempo :: Parser Tempo
 parseTempo = pNatDurPr <&> uncurry (flip TempoDur)
 
 pNatDurPr :: Parser (Natural,Duration)
-pNatDurPr = between (char '(') (char ')') ((,) <$> parseNatural <*> (char ',' *> parseDuration))
+pNatDurPr = pPr parseNatural parseDuration
 
 pTimeSignature :: Parser TimeSignature
 pTimeSignature = try pTimeSignatureGrouping <|> pTimeSig
 
 pIntDurPr :: Parser (Int,Duration)
-pIntDurPr = between (char '(') (char ')') ((,) <$> parseNat <*> (char ',' *> parseDuration))
+pIntDurPr = pPr parseNat parseDuration
 
 pIntPr :: Parser (Int,Int)
-pIntPr = between (char '(') (char ')') ((,) <$> parseNat <*> (char ',' *> parseNat))
+pIntPr = pPr parseNat parseNat
 
 octaveIntStrings :: [String]
 octaveIntStrings = ["-4","-3","-2","-1","0","1","2","3"]
@@ -282,31 +279,23 @@ octaveIntStrings = ["-4","-3","-2","-1","0","1","2","3"]
 pOctaveStr :: Parser Octave
 pOctaveStr = choice (zipWith mkParser octaveIntStrings [TwentyNineVBOct .. TwentyTwoVAOct])
 
---pPitOctPr :: Parser (Pitch,Octave)
---pPitOctPr = between (char '(') (char ')') ((,) <$> parsePitch <*> (char ',' *> pOctaveStr))
-
 pPitOctPr :: Parser (PitOct,PitOct)
-pPitOctPr = between (char '(') (char ')') ((,) <$> pPitOct <*> (char ',' *> pPitOct))
+pPitOctPr = pPr pPitOct pPitOct
 
 pPitOct :: Parser PitOct
 pPitOct = between (char '(') (char ')') (PitOct <$> parsePitch <*> (char ',' *> pOctaveStr))
 
---pPitOctsPr :: Parser ((Pitch,Octave),(Pitch,Octave))
---pPitOctsPr = between (char '(') (char ')') ((,) <$> pPitOctPr <*> (char ',' *> pPitOctPr))
-
 pMPitOctPr :: Parser (Maybe Pitch,Int)
-pMPitOctPr = between (char '(') (char ')') ((,) <$> pMPitch <*> (char ',' *> int))
+pMPitOctPr = pPr pMPitch int
 
 pPitIntPr :: Parser (Pitch,Int)
-pPitIntPr = between (char '(') (char ')') ((,) <$> parsePitch <*> (char ',' *> int))
+pPitIntPr = pPr parsePitch int
 
 pPitIntPrOrPitIntPrs :: Parser (Either (Pitch,Int) (NE.NonEmpty (Pitch,Int)))
 pPitIntPrOrPitIntPrs = try (Left <$> pPitIntPr) <|> (Right <$> mkPs pPitIntPr)
 
---pPitOctPrOrPitOctPrs :: Parser PitOctOrNEPitOcts
---pPitOctPrOrPitOctPrs = try (Left <$> pPitOctPr) <|> (Right . sortLoToHi <$> mkPs pPitOctPr)
---  where
---    sortLoToHi = NE.fromList . sortBy (compare `on` swap) . NE.toList
+pPr :: Parser a -> Parser b -> Parser (a,b)
+pPr pFst pSnd = between (char '(') (char ')') ((,) <$> pFst <*> (char ',' *> pSnd))
 
 -- sort by NE.List (Pitch,Octave) pairs by (Octave,Pitch) from low to hi for
 -- easier transpose of lists of PitOctOrPitOcts

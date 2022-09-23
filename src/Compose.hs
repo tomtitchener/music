@@ -29,7 +29,7 @@ import Data.Traversable (mapAccumL)
 import Data.Tuple.Extra (both, dupe, first, fst3, secondM, snd3, thd3, (&&&))
 import Safe (lastMay)
 
-import ComposeData
+import ConfigData
 import Driver
 import Lily (accent2Name)
 import Types

@@ -1,5 +1,5 @@
-{-# LANGUAGE TemplateHaskell      #-}
-{-# LANGUAGE DerivingVia          #-}
+{-# LANGUAGE TemplateHaskell  #-}
+{-# LANGUAGE DerivingVia      #-}
 
 {- | Music types for translating to and from Lilypond strings.
      Atomic types (Pitch, Scale, Octave, Accent, Duration, Dynamic, etc.)

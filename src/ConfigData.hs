@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE TemplateHaskell     #-}
 
-module ComposeData where
+module ConfigData where
 
 import Driver (Driver, searchConfigParam, searchMConfigParam, cfgPath2Keys)
 import Types
@@ -15,7 +15,7 @@ import Data.Maybe (fromMaybe)
 
 data GroupConfig =
   GroupConfigNeutral {
-  _gcnPath    :: String
+  _gcnPath     :: String
   ,_gcnMName   :: Maybe String
   ,_gcnConfigs :: NE.NonEmpty SectionConfig
   }
