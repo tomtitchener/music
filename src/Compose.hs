@@ -100,6 +100,8 @@ modMPitOctssOctaves mkIdWeight vrtCfg vcc@VoiceConfigBlend{..}    =
   modAnyMPitOctssOctaves mkIdWeight vrtCfg (_vcmPOOrPOss _vccCore) <&> \mPOOrPOss -> vcc { _vccCore = _vccCore { _vcmPOOrPOss  = mPOOrPOss } }
 modMPitOctssOctaves mkIdWeight vrtCfg vcx@VoiceConfigXPose{..}    =
   modAnyMPitOctssOctaves mkIdWeight vrtCfg (_vcmPOOrPOss _vcxCore) <&> \mPOOrPOss -> vcx { _vcxCore = _vcxCore { _vcmPOOrPOss = mPOOrPOss } }
+modMPitOctssOctaves mkIdWeight vrtCfg vcx@VoiceConfigAccrete{..}    =
+  modAnyMPitOctssOctaves mkIdWeight vrtCfg (_vcmPOOrPOss _vcaCore) <&> \mPOOrPOss -> vcx { _vcxCore = _vcaCore { _vcmPOOrPOss = mPOOrPOss } }
 
 type MPitOctOrNEPitOctsss = NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
 
@@ -129,6 +131,7 @@ doubleCfgDurs vrtCfg vcr@VoiceConfigRepeat{}   = mRunDoubleCfgMod (vcr & vcrCore
 doubleCfgDurs vrtCfg vcc@VoiceConfigSlice{}    = mRunDoubleCfgMod (vcc & vccCore . vcDurss %~ doubleDurs) vrtCfg vcc
 doubleCfgDurs vrtCfg vcc@VoiceConfigBlend{}    = mRunDoubleCfgMod (vcc & vccCore . vcDurss %~ doubleDurs) vrtCfg vcc
 doubleCfgDurs vrtCfg vcx@VoiceConfigXPose{}    = mRunDoubleCfgMod (vcx & vcxCore . vcDurss %~ doubleDurs) vrtCfg vcx
+doubleCfgDurs vrtCfg vca@VoiceConfigAccrete{}  = mRunDoubleCfgMod (vca & vcaCore . vcDurss %~ doubleDurs) vrtCfg vca
 
 mRunDoubleCfgMod :: VoiceConfig -> VoiceRuntimeConfig -> VoiceConfig -> Driver VoiceConfig
 mRunDoubleCfgMod vcMod VoiceRuntimeConfig{..} vCfg  = do
@@ -371,24 +374,11 @@ sustainNotes vrtc@VoiceRuntimeConfig{..} ves = do
 -- VoiceConfig gen[XPose | Slice | Verbatim | Repeat | Blend] helper routines --
 --------------------------------------------------------------------------------
 
--- Generate a [DurValOrDurTuplet] that's exactly as long as the input target
--- in 128th notes from an infinite length input [DurValOrDurTuplet].
--- When the duration of final DurValOrDurTuplet exceeds the target, 
--- trim it to a Left DurationVal with the remainding length.
-trimDurValOrDurTups :: Int -> [DurValOrDurTuplet] -> [DurValOrDurTuplet]
-trimDurValOrDurTups targ = accum 0
-  where
-    accum tot (valOrTup:valOrTups)
-      | tot == targ = []
-      | tot + valOrTupLen > targ = [Left . mkDurationVal $ targ - tot]
-      | otherwise = valOrTup : accum (tot + valOrTupLen) valOrTups
-      where
-        valOrTupLen = either fromVal fromDurTup valOrTup
-    accum tot [] = error $ "trimDurValOrDurTups underflow, total duration: " <> show tot <> " < target duration: " <> show targ
-    fromDurTup tup@DurTuplet{..} = getDurSum (sumDurs (replicate (durTup2CntTups tup * _durtupDenominator) _durtupUnitDuration))
-
 type Mottos   = ([Maybe PitOctOrPitOcts],[DurValOrDurTuplet],[Accent])
 type Mottoss = ([[Maybe PitOctOrPitOcts]],[[DurValOrDurTuplet]],[[Accent]])
+
+type GenMottos = VoiceConfigCore -> Int -> Driver Mottos
+type GenMottoss = VoiceConfigCore -> Int -> Driver Mottoss
 
 accumVoiceEventsByRange :: Scale -> Range -> Mottoss -> [VoiceEvent]
 accumVoiceEventsByRange scale (start,stop) (mpitss,durss,acctss) =
@@ -421,20 +411,60 @@ accumVoiceEventsForFiniteDurs (mpits,durs,accts) =
      mapAccumF (mps,accs)       (Right durtup) = mkTuplet mps durtup accs
      mapAccumF (mps,accs) _ = error $ "accumVoiceEvents unexpected inputs, mpits: " <> show mps <> " accts: " <> show accs
 
-genVoiceEventsByRange :: String -> (VoiceConfigCore -> Int -> Driver Mottoss) -> String -> VoiceConfigCore -> Scale -> Range -> Driver [VoiceEvent]
+genVoiceEventsByRange :: String -> GenMottoss -> String -> VoiceConfigCore -> Scale -> Range -> Driver [VoiceEvent]
 genVoiceEventsByRange vtName core2Mottoss path core scale range = do
   showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
   rotVal::Int    <- searchMConfigParam (path <> ".rotVal") <&> fromMaybe 0
   ves <- core2Mottoss core rotVal <&> accumVoiceEventsByRange scale range 
   pure $ if 0 == showVType then ves else appendAnnFirstNote vtName ves
-  
+
+genVoiceEventsByAccrete :: String -> TimeSignature -> String -> VoiceConfigCore -> Int -> (KeySignature,PitOct)  -> Driver [VoiceEvent]
+genVoiceEventsByAccrete vaName timeSig path VoiceConfigCore{..} numBars (keySig,start) = do
+  showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
+  ves <- accreteVoiceByMotif barDurVal totDurVal mIOrIsss dVAOrDTAss (keySig,start)
+  pure $ if 0 == showVType then ves else appendAnnFirstNote vaName ves
+  where
+    scale      = keySig2Scale M.! keySig
+    barDurVal  = timeSig2BarDurVal timeSig
+    totDurVal  = DurationVal numBars * barDurVal
+    mIOrIsss   = mPOOrPOsToMIOrIsDiffs scale <$> (neMXss2MArrsXss _vcmPOOrPOss)
+    dVAOrDTAss = zipWith mkDVAOrDTAss (nes2arrs _vcAcctss) (nes2arrs _vcDurss) 
+
+mkDVAOrDTAss :: [Accent] -> [DurValOrDurTuplet] -> [DurValAccOrDurTupletAccs]
+mkDVAOrDTAss as = snd . mapAccumL mapAccumF (cycle as)
+  where
+    mapAccumF :: [Accent] -> DurValOrDurTuplet -> ([Accent],DurValAccOrDurTupletAccs)
+    mapAccumF (a:as') (Left durVal)  = (as',Left (durVal,a))
+    mapAccumF as'     (Right durTup) = (restAs,Right (durTup,tupAs))
+      where
+        cntDurs = length $ _durtupDurations durTup
+        restAs  = drop cntDurs as'
+        tupAs   = take cntDurs as'
+    mapAccumF as' _                  = error $ "mkDVAOrDTAss unexpected accents: " <> show as'
+
+-- Generate a [DurValOrDurTuplet] that's exactly as long as the input target
+-- in 128th notes from an infinite length input [DurValOrDurTuplet].
+-- When the duration of final DurValOrDurTuplet exceeds the target, 
+-- trim it to a Left DurationVal with the remainding length.
+trimDurValOrDurTups :: Int -> [DurValOrDurTuplet] -> [DurValOrDurTuplet]
+trimDurValOrDurTups targ = accum 0
+  where
+    accum tot (valOrTup:valOrTups)
+      | tot == targ = []
+      | tot + valOrTupLen > targ = [Left . mkDurationVal $ targ - tot]
+      | otherwise = valOrTup : accum (tot + valOrTupLen) valOrTups
+      where
+        valOrTupLen = either fromVal fromDurTup valOrTup
+    accum tot [] = error $ "trimDurValOrDurTups underflow, total duration: " <> show tot <> " < target duration: " <> show targ
+    fromDurTup tup@DurTuplet{..} = getDurSum (sumDurs (replicate (durTup2CntTups tup * _durtupDenominator) _durtupUnitDuration))
+    
 accumVoiceEventsByDur :: Int -> Mottos -> [VoiceEvent]
 accumVoiceEventsByDur maxDurVal (mpitss,durs,acctss) =
   accumVoiceEventsForFiniteDurs (mpitss,durs',acctss)
   where
     durs' = trimDurValOrDurTups maxDurVal durs
 
-genVoiceEventsByDur :: String -> (VoiceConfigCore -> Int -> Driver Mottos) -> String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
+genVoiceEventsByDur :: String -> GenMottos -> String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
 genVoiceEventsByDur vtName core2Mottos path core maxDurVal = do
   showVType::Int <- searchMConfigParam (path <> ".showVType") <&> fromMaybe 1
   rotVal::Int    <- searchMConfigParam (path <> ".rotVal") <&> fromMaybe 0
@@ -451,9 +481,9 @@ genVoiceEventsByDur vtName core2Mottos path core maxDurVal = do
 -- overlap with the durations of eighth and eighth or accents >, >, >, +
 -- For regular groupings of all three then the sublists in the config
 -- file must be all of the same lengths.
-core2InfVerbatimMottos :: VoiceConfigCore -> Int -> Driver Mottos
+core2InfVerbatimMottos :: GenMottos
 core2InfVerbatimMottos VoiceConfigCore{..} _ =
-  pure (mkCycle neMPOs2MarrsMPOs _vcmPOOrPOss, mkCycle nes2arrs _vcDurss, mkCycle nes2arrs _vcAcctss)
+  pure (mkCycle neMXss2MArrsXss _vcmPOOrPOss, mkCycle nes2arrs _vcDurss, mkCycle nes2arrs _vcAcctss)
   where
     mkCycle cnv = concat . cycle . cnv
 
@@ -463,25 +493,25 @@ core2InfVerbatimMottos VoiceConfigCore{..} _ =
 --    e.g. [[1,2],[3],[4,5]] -> [[3],[1,2],[4,5]]
 -- b) cycle to create an endless list of list in order
 -- c) concat to create an endless list
-core2InfRepeatMottos :: VoiceConfigCore -> Int -> Driver Mottos
+core2InfRepeatMottos :: GenMottos
 core2InfRepeatMottos VoiceConfigCore{..} _ =
-  (,,) <$> mkCycle neMPOs2MarrsMPOs _vcmPOOrPOss <*> mkCycle nes2arrs _vcDurss <*> mkCycle nes2arrs _vcAcctss
+  (,,) <$> mkCycle neMXss2MArrsXss _vcmPOOrPOss <*> mkCycle nes2arrs _vcDurss <*> mkCycle nes2arrs _vcAcctss
   where
     mkCycle cnv xss = randomizeList (cnv xss) <&> concat . cycle
 
-core2InfSliceMottos :: VoiceConfigCore -> Int -> Driver Mottos
+core2InfSliceMottos :: GenMottos
 core2InfSliceMottos core@VoiceConfigCore{..} _ =
   randomIndices (length _vcDurss) <&> mkSlices core
 
-core2InfBlendMottos :: VoiceConfigCore -> Int -> Driver Mottos
+core2InfBlendMottos :: GenMottos
 core2InfBlendMottos VoiceConfigCore{..} rotVal =
-  (,,) <$> mkCycle neMPOs2MarrsMPOs _vcmPOOrPOss <*> mkCycle nes2arrs _vcDurss <*> mkCycle nes2arrs _vcAcctss
+  (,,) <$> mkCycle neMXss2MArrsXss _vcmPOOrPOss <*> mkCycle nes2arrs _vcDurss <*> mkCycle nes2arrs _vcAcctss
   where
     mkCycle cnv xss = randomElements (cnv xss) <&> concatMap (rotN rotVal)
 
-core2InfBlendMottoss :: VoiceConfigCore -> Int -> Driver Mottoss
+core2InfBlendMottoss :: GenMottoss
 core2InfBlendMottoss VoiceConfigCore{..} rotVal =
-  (,,) <$> mkCycle neMPOs2MarrsMPOs _vcmPOOrPOss <*> mkCycle nes2arrs _vcDurss <*> mkCycle nes2arrs _vcAcctss
+  (,,) <$> mkCycle neMXss2MArrsXss _vcmPOOrPOss <*> mkCycle nes2arrs _vcDurss <*> mkCycle nes2arrs _vcAcctss
   where
     mkCycle cnv xss = randomElements (cnv xss) <&> map (rotN rotVal)
 
@@ -492,7 +522,7 @@ mkSlices VoiceConfigCore{..} manyIs =
   (ixByManyIs pitss',ixByManyIs durss',ixByManyIs acctss')
   where
     ixByManyIs ss = concat ((ss !!) <$> manyIs)
-    (pitss',durss',acctss') = mkEqLenMottoss (neMPOs2MarrsMPOs _vcmPOOrPOss, nes2arrs _vcDurss,nes2arrs _vcAcctss)
+    (pitss',durss',acctss') = mkEqLenMottoss (neMXss2MArrsXss _vcmPOOrPOss, nes2arrs _vcDurss,nes2arrs _vcAcctss)
 
 -- Make sublists of equal counts of items, allowing for possible multiple durs in DurTuplet.
 mkEqLenMottoss :: Mottoss -> Mottoss
@@ -580,28 +610,31 @@ mkTuplet mPOOrPOs tup@DurTuplet{..} accents
 -- VoiceConfig[XPose | Slice | Verbatim | Repeat | Blend] implementations --
 ----------------------------------------------------------------------------
 
-genVerbatim :: String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
-genVerbatim = genVoiceEventsByDur "verbatim" core2InfVerbatimMottos
+genVerbatim :: TimeSignature -> String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
+genVerbatim _ = genVoiceEventsByDur "verbatim" core2InfVerbatimMottos
 
-genRepeat :: String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
-genRepeat = genVoiceEventsByDur "repeat" core2InfRepeatMottos
+genRepeat :: TimeSignature -> String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
+genRepeat _ = genVoiceEventsByDur "repeat" core2InfRepeatMottos
 
-genSlice :: String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
-genSlice = genVoiceEventsByDur "cell" core2InfSliceMottos
+genSlice :: TimeSignature -> String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
+genSlice _ = genVoiceEventsByDur "cell" core2InfSliceMottos
 
-genBlend :: String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
-genBlend = genVoiceEventsByDur "blend" core2InfBlendMottos
+genBlend :: TimeSignature -> String -> VoiceConfigCore -> Int -> Driver [VoiceEvent]
+genBlend _ = genVoiceEventsByDur "blend" core2InfBlendMottos
 
--- TBD: core2InfBlendMottos could be one of core2Inf[Verbatim|Repeat|Slice|Blend]Mottos by config
-genXPose :: String -> VoiceConfigCore -> Scale -> Range -> Driver [VoiceEvent]
-genXPose = genVoiceEventsByRange "xpose" core2InfBlendMottoss
+genXPose :: TimeSignature -> String -> VoiceConfigCore -> Scale -> Range -> Driver [VoiceEvent]
+genXPose _ = genVoiceEventsByRange "xpose" core2InfBlendMottoss
 
-voiceConfig2VoiceEvents :: String -> VoiceConfig -> Driver [VoiceEvent]
-voiceConfig2VoiceEvents path VoiceConfigVerbatim{..} = genVerbatim path _vcvCore _vcvDurVal
-voiceConfig2VoiceEvents path VoiceConfigRepeat{..}   = genRepeat   path _vcrCore _vcrDurVal
-voiceConfig2VoiceEvents path VoiceConfigSlice{..}    = genSlice    path _vccCore _vcclDurVal
-voiceConfig2VoiceEvents path VoiceConfigBlend{..}    = genBlend    path _vccCore _vccDurVal
-voiceConfig2VoiceEvents path VoiceConfigXPose{..}    = genXPose    path _vcxCore _vcxScale _vcxRange
+genAccrete :: TimeSignature -> String -> VoiceConfigCore -> Int -> (KeySignature,PitOct) -> Driver [VoiceEvent]
+genAccrete = genVoiceEventsByAccrete "accrete" 
+
+voiceConfig2VoiceEvents :: String -> TimeSignature -> VoiceConfig -> Driver [VoiceEvent]
+voiceConfig2VoiceEvents path ts VoiceConfigVerbatim{..} = genVerbatim ts path _vcvCore _vcvDurVal
+voiceConfig2VoiceEvents path ts VoiceConfigRepeat{..}   = genRepeat   ts path _vcrCore _vcrDurVal
+voiceConfig2VoiceEvents path ts VoiceConfigSlice{..}    = genSlice    ts path _vccCore _vcclDurVal
+voiceConfig2VoiceEvents path ts VoiceConfigBlend{..}    = genBlend    ts path _vccCore _vccDurVal
+voiceConfig2VoiceEvents path ts VoiceConfigXPose{..}    = genXPose    ts path _vcxCore _vcxScale _vcxRange
+voiceConfig2VoiceEvents path ts VoiceConfigAccrete{..}  = genAccrete  ts path _vcaCore _vcaNumBars _vcaInit
 
 --------------------------------------------------------------------
 -- SectionConfig[Neutral | FadeIn | FadeOut | FadeAcross] helpers --
@@ -629,9 +662,9 @@ applyMod m modName pr =
     Nothing -> error $ "applyMod:  no value for name " <> modName
     Just f  -> uncurry f pr
 
-applyMods :: String -> Maybe (NE.NonEmpty String) -> Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig,VoiceConfig) -> Driver (Int,[VoiceEvent])
-applyMods path mConfigMods mVoiceEventsMods pr =
-  applyMConfigMods mConfigMods pr >>= voiceConfig2VoiceEvents path . snd >>= applyMVoiceEventsMods mVoiceEventsMods . (vrt,) <&> (_vrcNumVoc vrt,)
+applyMods :: String -> TimeSignature -> Maybe (NE.NonEmpty String) -> Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig,VoiceConfig) -> Driver (Int,[VoiceEvent])
+applyMods path timeSig mConfigMods mVoiceEventsMods pr =
+  applyMConfigMods mConfigMods pr >>= voiceConfig2VoiceEvents path timeSig . snd >>= applyMVoiceEventsMods mVoiceEventsMods . (vrt,) <&> (_vrcNumVoc vrt,)
   where
     vrt = fst pr
 
@@ -654,6 +687,7 @@ voiceConfig2Slice VoiceConfigRepeat{..}   = config2Slices _vcrCore
 voiceConfig2Slice VoiceConfigSlice{..}    = config2Slices _vccCore
 voiceConfig2Slice VoiceConfigBlend{..}    = config2Slices _vccCore
 voiceConfig2Slice VoiceConfigXPose{..}    = config2Slices _vcxCore
+voiceConfig2Slice VoiceConfigAccrete{..}  = config2Slices _vcaCore
 
 config2Slices :: VoiceConfigCore -> [Slice]
 config2Slices VoiceConfigCore{..} =
@@ -690,6 +724,8 @@ tup2VoiceConfig (VoiceConfigBlend _ durVal rotVal) (mPitOrPits,durss,accents) =
   VoiceConfigBlend (VoiceConfigCore mPitOrPits durss accents) durVal rotVal
 tup2VoiceConfig (VoiceConfigXPose _ scale vcxRange') (mPitOrPits,durss,accents) =
   VoiceConfigXPose (VoiceConfigCore mPitOrPits durss accents) scale vcxRange'
+tup2VoiceConfig (VoiceConfigAccrete _ scale vcxRange') (mPitOrPits,durss,accents) =
+  VoiceConfigAccrete (VoiceConfigCore mPitOrPits durss accents) scale vcxRange'
 
 -- TBD: always blends voices in order, e.g. for four voices 1, 2, 3, 4.  Randomize?
 -- unfold instead of map because we don't just map over is, but rather use it to track progress of 
@@ -725,9 +761,9 @@ type Motif    = ([Maybe IntOrInts],[DurValAccOrDurTupletAccs])
 type MotifTup = (PitOct,DurVals,[Motif])
 
 -- Accumulate a [Motif] appending or prepending a Motif at a time until filling duration totDur, then convert [Motif] to [VoiceEvent].
-accreteVoiceByMotif :: Int -> Int -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> (KeySignature,PitOct) -> Driver [VoiceEvent]
-accreteVoiceByMotif barDurVal totDurVal intss durss (keySig,startPit) = 
-  unfoldM (unfold2MotifTup scale barDurVal totDurVal intss durss) (False,initMotifTup) <&> concatMap (scaleAndMotifTup2VoiceEvents scale) -- TBD: keySig, then VeEvent KeySig
+accreteVoiceByMotif :: DurationVal -> DurationVal -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> (KeySignature,PitOct) -> Driver [VoiceEvent]
+accreteVoiceByMotif (DurationVal barDur) (DurationVal totDur) intss durss (keySig,startPit) = 
+  unfoldM (unfold2MotifTup scale barDur totDur intss durss) (False,initMotifTup) <&> concatMap (scaleAndMotifTup2VoiceEvents scale) -- TBD: keySig, then VeEvent KeySig
   where
     initMotifTup = (startPit,(DurationVal 0,DurationVal 0),[])
     scale = keySig2Scale M.! keySig
@@ -768,7 +804,7 @@ addMotif2MotifTup _     barDurInt True  (start,durs,motifs) motif = (start, durs
 addMotif2MotifTup scale barDurInt False (start,durs,motifs) motif = (start',durs',motif : motifs)
   where
     start'  = xp scale start (negate . sumInts $ motif)
-    sumInts = sum . map (either id (head . NE.toList)) . catMaybes . fst
+    sumInts = sum . map (either id head) . catMaybes . fst
     motifs' = motif : motifs
     durs'   = mots2Durs False barDurInt durs motifs'
 
@@ -832,7 +868,7 @@ scaleAndMotifTup2VoiceEvents scale (motStart,(startRest,stopRest),motifs) =
         mapAccumF2 (strt,is) (Right (DurTuplet{..},accents)) = ((strt',is'),concat vess')
           where
             ((strt',is'),vess') = mapAccumL mapAccumF2 (strt,is) durs'
-            durs' = zipWith (curry Left) (NE.toList _durtupDurations) (NE.toList accents)
+            durs' = zipWith (curry Left) (NE.toList _durtupDurations) accents
         mapAccumF2 x y = error $ "mapAccumF2 unexpected input: " <> show x  <> " " <> show y
         -- Generate Rest, Note, or Chord  depending on Maybe IntOrInts, DurationVal, and Accent, carry forward input (Pitch,Oct).
         nextVE :: PitOct -> Maybe IntOrInts -> DurationVal -> Accent -> (PitOct,VoiceEvent)
@@ -843,7 +879,7 @@ scaleAndMotifTup2VoiceEvents scale (motStart,(startRest,stopRest),motifs) =
           where
             PitOct pit' oct' = xp scale pitOct int
         -- Complex case: (Just (Right [Int])) maps to a Chord, carry updated (Pitch,Oct) for root to next transpose.
-        nextVE pitOct (Just (Right is)) durVal acc = (NE.head pitOcts,VeChord $ Chord pitOcts durVal [] (acc2Ctrls acc) False)
+        nextVE pitOct (Just (Right is)) durVal acc = (head pitOcts,VeChord $ Chord (NE.fromList pitOcts) durVal [] (acc2Ctrls acc) False)
           where
             pitOcts = xp scale pitOct <$> is
         -- Swallow NoAccent when generating [Control]
@@ -859,13 +895,13 @@ path2Name :: String -> String
 path2Name = last . splitOn "."
 
 sectionConfig2VoiceEvents :: TimeSignature -> SectionConfig -> Driver [[VoiceEvent]]
-sectionConfig2VoiceEvents _ (SectionConfigNeutral (SectionConfigCore scnPath mConfigMods mVoiceEventsMods) cntSegs voiceConfigs) = do
+sectionConfig2VoiceEvents timeSig (SectionConfigNeutral (SectionConfigCore scnPath mConfigMods mVoiceEventsMods) cntSegs voiceConfigs) = do
   spotIxs <- randomizeList [0..cntVocs - 1] <&> cycle
   traverse (traverse (applyMConfigMods mConfigMods)) (mkPrss spotIxs) >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
     where
       cntVocs = length voiceConfigs
       scnName = drop (length "section") (path2Name scnPath) <> " (neutral)"
-      cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
+      cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath timeSig cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
       mkPrss spotIxs = zipWith (\rtups cfgtup -> (,cfgtup) <$> rtups) segRuntimeTupss voiceConfigs
         where
           segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
@@ -874,7 +910,7 @@ sectionConfig2VoiceEvents _ (SectionConfigNeutral (SectionConfigCore scnPath mCo
 -- Fade in from rests, voice-by-voice, voice event mods fadeinAccs and fadeinDyns background continuing voices: start of a round.
 -- The list of indexes in fadeIxs tells the index for the [VoiceEvent] to add, one-by-one.
 -- Monadically fold over list if indexes with fade-out order from config, generating new [[VoiceEvent]] for all voices.
-sectionConfig2VoiceEvents _ (SectionConfigFadeIn (SectionConfigCore scnPath mConfigMods mVoiceEventsMods) fadeIxs voiceConfigs) =
+sectionConfig2VoiceEvents timeSig (SectionConfigFadeIn (SectionConfigCore scnPath mConfigMods mVoiceEventsMods) fadeIxs voiceConfigs) =
   foldM foldMf ([], idxVEsPrs) fadeIxs <&> addSecnName scnName . map snd . snd
   where
     cntVocs    = length voiceConfigs
@@ -891,7 +927,7 @@ sectionConfig2VoiceEvents _ (SectionConfigFadeIn (SectionConfigCore scnPath mCon
           | idxVoc == numVoc = pure (idxVoc,ves <> newVEs')
           | idxVoc `elem` seenNumVocs = genVEsFromMods idxVoc <&> second (ves <>)
           | otherwise = pure  (idxVoc,ves <> restVEs')
-        genVEsFromMods idx = applyMods scnPath mConfigMods mVoiceEventsMods (rtTup,cfgTup)
+        genVEsFromMods idx = applyMods scnPath timeSig mConfigMods mVoiceEventsMods (rtTup,cfgTup)
           where
             mIdx = if idx == numVoc then Just idx else Nothing
             rtTup  = VoiceRuntimeConfig scnPath mIdx Nothing cntVocs idx cntSegs numSeg
@@ -917,7 +953,7 @@ sectionConfig2VoiceEvents timeSig (SectionConfigFadeOut (SectionConfigCore scnPa
         appendVEs (idxVoc,ves)
           | idxVoc == numVoc || idxVoc `elem` seenNumVocs = pure (idxVoc,ves)
           | otherwise = genVEsFromMods idxVoc <&> second (ves <>) 
-        genVEsFromMods idx = applyMods scnPath mConfigMods mVoiceEventsMods (rtTup,cfgTup)
+        genVEsFromMods idx = applyMods scnPath timeSig mConfigMods mVoiceEventsMods (rtTup,cfgTup)
           where
             mIdx = if idx == numVoc then Just idx else Nothing
             rtTup  = VoiceRuntimeConfig scnPath mIdx Nothing cntVocs idx cntSegs numSeg
@@ -929,7 +965,7 @@ sectionConfig2VoiceEvents timeSig (SectionConfigFadeOut (SectionConfigCore scnPa
 -- same length.
 -- As the actual selection of which inner list in the list of list of pitches, durations, and accents gets rendered is
 -- randomized by the VoiceConfig, 
-sectionConfig2VoiceEvents _ (SectionConfigFadeAcross (SectionConfigCore scnPath mConfigMods mVoiceEventsMods) nReps voiceConfigPrs) = do
+sectionConfig2VoiceEvents timeSig (SectionConfigFadeAcross (SectionConfigCore scnPath mConfigMods mVoiceEventsMods) nReps voiceConfigPrs) = do
   spotIxs <- traverse (const (randomIndex cntVocs)) [0..cntSegs - 1]
   traverse (traverse (applyMConfigMods mConfigMods)) (mkPrss spotIxs) >>= traverse (concatMapM cvtAndApplyMod) <&> addSecnName scnName
     where
@@ -941,13 +977,13 @@ sectionConfig2VoiceEvents _ (SectionConfigFadeAcross (SectionConfigCore scnPath 
       voiceConfigs    = fst <$> voiceConfigPrs
       voiceConfigss   = cfgSlicessPr2Configs <$> zip voiceConfigs blendedSlices
       cntSegs         = length (head voiceConfigss)
-      cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
+      cvtAndApplyMod (rtTup,cfgTup) = voiceConfig2VoiceEvents scnPath timeSig cfgTup >>= applyMVoiceEventsMods mVoiceEventsMods . (rtTup,)
       mkPrss spotIxs = zipWith zip segRuntimeTupss voiceConfigss
         where
           segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
           voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing (Just spotIx) cntVocs numVoc cntSegs numSeg |
                              numVoc <- [0..cntVocs - 1], (numSeg,spotIx) <- zip [0..cntSegs - 1] spotIxs]
--- Verify the lengths of [[Maybe IntOrInts]] and [[DuValAccOrDurTupletAccs]] are then same, then for each voice,
+-- Verify the lengths of [[Maybe IntOrInts]] and [[DuValAccOrDurTupletAccs]] are the same, then for each voice,
 -- incrementally accrete a [Motif] to fill totDurVal and convert to [VoiceEvent].
 sectionConfig2VoiceEvents timeSig SectionConfigAccrete{..}
   | not (allSame cfgLens) = 
@@ -956,10 +992,10 @@ sectionConfig2VoiceEvents timeSig SectionConfigAccrete{..}
       traverse (accreteVoiceByMotif barDurVal totDurVal intss durss) inits
   where
     cfgLens   = [length _sccMIntervalss,length _sccDurOrDurTupss]    
-    barDurVal = timeSig2Num timeSig * dur2DurVal (timeSig2Denom timeSig)
-    totDurVal = _sccNumBars * barDurVal
+    barDurVal = timeSig2BarDurVal timeSig
+    totDurVal = DurationVal _sccNumBars * barDurVal
     inits     = NE.toList _sccInits    
-    intss     = nes2arrs _sccMIntervalss
+    intss     = map (map (fmap (second NE.toList))) (nes2arrs _sccMIntervalss)
     durss     = nes2arrs _sccDurOrDurTupss
 
 -------------------------------------------------------
@@ -1081,8 +1117,8 @@ grpNames2VEss grpNames timeSig = do
 section2VEss :: String -> TimeSignature -> Driver [[VoiceEvent]]
 section2VEss section timeSig = path2SectionConfig section >>= sectionConfig2VoiceEvents timeSig
 
-voice2VEss :: String -> Driver [[VoiceEvent]]
-voice2VEss voice = path2VoiceConfig voice >>= voiceConfig2VoiceEvents voice <&> (:[])
+voice2VEss :: String -> TimeSignature -> Driver [[VoiceEvent]]
+voice2VEss voice timeSig = path2VoiceConfig voice >>= voiceConfig2VoiceEvents voice timeSig  <&> (:[])
 
 -- Convert config data in DriverEnv to list of VoiceEvent per voice
 -- according to length of config path so e.g. you can focus all the
@@ -1094,7 +1130,7 @@ config2VEss path timeSig =
     1 -> title2VEss   path timeSig
     2 -> group2VEss   path timeSig
     3 -> section2VEss path timeSig
-    4 -> voice2VEss   path
+    4 -> voice2VEss   path timeSig
     n ->  error $ "config2VEss unexpected count of keys " <> show n <> " in " <> path
 
 -------------------------------

@@ -9,6 +9,7 @@ import Utils
 
 import Control.Lens hiding (pre)
 import Data.List (isPrefixOf)
+import Data.List.Extra (allSame)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
@@ -69,7 +70,7 @@ data SectionConfig =
       _sccCore           :: SectionConfigCore
       ,_sccNumBars       :: Int -- TBD Range?
       ,_sccInits         :: NE.NonEmpty (KeySignature,PitOct)
-      ,_sccMIntervalss   :: NE.NonEmpty (NE.NonEmpty (Maybe IntOrInts)) -- TBD, replace with PitOctOrPitOcts
+      ,_sccMIntervalss   :: NE.NonEmpty (NE.NonEmpty (Maybe (Either Int (NE.NonEmpty Int))))
       ,_sccDurOrDurTupss :: NE.NonEmpty (NE.NonEmpty DurValAccOrDurTupletAccs)
       }
     deriving Show
@@ -183,6 +184,12 @@ data VoiceConfig =
       ,_vcxScale  :: Scale
       ,_vcxRange  :: (PitOct,PitOct)
       }
+  -- accrete to NumBars beginning and end by xpose of _vcmPOOrPOss
+  | VoiceConfigAccrete {
+      _vcaCore     :: VoiceConfigCore
+      ,_vcaNumBars :: Int
+      ,_vcaInit    :: (KeySignature,PitOct)
+      }
     deriving Show
 
 makeLenses ''VoiceConfigCore
@@ -214,7 +221,7 @@ path2VoiceConfigXPose pre = path2VoiceConfigXPose' pre <&> verifyRange
       | otherwise = error $ "path2VoiceConfigXPose range ord: " <> show rangeOrd <> " does not match ord of list of list of maybe pitch or pitches: " <> show mPOOrPOsssOrd
       where
         rangeOrd = rangeToOrd _vcxRange
-        mPOOrPOsssOrd = mPitOctOrPitOctsssToOrd _vcxScale (neMPOs2MarrsMPOs $ _vcmPOOrPOss _vcxCore)
+        mPOOrPOsssOrd = mPitOctOrPitOctsssToOrd _vcxScale (neMXss2MArrsXss $ _vcmPOOrPOss _vcxCore)
     verifyRange vc = error $ "path2VoiceConfigXPose unexpected VoiceConfig: " <> show vc
 
 path2VoiceConfigRepeat :: String -> Driver VoiceConfig
@@ -235,15 +242,23 @@ path2VoiceConfigSlice' pre =
         <$> path2VoiceConfigCore pre
         <*> searchConfigParam  (pre <> ".durval")
 
-path2VoiceConfigSlice :: String -> Driver VoiceConfig
-path2VoiceConfigSlice pre = path2VoiceConfigSlice' pre <&> verifyListsLengths
+verifyVoiceConfigCoreListsLengths :: VoiceConfigCore -> VoiceConfigCore
+verifyVoiceConfigCoreListsLengths core@VoiceConfigCore{..}
+  | allSame allLengths = core
+  | otherwise = error $ "verifyVoiceConfigCoreListsLengths unequal length listss: " <> show allLengths
   where
-    verifyListsLengths vc@VoiceConfigSlice{..}
-      | all (== head allLengths) allLengths = vc
-      | otherwise = error $ "path2VoiceConfigSlice unequal length listss: " <> show allLengths
-      where
-        allLengths = [NE.length (_vcmPOOrPOss _vccCore),NE.length (_vcAcctss _vccCore),NE.length (_vcDurss _vccCore)]
-    verifyListsLengths vc = error $ "path2VoiceConfigSlice unexpected VoiceConfig: " <> show vc
+    allLengths = [NE.length _vcmPOOrPOss,NE.length _vcAcctss,NE.length _vcDurss]
+
+verifyVoiceConfigListsLengths :: VoiceConfig -> VoiceConfig
+verifyVoiceConfigListsLengths vc@VoiceConfigVerbatim{..}  = vc { _vcvCore = verifyVoiceConfigCoreListsLengths _vcvCore }
+verifyVoiceConfigListsLengths vc@VoiceConfigRepeat{..}    = vc { _vcrCore = verifyVoiceConfigCoreListsLengths _vcrCore }
+verifyVoiceConfigListsLengths vc@VoiceConfigBlend{..}     = vc { _vccCore = verifyVoiceConfigCoreListsLengths _vccCore }
+verifyVoiceConfigListsLengths vc@VoiceConfigSlice{..}     = vc { _vccCore = verifyVoiceConfigCoreListsLengths _vccCore }
+verifyVoiceConfigListsLengths vc@VoiceConfigXPose{..}     = vc { _vcxCore = verifyVoiceConfigCoreListsLengths _vcxCore }
+verifyVoiceConfigListsLengths vc@VoiceConfigAccrete{..}   = vc { _vcaCore = verifyVoiceConfigCoreListsLengths _vcaCore }
+
+path2VoiceConfigSlice :: String -> Driver VoiceConfig
+path2VoiceConfigSlice pre = path2VoiceConfigSlice' pre <&> verifyVoiceConfigListsLengths
 
 path2VoiceConfigBlend :: String -> Driver VoiceConfig
 path2VoiceConfigBlend pre =
@@ -251,7 +266,17 @@ path2VoiceConfigBlend pre =
         <$> path2VoiceConfigCore pre
         <*> searchConfigParam (pre <> ".durval")
         <*> (searchMConfigParam (pre <> ".rotval") <&> fromMaybe 0)
+
+path2VoiceConfigAccrete' :: String -> Driver VoiceConfig
+path2VoiceConfigAccrete' pre =
+      VoiceConfigAccrete
+        <$> path2VoiceConfigCore pre
+        <*> searchConfigParam (pre <> ".numBars")
+        <*> searchConfigParam (pre <> ".init")
         
+path2VoiceConfigAccrete :: String -> Driver VoiceConfig
+path2VoiceConfigAccrete pre = path2VoiceConfigAccrete' pre <&> verifyVoiceConfigListsLengths
+
 type Path2VoiceConfig = String -> Driver VoiceConfig
 
 name2VoiceConfigMap :: M.Map String Path2VoiceConfig
@@ -259,7 +284,8 @@ name2VoiceConfigMap = M.fromList [("verbatim",path2VoiceConfigVerbatim)
                                  ,("slice"   ,path2VoiceConfigSlice)
                                  ,("repeat"  ,path2VoiceConfigRepeat)
                                  ,("blend"   ,path2VoiceConfigBlend)
-                                 ,("xpose"   ,path2VoiceConfigXPose)]
+                                 ,("xpose"   ,path2VoiceConfigXPose)
+                                 ,("accrete" ,path2VoiceConfigAccrete)]
 
 path2VoiceConfig :: Path2VoiceConfig
 path2VoiceConfig path =

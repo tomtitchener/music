@@ -227,11 +227,9 @@ makeLenses ''DurTuplet
 
 type DurValOrDurTuplet = Either DurationVal DurTuplet
 
-type DurValAccOrDurTupletAccs = Either (DurationVal,Accent) (DurTuplet,NonEmpty Accent)
+type DurValAccOrDurTupletAccs = Either (DurationVal,Accent) (DurTuplet,[Accent])
 
-type IntOrInts = Either Int (NonEmpty Int)
-
-type IntOrIntss = Either Int [Int] -- TBD: replace IntOrInts after eliminating it
+type IntOrInts = Either Int [Int]
 
 type PitOctOrNEPitOcts =  Either PitOct (NonEmpty PitOct)
 

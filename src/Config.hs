@@ -25,6 +25,8 @@ import qualified Data.List.NonEmpty as NE
 
 import Data.List (sort)
 
+import Data.Tuple.Extra (second) 
+
 import Lily
     ( parseDuration, parseInstrument, parsePitch, parseNat, parseNatural )
 
@@ -154,6 +156,8 @@ instance FromConfig (NE.NonEmpty (Int,Int)) where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Int,Int))) where
   parseConfig = mkParseConfig (mkPss pIntPr)
 
+instance FromConfig (KeySignature,PitOct) where
+  parseConfig = mkParseConfig pKeySigPitOctPr
   
 instance FromConfig (NE.NonEmpty (KeySignature,PitOct)) where
   parseConfig = mkParseConfig (mkPs pKeySigPitOctPr)
@@ -172,7 +176,7 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty DurValAccOrDurTupletAccs)) where
   parseConfig = mkParseConfig (mkPss parseDurValAccOrDurTupAccs)
 
 parseDurValAccOrDurTupAccs :: Parser DurValAccOrDurTupletAccs
-parseDurValAccOrDurTupAccs = try (Left <$> parseDurValAcc) <|> (Right <$> parseDurTupletAccs)
+parseDurValAccOrDurTupAccs = try (Left <$> parseDurValAcc) <|> (Right . second NE.toList <$> parseDurTupletAccs)
 
 parseDurValAcc :: Parser (DurationVal,Accent)
 parseDurValAcc = pPr (duration2DurationVal <$> parseDuration) pAccentStr

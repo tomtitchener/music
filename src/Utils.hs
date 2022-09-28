@@ -71,10 +71,10 @@ intToPitOct s i = PitOct pit oct
     pit = ixToPit s i
     oct = ixToOct s (minBound::Octave,maxBound::Octave) i
 
-poOrPOsToIOrIss :: Scale -> PitOctOrPitOcts -> IntOrIntss
+poOrPOsToIOrIss :: Scale -> PitOctOrPitOcts -> IntOrInts
 poOrPOsToIOrIss s = bimap (pitOctToInt s) (map (pitOctToInt s))
 
-mPOOrPOsToMIOrIsDiffs :: Scale -> [Maybe PitOctOrPitOcts] -> [Maybe IntOrIntss]
+mPOOrPOsToMIOrIsDiffs :: Scale -> [Maybe PitOctOrPitOcts] -> [Maybe IntOrInts]
 mPOOrPOsToMIOrIsDiffs s = snd . mapAccumL accumF 0 . map (fmap (poOrPOsToIOrIss s))
   where
     accumF prev Nothing           = (prev,Nothing)
@@ -274,6 +274,12 @@ timeSig2Denom :: TimeSignature -> Duration
 timeSig2Denom TimeSignatureSimple{..} = _tsDenom
 timeSig2Denom TimeSignatureGrouping{..} = _tsgDenom
 
+timeSig2BarDurVal :: TimeSignature -> DurationVal
+timeSig2BarDurVal ts = DurationVal $ numVal * dur2DurVal denomVal
+  where
+    numVal   = timeSig2Num ts
+    denomVal = timeSig2Denom ts
+
 ve2DurVal :: VoiceEvent -> Int
 ve2DurVal (VeNote   Note {..})    = fromVal _noteDur
 ve2DurVal (VeRest   Rest {..})    = fromVal _restDur
@@ -360,10 +366,16 @@ nes2arrs :: NE.NonEmpty (NE.NonEmpty a) -> [[a]]
 nes2arrs = map NE.toList . NE.toList
 
 arrs2nes :: [[a]] -> NE.NonEmpty (NE.NonEmpty a)
-arrs2nes = NE.fromList . map NE.fromList 
+arrs2nes = NE.fromList . map NE.fromList
 
-neMPOs2MarrsMPOs :: NE.NonEmpty (NE.NonEmpty (Maybe (Either PitOct (NE.NonEmpty PitOct)))) -> [[Maybe (Either PitOct [PitOct])]]
-neMPOs2MarrsMPOs = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
+neMXss2MArrsXss :: NE.NonEmpty (NE.NonEmpty (Maybe (Either a (NE.NonEmpty b)))) -> [[Maybe (Either a [b])]]
+neMXss2MArrsXss = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
+
+-- neMPOs2MarrsMPOs :: NE.NonEmpty (NE.NonEmpty (Maybe (Either PitOct (NE.NonEmpty PitOct)))) -> [[Maybe (Either PitOct [PitOct])]]
+-- neMPOs2MarrsMPOs = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
+
+-- neMIOrIs2MarrsMIOrIs :: NE.NonEmpty (NE.NonEmpty (Maybe IntOrInts)) -> [[Maybe IntOrInts]]
+-- neMIOrIs2MarrsMIOrIs = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
 
 -- Scales (fill out as needed)
 cMajScale :: Scale
