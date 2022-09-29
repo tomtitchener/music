@@ -19,7 +19,6 @@ import "monad-extras" Control.Monad.Extra (unfoldM)
 import Data.Foldable
 import Data.Function (on)
 import Data.List (elemIndex, findIndex, findIndices, groupBy, isPrefixOf, unfoldr, transpose)
-import Data.List.Extra (allSame)
 import qualified Data.List.NonEmpty as NE
 import Data.List.Split (chunksOf, splitOn)
 import qualified Data.Map.Strict as M
@@ -428,7 +427,142 @@ genVoiceEventsByAccrete vaName timeSig path VoiceConfigCore{..} numBars (keySig,
     barDurVal  = timeSig2BarDurVal timeSig
     totDurVal  = DurationVal numBars * barDurVal
     mIOrIsss   = mPOOrPOsToMIOrIsDiffs scale <$> (neMXss2MArrsXss _vcmPOOrPOss)
-    dVAOrDTAss = zipWith mkDVAOrDTAss (nes2arrs _vcAcctss) (nes2arrs _vcDurss) 
+    dVAOrDTAss = zipWith mkDVAOrDTAss (nes2arrs _vcAcctss) (nes2arrs _vcDurss)
+
+--------------------------------
+-- VoiceConfigAccrete helpers --
+--------------------------------
+
+type DurVals  = (DurationVal,DurationVal)
+type Motif    = ([Maybe IntOrInts],[DurValAccOrDurTupletAccs])
+type MotifTup = (PitOct,DurVals,[Motif])
+
+-- Accumulate a [Motif] appending or prepending a Motif at a time until filling duration totDur, then convert [Motif] to [VoiceEvent].
+accreteVoiceByMotif :: DurationVal -> DurationVal -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> (KeySignature,PitOct) -> Driver [VoiceEvent]
+accreteVoiceByMotif (DurationVal barDur) (DurationVal totDur) intss durss (keySig,startPit) = 
+  unfoldM (unfold2MotifTup scale barDur totDur intss durss) (False,initMotifTup) <&> concatMap (scaleAndMotifTup2VoiceEvents scale) -- TBD: keySig, then VeEvent KeySig
+  where
+    initMotifTup = (startPit,(DurationVal 0,DurationVal 0),[])
+    scale = keySig2Scale M.! keySig
+        
+-- unfold2MotifTup generates the next MotifTup by adding one more Motif to the start or end (by isAppend) of the [Motif] contained in the MotifTup
+unfold2MotifTup :: Scale -> Int -> Int -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> (Bool,MotifTup) -> Driver (Maybe (MotifTup,(Bool,MotifTup)))
+unfold2MotifTup scale barDurVal totDurVal intss durss (isAppend,motifTup) = do
+  motif <- (,) <$> randomElement intss <*> randomElement durss <&> mkEqLenLists
+  let motifTup' = addMotif2MotifTup scale barDurVal isAppend motifTup motif
+  pure $
+    if totDurVal > motifTup2DurInt motifTup'
+    then Just (motifTup',(not isAppend, motifTup'))
+    else Nothing
+  where
+    -- make length of intervals match count of durations
+    mkEqLenLists (iss, dss) = (take cntDurs (cycle iss),dss)
+      where
+        cntDurs = sum $ either (const 1) (length . _durtupDurations . fst) <$> dss
+
+motifTup2DurInt :: MotifTup -> Int
+motifTup2DurInt (_,(beg,end),motifs) = fromVal beg + fromVal end + motifs2DurInt motifs
+
+motifs2DurInt :: [Motif] -> Int
+motifs2DurInt motifs = fromVal . sum $ durValAccOrDurTupletAccs2DurVal <$> concatMap snd motifs
+
+durValAccOrDurTupletAccs2DurVal :: DurValAccOrDurTupletAccs -> DurationVal
+durValAccOrDurTupletAccs2DurVal = either fst (durTuplet2DurVal . fst)
+
+-- Given scale and isAppend flag, either append or prepend Motif to MotifTup.
+-- Appending is easy as it doesn't affect the starting pitch.
+-- Prepending means counting backward to transpose the starting pitch so the
+-- MotifTup ends with the correct starting pitch to successively transpose [Motif].
+addMotif2MotifTup :: Scale -> Int -> Bool -> MotifTup -> Motif -> MotifTup
+addMotif2MotifTup _     barDurInt True  (start,durs,motifs) motif = (start, durs',motifs')
+  where
+    motifs' = motifs ++ [motif]
+    durs'   = mots2Durs True barDurInt durs motifs'
+addMotif2MotifTup scale barDurInt False (start,durs,motifs) motif = (start',durs',motif : motifs)
+  where
+    start'  = xp scale start (negate . sumInts $ motif)
+    sumInts = sum . map (either id head) . catMaybes . fst
+    motifs' = motif : motifs
+    durs'   = mots2Durs False barDurInt durs motifs'
+
+-- Take the duration of a bar and the list of motifs, sum the duration vals in the motifs
+-- to get their total duration in 128th notes, then compute the amount left over to reach
+-- the next bar, and split that amount between the rest at the start and the rest at the end.
+--
+-- At start, want motif to start after reasonable rest at start, e.g. quarter, dotted quarter.
+-- So just watch for (0,0) for DurationVals, make first as random choice of first, second, or
+-- third quarter note.  Could eventually try to do something like look at how long the Motif
+-- is and start after a shorter duration if there's a way to fit it into a single bar.  
+-- Then terminating duration is just distance to the next bar.
+--
+-- Then when isAppend is True, leave first duration as is, and make last duration enough to
+-- fill out the current bar.
+--
+-- When isAppend is False, leave last duration as is, and make first duration enough to fill
+-- back to the start of the previous bar.
+--
+mots2Durs :: Bool -> Int -> (DurationVal,DurationVal) -> [Motif] -> (DurationVal,DurationVal)
+mots2Durs _ barDurInt (DurationVal 0,DurationVal 0) motifs =
+  (DurationVal initBegDurInt,DurationVal initEndDurInt)
+  where
+  initBegDurInt = dur2DurVal QDur
+  initEndDurInt = remDurVal barDurInt initBegDurInt motifs
+mots2Durs True barDurInt (DurationVal prevBegDurInt,_) motifs =
+  (DurationVal prevBegDurInt,DurationVal newEndDurInt)
+  where
+    newEndDurInt = remDurVal barDurInt prevBegDurInt motifs
+mots2Durs False barDurInt (_,DurationVal prevEndDurInt) motifs =
+  (DurationVal newBegDurInt,DurationVal prevEndDurInt)
+  where
+    newBegDurInt = remDurVal barDurInt prevEndDurInt motifs
+
+-- Remaining count of 128ths to reach start or end of bar given count of 
+-- 128ths in a bar, count of 128ths for start or end offset, list of Motifs.
+-- If the sum of the offset and the length of the motifs is exactly divisible
+-- by the bar count, then answer 0 to avoid answering a full bar.
+remDurVal :: Int -> Int -> [Motif] -> Int
+remDurVal barDurInt offDurInt motifs =
+  if 0 == remBar then 0 else barDurInt - remBar
+  where
+  remBar = (`rem` barDurInt) . (+ offDurInt) . motifs2DurInt $ motifs
+
+-- Use the start from input (Pitch,Octave), the initial and ending rests, and to create a [VoiceEvent] for this MotifTup.
+scaleAndMotifTup2VoiceEvents ::  Scale -> MotifTup -> [VoiceEvent]
+scaleAndMotifTup2VoiceEvents scale (motStart,(startRest,stopRest),motifs) = 
+  VeRest (Rest startRest []) : (concat . snd $ mapAccumL mapAccumF1 motStart motifs) <> [VeRest (Rest stopRest [])]
+  where
+    -- Generate [VoiceEvent] using starting (Pitch,Octave), carrying updated (Pitch,Octave) for next Motif
+    mapAccumF1 :: PitOct -> Motif -> (PitOct,[VoiceEvent])
+    mapAccumF1 start (ints,durs) = (start',concat vess)
+      where
+        ((start',_),vess) = mapAccumL mapAccumF2 (start,ints) durs
+        -- Pair as many [Maybe IntOrInts] as needed for next DurValAccOrDurTupletAccs to generate next [VoiceEvent]
+        mapAccumF2 :: (PitOct,[Maybe IntOrInts]) -> DurValAccOrDurTupletAccs -> ((PitOct,[Maybe IntOrInts]),[VoiceEvent])
+        -- Trivial case:  (Left (DurationVal,Accent)) only requires one Maybe IntOrInts.
+        mapAccumF2 (strt,i:is) (Left (durVal,accent)) = ((strt',is),[ve])
+          where
+            (strt',ve) = nextVE strt i durVal accent
+        mapAccumF2 (strt,is) (Right (DurTuplet{..},accents)) = ((strt',is'),concat vess')
+          where
+            ((strt',is'),vess') = mapAccumL mapAccumF2 (strt,is) durs'
+            durs' = zipWith (curry Left) (NE.toList _durtupDurations) accents
+        mapAccumF2 x y = error $ "mapAccumF2 unexpected input: " <> show x  <> " " <> show y
+        -- Generate Rest, Note, or Chord  depending on Maybe IntOrInts, DurationVal, and Accent, carry forward input (Pitch,Oct).
+        nextVE :: PitOct -> Maybe IntOrInts -> DurationVal -> Accent -> (PitOct,VoiceEvent)
+        -- Trivial case:  Nothing maps to Rest.
+        nextVE pitOct Nothing durVal acc = (pitOct,VeRest $ Rest durVal (acc2Ctrls acc))
+        -- Trivial case:  (Just (Left Int)) maps to a Note, carry updated (Pitch,Oct) for next transpose.
+        nextVE pitOct (Just (Left int)) durVal acc = (PitOct pit' oct',VeNote $ Note pit' oct' durVal [] (acc2Ctrls acc) False)
+          where
+            PitOct pit' oct' = xp scale pitOct int
+        -- Complex case: (Just (Right [Int])) maps to a Chord, carry updated (Pitch,Oct) for root to next transpose.
+        nextVE pitOct (Just (Right is)) durVal acc = (head pitOcts,VeChord $ Chord (NE.fromList pitOcts) durVal [] (acc2Ctrls acc) False)
+          where
+            pitOcts = xp scale pitOct <$> is
+        -- Swallow NoAccent when generating [Control]
+        acc2Ctrls :: Accent -> [Control]
+        acc2Ctrls NoAccent = []
+        acc2Ctrls acc = [CtrlAccent acc]
 
 mkDVAOrDTAss :: [Accent] -> [DurValOrDurTuplet] -> [DurValAccOrDurTupletAccs]
 mkDVAOrDTAss as = snd . mapAccumL mapAccumF (cycle as)
@@ -752,141 +886,6 @@ blendSlices nReps (i,(cfgASlices,cfgBSlices)) = concat $ replicate nReps $ take 
 incrBlendedIndices :: [Int] -> [Int]
 incrBlendedIndices is = maybe (fmap succ is) (uncurry (<>) . first (fmap succ) . flip splitAt is . succ) $ elemIndex 0 is
 
-----------------------------------
--- SectionConfigAccrete helpers --
-----------------------------------
-
-type DurVals  = (DurationVal,DurationVal)
-type Motif    = ([Maybe IntOrInts],[DurValAccOrDurTupletAccs])
-type MotifTup = (PitOct,DurVals,[Motif])
-
--- Accumulate a [Motif] appending or prepending a Motif at a time until filling duration totDur, then convert [Motif] to [VoiceEvent].
-accreteVoiceByMotif :: DurationVal -> DurationVal -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> (KeySignature,PitOct) -> Driver [VoiceEvent]
-accreteVoiceByMotif (DurationVal barDur) (DurationVal totDur) intss durss (keySig,startPit) = 
-  unfoldM (unfold2MotifTup scale barDur totDur intss durss) (False,initMotifTup) <&> concatMap (scaleAndMotifTup2VoiceEvents scale) -- TBD: keySig, then VeEvent KeySig
-  where
-    initMotifTup = (startPit,(DurationVal 0,DurationVal 0),[])
-    scale = keySig2Scale M.! keySig
-        
--- unfold2MotifTup generates the next MotifTup by adding one more Motif to the start or end (by isAppend) of the [Motif] contained in the MotifTup
-unfold2MotifTup :: Scale -> Int -> Int -> [[Maybe IntOrInts]] -> [[DurValAccOrDurTupletAccs]] -> (Bool,MotifTup) -> Driver (Maybe (MotifTup,(Bool,MotifTup)))
-unfold2MotifTup scale barDurVal totDurVal intss durss (isAppend,motifTup) = do
-  motif <- (,) <$> randomElement intss <*> randomElement durss <&> mkEqLenLists
-  let motifTup' = addMotif2MotifTup scale barDurVal isAppend motifTup motif
-  pure $
-    if totDurVal > motifTup2DurInt motifTup'
-    then Just (motifTup',(not isAppend, motifTup'))
-    else Nothing
-  where
-    -- make length of intervals match count of durations
-    mkEqLenLists (iss, dss) = (take cntDurs (cycle iss),dss)
-      where
-        cntDurs = sum $ either (const 1) (length . _durtupDurations . fst) <$> dss
-
-motifTup2DurInt :: MotifTup -> Int
-motifTup2DurInt (_,(beg,end),motifs) = fromVal beg + fromVal end + motifs2DurInt motifs
-
-motifs2DurInt :: [Motif] -> Int
-motifs2DurInt motifs = fromVal . sum $ durValAccOrDurTupletAccs2DurVal <$> concatMap snd motifs
-
-durValAccOrDurTupletAccs2DurVal :: DurValAccOrDurTupletAccs -> DurationVal
-durValAccOrDurTupletAccs2DurVal = either fst (durTuplet2DurVal . fst)
-
--- Given scale and isAppend flag, either append or prepend Motif to MotifTup.
--- Appending is easy as it doesn't affect the starting pitch.
--- Prepending means counting backward to transpose the starting pitch so the
--- MotifTup ends with the correct starting pitch to successively transpose [Motif].
-addMotif2MotifTup :: Scale -> Int -> Bool -> MotifTup -> Motif -> MotifTup
-addMotif2MotifTup _     barDurInt True  (start,durs,motifs) motif = (start, durs',motifs')
-  where
-    motifs' = motifs ++ [motif]
-    durs'   = mots2Durs True barDurInt durs motifs'
-addMotif2MotifTup scale barDurInt False (start,durs,motifs) motif = (start',durs',motif : motifs)
-  where
-    start'  = xp scale start (negate . sumInts $ motif)
-    sumInts = sum . map (either id head) . catMaybes . fst
-    motifs' = motif : motifs
-    durs'   = mots2Durs False barDurInt durs motifs'
-
--- Take the duration of a bar and the list of motifs, sum the duration vals in the motifs
--- to get their total duration in 128th notes, then compute the amount left over to reach
--- the next bar, and split that amount between the rest at the start and the rest at the end.
---
--- At start, want motif to start after reasonable rest at start, e.g. quarter, dotted quarter.
--- So just watch for (0,0) for DurationVals, make first as random choice of first, second, or
--- third quarter note.  Could eventually try to do something like look at how long the Motif
--- is and start after a shorter duration if there's a way to fit it into a single bar.  
--- Then terminating duration is just distance to the next bar.
---
--- Then when isAppend is True, leave first duration as is, and make last duration enough to
--- fill out the current bar.
---
--- When isAppend is False, leave last duration as is, and make first duration enough to fill
--- back to the start of the previous bar.
---
-mots2Durs :: Bool -> Int -> (DurationVal,DurationVal) -> [Motif] -> (DurationVal,DurationVal)
-mots2Durs _ barDurInt (DurationVal 0,DurationVal 0) motifs =
-  (DurationVal initBegDurInt,DurationVal initEndDurInt)
-  where
-  initBegDurInt = dur2DurVal QDur
-  initEndDurInt = remDurVal barDurInt initBegDurInt motifs
-mots2Durs True barDurInt (DurationVal prevBegDurInt,_) motifs =
-  (DurationVal prevBegDurInt,DurationVal newEndDurInt)
-  where
-    newEndDurInt = remDurVal barDurInt prevBegDurInt motifs
-mots2Durs False barDurInt (_,DurationVal prevEndDurInt) motifs =
-  (DurationVal newBegDurInt,DurationVal prevEndDurInt)
-  where
-    newBegDurInt = remDurVal barDurInt prevEndDurInt motifs
-
--- Remaining count of 128ths to reach start or end of bar given count of 
--- 128ths in a bar, count of 128ths for start or end offset, list of Motifs.
--- If the sum of the offset and the length of the motifs is exactly divisible
--- by the bar count, then answer 0 to avoid answering a full bar.
-remDurVal :: Int -> Int -> [Motif] -> Int
-remDurVal barDurInt offDurInt motifs =
-  if 0 == remBar then 0 else barDurInt - remBar
-  where
-  remBar = (`rem` barDurInt) . (+ offDurInt) . motifs2DurInt $ motifs
-
--- Use the start from input (Pitch,Octave), the initial and ending rests, and to create a [VoiceEvent] for this MotifTup.
-scaleAndMotifTup2VoiceEvents ::  Scale -> MotifTup -> [VoiceEvent]
-scaleAndMotifTup2VoiceEvents scale (motStart,(startRest,stopRest),motifs) = 
-  VeRest (Rest startRest []) : (concat . snd $ mapAccumL mapAccumF1 motStart motifs) <> [VeRest (Rest stopRest [])]
-  where
-    -- Generate [VoiceEvent] using starting (Pitch,Octave), carrying updated (Pitch,Octave) for next Motif
-    mapAccumF1 :: PitOct -> Motif -> (PitOct,[VoiceEvent])
-    mapAccumF1 start (ints,durs) = (start',concat vess)
-      where
-        ((start',_),vess) = mapAccumL mapAccumF2 (start,ints) durs
-        -- Pair as many [Maybe IntOrInts] as needed for next DurValAccOrDurTupletAccs to generate next [VoiceEvent]
-        mapAccumF2 :: (PitOct,[Maybe IntOrInts]) -> DurValAccOrDurTupletAccs -> ((PitOct,[Maybe IntOrInts]),[VoiceEvent])
-        -- Trivial case:  (Left (DurationVal,Accent)) only requires one Maybe IntOrInts.
-        mapAccumF2 (strt,i:is) (Left (durVal,accent)) = ((strt',is),[ve])
-          where
-            (strt',ve) = nextVE strt i durVal accent
-        mapAccumF2 (strt,is) (Right (DurTuplet{..},accents)) = ((strt',is'),concat vess')
-          where
-            ((strt',is'),vess') = mapAccumL mapAccumF2 (strt,is) durs'
-            durs' = zipWith (curry Left) (NE.toList _durtupDurations) accents
-        mapAccumF2 x y = error $ "mapAccumF2 unexpected input: " <> show x  <> " " <> show y
-        -- Generate Rest, Note, or Chord  depending on Maybe IntOrInts, DurationVal, and Accent, carry forward input (Pitch,Oct).
-        nextVE :: PitOct -> Maybe IntOrInts -> DurationVal -> Accent -> (PitOct,VoiceEvent)
-        -- Trivial case:  Nothing maps to Rest.
-        nextVE pitOct Nothing durVal acc = (pitOct,VeRest $ Rest durVal (acc2Ctrls acc))
-        -- Trivial case:  (Just (Left Int)) maps to a Note, carry updated (Pitch,Oct) for next transpose.
-        nextVE pitOct (Just (Left int)) durVal acc = (PitOct pit' oct',VeNote $ Note pit' oct' durVal [] (acc2Ctrls acc) False)
-          where
-            PitOct pit' oct' = xp scale pitOct int
-        -- Complex case: (Just (Right [Int])) maps to a Chord, carry updated (Pitch,Oct) for root to next transpose.
-        nextVE pitOct (Just (Right is)) durVal acc = (head pitOcts,VeChord $ Chord (NE.fromList pitOcts) durVal [] (acc2Ctrls acc) False)
-          where
-            pitOcts = xp scale pitOct <$> is
-        -- Swallow NoAccent when generating [Control]
-        acc2Ctrls :: Accent -> [Control]
-        acc2Ctrls NoAccent = []
-        acc2Ctrls acc = [CtrlAccent acc]
-
 ---------------------------------------------------------------------
 -- SectionConfig[Neutral | FadeIn | FadeOut | FadeAcross] handlers --
 ---------------------------------------------------------------------
@@ -983,20 +982,6 @@ sectionConfig2VoiceEvents timeSig (SectionConfigFadeAcross (SectionConfigCore sc
           segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
           voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing (Just spotIx) cntVocs numVoc cntSegs numSeg |
                              numVoc <- [0..cntVocs - 1], (numSeg,spotIx) <- zip [0..cntSegs - 1] spotIxs]
--- Verify the lengths of [[Maybe IntOrInts]] and [[DuValAccOrDurTupletAccs]] are the same, then for each voice,
--- incrementally accrete a [Motif] to fill totDurVal and convert to [VoiceEvent].
-sectionConfig2VoiceEvents timeSig SectionConfigAccrete{..}
-  | not (allSame cfgLens) = 
-      error $ "sectionConfig2VoiceEvents accrete config lens are not identical: " <> show cfgLens
-  | otherwise = 
-      traverse (accreteVoiceByMotif barDurVal totDurVal intss durss) inits
-  where
-    cfgLens   = [length _sccMIntervalss,length _sccDurOrDurTupss]    
-    barDurVal = timeSig2BarDurVal timeSig
-    totDurVal = DurationVal _sccNumBars * barDurVal
-    inits     = NE.toList _sccInits    
-    intss     = map (map (fmap (second NE.toList))) (nes2arrs _sccMIntervalss)
-    durss     = nes2arrs _sccDurOrDurTupss
 
 -------------------------------------------------------
 -- GroupConfig[Neutral | EvenEnds | Ordered] helpers --
@@ -1007,7 +992,6 @@ secCfg2SecName SectionConfigNeutral{..}    = path2Name (_sccPath _scnCore)
 secCfg2SecName SectionConfigFadeIn{..}     = path2Name (_sccPath _scfiCore)
 secCfg2SecName SectionConfigFadeOut{..}    = path2Name (_sccPath _scfoCore)
 secCfg2SecName SectionConfigFadeAcross{..} = path2Name (_sccPath _scfcCore)
-secCfg2SecName SectionConfigAccrete{..}    = path2Name (_sccPath _sccCore)
 
 -- Repeatedly add [[VoiceEvent]] for last section to input until all [[VoiceEvent]] are the same
 -- total duration.  Tricky bit is that sectionConfig2VoiceEvents may not add [VoiceEvent] of

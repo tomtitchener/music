@@ -64,15 +64,6 @@ data SectionConfig =
       -- different lengths
       ,_scfcVoicesAB :: [(VoiceConfig,VoiceConfig)]
       }
-  -- TBD: make this into a VoiceConfig instance instead,
-  -- though that'll probably mean changing to VoiceConfigCore?
-  | SectionConfigAccrete {
-      _sccCore           :: SectionConfigCore
-      ,_sccNumBars       :: Int -- TBD Range?
-      ,_sccInits         :: NE.NonEmpty (KeySignature,PitOct)
-      ,_sccMIntervalss   :: NE.NonEmpty (NE.NonEmpty (Maybe (Either Int (NE.NonEmpty Int))))
-      ,_sccDurOrDurTupss :: NE.NonEmpty (NE.NonEmpty DurValAccOrDurTupletAccs)
-      }
     deriving Show
 
 data VoiceConfigCore =
@@ -340,21 +331,11 @@ sectionAndVoices2SectionConfigFadeAcross pre voices =
       <*> searchConfigParam  (pre <> ".reps")
       <*> path2VoiceConfigss pre voices
 
-sectionAndVoices2SectionConfigAccrete :: SectionAndVoices2SectionConfig
-sectionAndVoices2SectionConfigAccrete pre _ = 
-      SectionConfigAccrete 
-      <$> path2SectionConfigCore pre
-      <*> searchConfigParam (pre <> ".numbars")
-      <*> searchConfigParam (pre <> ".inits")
-      <*> searchConfigParam (pre <> ".intss")
-      <*> searchConfigParam (pre <> ".durss")
-
 name2SectionConfigMap :: M.Map String SectionAndVoices2SectionConfig
 name2SectionConfigMap = M.fromList [("neutral"   ,sectionAndVoices2SectionConfigNeutral)
                                    ,("fadein"    ,sectionAndVoices2SectionConfigFadeIn)
                                    ,("fadeout"   ,sectionAndVoices2SectionConfigFadeOut)
-                                   ,("fadeacross",sectionAndVoices2SectionConfigFadeAcross)
-                                   ,("accrete"   ,sectionAndVoices2SectionConfigAccrete)]
+                                   ,("fadeacross",sectionAndVoices2SectionConfigFadeAcross)]
 
 path2SectionConfig :: String -> Driver SectionConfig
 path2SectionConfig section = do
