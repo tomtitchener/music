@@ -128,8 +128,14 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty Duration)) where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty DurValOrDurTuplet)) where
   parseConfig = mkParseConfig (mkPss parseDurOrDurTup)  
 
+instance FromConfig (NE.NonEmpty (NE.NonEmpty NoteDurOrNoteDurTup)) where
+  parseConfig = mkParseConfig (mkPss parseNoteDurOrNoteDurTup)
+
+parseDurationVal :: Parser DurationVal
+parseDurationVal = duration2DurationVal <$> parseDuration
+
 parseDurOrDurTup :: Parser DurValOrDurTuplet
-parseDurOrDurTup = try (Left . duration2DurationVal <$> parseDuration) <|> (Right <$> parseDurTup)
+parseDurOrDurTup = try (Left <$> parseDurationVal) <|> (Right <$> parseDurTup)
 
 parseDurTup :: Parser DurTuplet
 parseDurTup = (DurTuplet <$> (char '(' *> int)
@@ -179,10 +185,19 @@ parseDurValAccOrDurTupAccs :: Parser DurValAccOrDurTupletAccs
 parseDurValAccOrDurTupAccs = try (Left <$> parseDurValAcc) <|> (Right . second NE.toList <$> parseDurTupletAccs)
 
 parseDurValAcc :: Parser (DurationVal,Accent)
-parseDurValAcc = pPr (duration2DurationVal <$> parseDuration) pAccentStr
+parseDurValAcc = pPr parseDurationVal pAccentStr
 
 parseDurTupletAccs :: Parser (DurTuplet,NE.NonEmpty Accent)
 parseDurTupletAccs = pPr parseDurTup (mkPs pAccentStr)
+
+parseNoteDurOrNoteDurTup :: Parser NoteDurOrNoteDurTup
+parseNoteDurOrNoteDurTup = try (Left <$> parseNoteDur) <|> (Right <$> parseNoteDurTup)
+
+parseNoteDur :: Parser (PitOct,DurationVal,Accent)
+parseNoteDur = pTup pPitOct parseDurationVal pAccentStr
+
+parseNoteDurTup :: Parser (NE.NonEmpty PitOct,DurTuplet,NE.NonEmpty Accent)
+parseNoteDurTup = pTup (mkPs pPitOct) parseDurTup (mkPs pAccentStr)
 
 -- Tempo
 instance FromConfig Tempo where
@@ -300,6 +315,10 @@ pPitIntPrOrPitIntPrs = try (Left <$> pPitIntPr) <|> (Right <$> mkPs pPitIntPr)
 
 pPr :: Parser a -> Parser b -> Parser (a,b)
 pPr pFst pSnd = between (char '(') (char ')') ((,) <$> pFst <*> (char ',' *> pSnd))
+
+pTup :: Parser a -> Parser b -> Parser c -> Parser (a,b,c)
+pTup pFst pSnd pThrd = between (char '(') (char ')') ((,,) <$> pFst <*> (char ',' *> pSnd) <*> (char ',' *> pThrd))
+
 
 -- sort by NE.List (Pitch,Octave) pairs by (Octave,Pitch) from low to hi for
 -- easier transpose of lists of PitOctOrPitOcts

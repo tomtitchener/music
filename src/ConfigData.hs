@@ -64,6 +64,10 @@ data SectionConfig =
       -- different lengths
       ,_scfcVoicesAB :: [(VoiceConfig,VoiceConfig)]
       }
+  | SectionConfigExp {
+      _sceCore      :: SectionConfigCore
+      ,_sceMotifs   :: NE.NonEmpty (NE.NonEmpty NoteDurOrNoteDurTup)
+      }
     deriving Show
 
 data VoiceConfigCore =
@@ -326,16 +330,34 @@ sectionAndVoices2SectionConfigFadeOut pre voices =
 
 sectionAndVoices2SectionConfigFadeAcross :: SectionAndVoices2SectionConfig
 sectionAndVoices2SectionConfigFadeAcross pre voices = 
-      SectionConfigFadeAcross 
+      SectionConfigFadeAcross
       <$> path2SectionConfigCore pre
       <*> searchConfigParam  (pre <> ".reps")
       <*> path2VoiceConfigss pre voices
 
+sectionAndVoices2SectionConfigExp :: SectionAndVoices2SectionConfig
+sectionAndVoices2SectionConfigExp pre voices = sectionAndVoices2SectionConfigExp' pre voices <&> verifyMotifs
+  where
+    verifyMotifs se@SectionConfigExp{..} 
+      | all nDurOrDurTupOk (concat $ nes2arrs _sceMotifs) = se
+      | otherwise = error $ "sectionAndVoices2SectionConfigExp: invalid motifs " <> show _sceMotifs
+      where
+        nDurOrDurTupOk = either (const True) nDurTupOk 
+        nDurTupOk (pos,tup,accs) = allSame [length pos,length $ _durtupDurations tup,length accs]
+    verifyMotifs sc = error $ "sectionAndVoices2SectionConfigExp unexpected SectionConfig: " <> show sc
+
+sectionAndVoices2SectionConfigExp' :: SectionAndVoices2SectionConfig
+sectionAndVoices2SectionConfigExp' pre _ = 
+  SectionConfigExp
+      <$> path2SectionConfigCore pre
+      <*> searchConfigParam  (pre <> ".motifs")
+      
 name2SectionConfigMap :: M.Map String SectionAndVoices2SectionConfig
 name2SectionConfigMap = M.fromList [("neutral"   ,sectionAndVoices2SectionConfigNeutral)
                                    ,("fadein"    ,sectionAndVoices2SectionConfigFadeIn)
                                    ,("fadeout"   ,sectionAndVoices2SectionConfigFadeOut)
-                                   ,("fadeacross",sectionAndVoices2SectionConfigFadeAcross)]
+                                   ,("fadeacross",sectionAndVoices2SectionConfigFadeAcross)
+                                   ,("exp"       ,sectionAndVoices2SectionConfigExp)]
 
 path2SectionConfig :: String -> Driver SectionConfig
 path2SectionConfig section = do
