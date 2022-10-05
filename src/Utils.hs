@@ -10,7 +10,7 @@ import Data.List hiding (transpose)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
 import Data.Maybe
-import Data.Tuple.Extra (uncurry3)
+import Data.Tuple.Extra (uncurry3,first3,third3)
 
 import Types
 
@@ -371,12 +371,36 @@ arrs2nes = NE.fromList . map NE.fromList
 neMXss2MArrsXss :: NE.NonEmpty (NE.NonEmpty (Maybe (Either a (NE.NonEmpty b)))) -> [[Maybe (Either a [b])]]
 neMXss2MArrsXss = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
 
--- neMPOs2MarrsMPOs :: NE.NonEmpty (NE.NonEmpty (Maybe (Either PitOct (NE.NonEmpty PitOct)))) -> [[Maybe (Either PitOct [PitOct])]]
--- neMPOs2MarrsMPOs = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
+pOOrNEPOs2pOOrPOs :: PitOctOrNEPitOcts -> PitOctOrPitOcts
+pOOrNEPOs2pOOrPOs = second NE.toList
 
--- neMIOrIs2MarrsMIOrIs :: NE.NonEmpty (NE.NonEmpty (Maybe IntOrInts)) -> [[Maybe IntOrInts]]
--- neMIOrIs2MarrsMIOrIs = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
+nDOrNDTup2Arrs :: NoteDurOrNoteDurTup -> Either (Maybe PitOctOrPitOcts,DurationVal,Accent) ([Maybe PitOctOrPitOcts],DurTuplet,[Accent])
+nDOrNDTup2Arrs = bimap (first3 (fmap pOOrNEPOs2pOOrPOs)) (first3 (fmap (fmap pOOrNEPOs2pOOrPOs) . NE.toList) . third3 NE.toList)
 
+mkNoteChordOrRest :: Maybe PitOctOrPitOcts -> DurationVal -> Accent -> VoiceEvent
+mkNoteChordOrRest (Just (Left (PitOct p o))) d a = VeNote (Note p o d [] [CtrlAccent a] False)
+mkNoteChordOrRest (Just (Right pos))         d a = VeChord (Chord (NE.fromList pos) d [] [CtrlAccent a] False)
+mkNoteChordOrRest Nothing                    d _ = VeRest (Rest d [])
+
+mkTuplet :: [Maybe PitOctOrPitOcts] -> DurTuplet -> [Accent] -> (([Maybe PitOctOrPitOcts],[Accent]),VoiceEvent)
+mkTuplet mPOOrPOs tup@DurTuplet{..} accents
+  | cntDurs > min (length accents') (length mPOOrPOs') =
+    -- extend pitches and accents to match length of tuplet, should only happen in genXPose
+    mkTuplet (take cntDurs (cycle mPOOrPOs')) tup (take cntDurs (cycle accents'))
+  | otherwise = ((drop cntDurs mPOOrPOs,drop cntDurs accents),veTup)
+  where
+    ves         = zipWith3 mkNoteChordOrRest mPOOrPOs' (NE.toList _durtupDurations) accents'
+    veTup       = VeTuplet (Tuplet _durtupNumerator _durtupDenominator _durtupUnitDuration (NE.fromList ves))
+    cntDurs     = length _durtupDurations
+    mPOOrPOs'   = take cntDurs mPOOrPOs -- may return < cntDurs (Maybe PitOctOrPitOcts)
+    accents'    = take cntDurs accents -- always returns cntDurs Accent
+    
+nDOrNDTup2VEs :: Either (Maybe PitOctOrPitOcts,DurationVal,Accent) ([Maybe PitOctOrPitOcts],DurTuplet,[Accent]) -> VoiceEvent
+nDOrNDTup2VEs = either tup2NoteChordOrRest tup2Tuplet
+  where
+    tup2NoteChordOrRest (mPOOrPOs, durVal,accent)  = mkNoteChordOrRest mPOOrPOs durVal accent
+    tup2Tuplet          (mPOOrPOss,durTup,accents) = snd $ mkTuplet mPOOrPOss durTup accents
+  
 -- Scales (fill out as needed)
 cMajScale :: Scale
 cMajScale = Scale $ C NE.:| [D,E,F,G,A,B]

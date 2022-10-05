@@ -193,11 +193,11 @@ parseDurTupletAccs = pPr parseDurTup (mkPs pAccentStr)
 parseNoteDurOrNoteDurTup :: Parser NoteDurOrNoteDurTup
 parseNoteDurOrNoteDurTup = try (Left <$> parseNoteDur) <|> (Right <$> parseNoteDurTup)
 
-parseNoteDur :: Parser (PitOct,DurationVal,Accent)
-parseNoteDur = pTup pPitOct parseDurationVal pAccentStr
+parseNoteDur :: Parser (Maybe PitOctOrNEPitOcts,DurationVal,Accent)
+parseNoteDur = pTup (pM pPitOctOrPitOcts) parseDurationVal pAccentStr
 
-parseNoteDurTup :: Parser (NE.NonEmpty PitOct,DurTuplet,NE.NonEmpty Accent)
-parseNoteDurTup = pTup (mkPs pPitOct) parseDurTup (mkPs pAccentStr)
+parseNoteDurTup :: Parser (NE.NonEmpty (Maybe PitOctOrNEPitOcts),DurTuplet,NE.NonEmpty Accent)
+parseNoteDurTup = pTup (mkPs (pM pPitOctOrPitOcts)) parseDurTup (mkPs pAccentStr)
 
 -- Tempo
 instance FromConfig Tempo where

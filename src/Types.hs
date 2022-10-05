@@ -237,5 +237,5 @@ type PitOctOrPitOcts = Either PitOct [PitOct]
 
 type Range = (PitOct,PitOct)
 
-type NoteDurOrNoteDurTup = Either (PitOct,DurationVal,Accent) (NonEmpty PitOct,DurTuplet,NonEmpty Accent)
+type NoteDurOrNoteDurTup = Either (Maybe PitOctOrNEPitOcts,DurationVal,Accent) (NonEmpty (Maybe PitOctOrNEPitOcts),DurTuplet,NonEmpty Accent)
 

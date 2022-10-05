@@ -694,11 +694,6 @@ takeNDurs 0 _      = []
 takeNDurs n (d:ds) = d : takeNDurs (n - cntDurValOrDurTup d) ds
 takeNDurs _ []     = error "takeNDurs unexpected end of list"
 
-mkNoteChordOrRest :: Maybe PitOctOrPitOcts -> DurationVal -> Accent -> VoiceEvent
-mkNoteChordOrRest (Just (Left (PitOct p o))) d a = VeNote (Note p o d [] [CtrlAccent a] False)
-mkNoteChordOrRest (Just (Right pos))         d a = VeChord (Chord (NE.fromList pos) d [] [CtrlAccent a] False)
-mkNoteChordOrRest Nothing                    d _ = VeRest (Rest d [])
-
 appendAnnFirstNote :: String -> [VoiceEvent] -> [VoiceEvent]
 appendAnnFirstNote ann = annFirstEvent ann (\new old -> if null old then new else old <> ", " <> new)
 
@@ -726,19 +721,6 @@ addOrAppendAnn newAnn append ctrls = maybe (CtrlAnnotation newAnn : ctrls) (`app
 
 rotN :: Int -> [a] -> [a]
 rotN cnt as = drop cnt as <> take cnt as
-
-mkTuplet :: [Maybe PitOctOrPitOcts] -> DurTuplet -> [Accent] -> (([Maybe PitOctOrPitOcts],[Accent]),VoiceEvent)
-mkTuplet mPOOrPOs tup@DurTuplet{..} accents
-  | cntDurs > min (length accents') (length mPOOrPOs') =
-    -- extend pitches and accents to match length of tuplet, should only happen in genXPose
-    mkTuplet (take cntDurs (cycle mPOOrPOs')) tup (take cntDurs (cycle accents'))
-  | otherwise = ((drop cntDurs mPOOrPOs,drop cntDurs accents),veTup)
-  where
-    ves         = zipWith3 mkNoteChordOrRest mPOOrPOs' (NE.toList _durtupDurations) accents'
-    veTup       = VeTuplet (Tuplet _durtupNumerator _durtupDenominator _durtupUnitDuration (NE.fromList ves))
-    cntDurs     = length _durtupDurations
-    mPOOrPOs'   = take cntDurs mPOOrPOs -- may return < cntDurs (Maybe PitOctOrPitOcts)
-    accents'    = take cntDurs accents -- always returns cntDurs Accent
 
 ----------------------------------------------------------------------------
 -- VoiceConfig[XPose | Slice | Verbatim | Repeat | Blend] implementations --
@@ -983,7 +965,7 @@ sectionConfig2VoiceEventss timeSig (SectionConfigFadeAcross (SectionConfigCore s
           voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing (Just spotIx) cntVocs numVoc cntSegs numSeg |
                              numVoc <- [0..cntVocs - 1], (numSeg,spotIx) <- zip [0..cntSegs - 1] spotIxs]
 sectionConfig2VoiceEventss _ (SectionConfigExp _ motifs) = do
-  printIt motifs
+  printIt (map (map (nDOrNDTup2VEs . nDOrNDTup2Arrs)) (nes2arrs motifs))
   pure []
 
 -------------------------------------------------------
