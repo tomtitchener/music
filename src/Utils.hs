@@ -10,7 +10,7 @@ import Data.List hiding (transpose)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
 import Data.Maybe
-import Data.Tuple.Extra (uncurry3,first3,third3)
+import Data.Tuple.Extra (uncurry3, first3, third3)
 
 import Types
 
@@ -71,26 +71,55 @@ intToPitOct s i = PitOct pit oct
     pit = ixToPit s i
     oct = ixToOct s (minBound::Octave,maxBound::Octave) i
 
+-- Xpose implementation from Maybe PitOctOrPitOcts to IntOrInts (basis)
+
 poOrPOsToIOrIss :: Scale -> PitOctOrPitOcts -> IntOrInts
 poOrPOsToIOrIss s = bimap (pitOctToInt s) (map (pitOctToInt s))
 
-mPOOrPOsToMIOrIsDiffs :: Scale -> [Maybe PitOctOrPitOcts] -> [Maybe IntOrInts]
-mPOOrPOsToMIOrIsDiffs s = snd . mapAccumL accumF 0 . map (fmap (poOrPOsToIOrIss s))
-  where
-    accumF prev Nothing           = (prev,Nothing)
-    accumF prev (Just (Left i))   = (i,Just (Left (i - prev)))
-    accumF prev (Just (Right is)) = (minimum is,Just (Right (flip (-) prev <$> is)))
+diffIntOrInts :: Int -> Maybe IntOrInts -> (Int,Maybe IntOrInts)
+diffIntOrInts prev Nothing           = (prev,Nothing) 
+diffIntOrInts prev (Just (Left i))   = (i,Just (Left (i - prev)))
+diffIntOrInts prev (Just (Right is)) = (minimum is,Just (Right (flip (-) prev <$> is)))
 
-xposeFromMPitOctOrPitOctss :: Scale -> PitOct -> [[Maybe PitOctOrPitOcts]] -> [Maybe PitOctOrPitOcts]
-xposeFromMPitOctOrPitOctss s start = snd . mapAccumL accumF start . concatMap (mPOOrPOsToMIOrIsDiffs s)
+mPOOrPOsToMIOrIsDiffs :: Scale -> [Maybe PitOctOrPitOcts] -> [Maybe IntOrInts]
+mPOOrPOsToMIOrIsDiffs s = snd . mapAccumL diffIntOrInts 0 . map (fmap (poOrPOsToIOrIss s))
+
+accumMPitOctOrPitOcts :: Scale -> PitOct -> Maybe IntOrInts -> (PitOct,Maybe PitOctOrPitOcts)
+accumMPitOctOrPitOcts _ prev Nothing         = (prev, Nothing)
+accumMPitOctOrPitOcts s prev (Just (Left i)) = (po,Just (Left po))
   where
-    accumF prev Nothing         = (prev,Nothing)
-    accumF prev (Just (Left i)) = (po,Just (Left po))
+    po = xp s prev i
+accumMPitOctOrPitOcts s prev (Just (Right is)) = (head pos,Just (Right pos))
+  where
+    pos = xp s prev <$> is
+    
+xposeFromMPitOctOrPitOctss :: Scale -> PitOct -> [[Maybe PitOctOrPitOcts]] -> [[Maybe PitOctOrPitOcts]]
+xposeFromMPitOctOrPitOctss s start = snd . mapAccumL (mapAccumL (accumMPitOctOrPitOcts s)) start . map (mPOOrPOsToMIOrIsDiffs s)
+    
+noteDurOrNoteDurs2NoteDurOrNoteDurIs :: Scale -> NoteDurOrNoteDurTup -> NoteDurOrNoteDurIsTup
+noteDurOrNoteDurs2NoteDurOrNoteDurIs s = bimap (first3 (fmap $ poOrPOsToIOrIss s)) (first3 (map (fmap $ poOrPOsToIOrIss s)))
+
+noteDurOrNoteDurss2NoteDurOrNoteDurIsDiffss :: Scale -> [[NoteDurOrNoteDurTup]] -> [[NoteDurOrNoteDurIsTup]]
+noteDurOrNoteDurss2NoteDurOrNoteDurIsDiffss s = map ((snd . mapAccumL accumF 0) . map (noteDurOrNoteDurs2NoteDurOrNoteDurIs s))
+  where
+    accumF :: Int -> NoteDurOrNoteDurIsTup -> (Int,NoteDurOrNoteDurIsTup)
+    accumF prev (Left (mIntOrInts,durVal,accent)) = (i,Left (mIntOrInts',durVal,accent))
       where
-        po = xp s prev i
-    accumF prev (Just (Right is)) = (head pos,Just (Right pos))
+        (i,mIntOrInts') = diffIntOrInts prev mIntOrInts
+    accumF prev (Right (mIntOrIntss,durTup,accents)) = (i,Right (mIntOrIntss',durTup,accents))
       where
-        pos = xp s prev <$> is
+        (i,mIntOrIntss') = mapAccumL diffIntOrInts prev mIntOrIntss
+        
+xposeFromNoteDurOrNoteDurIsTup :: Scale -> PitOct -> [[NoteDurOrNoteDurTup]] -> [[NoteDurOrNoteDurTup]]
+xposeFromNoteDurOrNoteDurIsTup s start = snd . mapAccumL (mapAccumL accumF) start . noteDurOrNoteDurss2NoteDurOrNoteDurIsDiffss s
+  where
+    accumF :: PitOct -> NoteDurOrNoteDurIsTup -> (PitOct,NoteDurOrNoteDurTup)
+    accumF prev (Left (mIntOrInts,durVal,accent)) = (po,Left (mPOs,durVal,accent))
+      where
+        (po,mPOs) = accumMPitOctOrPitOcts s prev mIntOrInts
+    accumF prev (Right (mIntOrIntss,durTup,accents)) = (po,Right (mPOss,durTup,accents))
+      where
+        (po,mPOss) = mapAccumL (accumMPitOctOrPitOcts s) prev mIntOrIntss
         
 -- To determine the overall ordering of a list of list of Maybe PitOctOrPitOcts,
 -- sum the diffs of each list of Maybe PitOctOrPitOcts and compare with 0.
@@ -374,7 +403,7 @@ neMXss2MArrsXss = map (map (fmap (second NE.toList)) . NE.toList) . NE.toList
 pOOrNEPOs2pOOrPOs :: PitOctOrNEPitOcts -> PitOctOrPitOcts
 pOOrNEPOs2pOOrPOs = second NE.toList
 
-nDOrNDTup2Arrs :: NoteDurOrNoteDurTup -> Either (Maybe PitOctOrPitOcts,DurationVal,Accent) ([Maybe PitOctOrPitOcts],DurTuplet,[Accent])
+nDOrNDTup2Arrs :: NoteDurOrNoteDurNETup -> NoteDurOrNoteDurTup
 nDOrNDTup2Arrs = bimap (first3 (fmap pOOrNEPOs2pOOrPOs)) (first3 (fmap (fmap pOOrNEPOs2pOOrPOs) . NE.toList) . third3 NE.toList)
 
 mkNoteChordOrRest :: Maybe PitOctOrPitOcts -> DurationVal -> Accent -> VoiceEvent
@@ -395,7 +424,7 @@ mkTuplet mPOOrPOs tup@DurTuplet{..} accents
     mPOOrPOs'   = take cntDurs mPOOrPOs -- may return < cntDurs (Maybe PitOctOrPitOcts)
     accents'    = take cntDurs accents -- always returns cntDurs Accent
     
-nDOrNDTup2VEs :: Either (Maybe PitOctOrPitOcts,DurationVal,Accent) ([Maybe PitOctOrPitOcts],DurTuplet,[Accent]) -> VoiceEvent
+nDOrNDTup2VEs :: NoteDurOrNoteDurTup -> VoiceEvent
 nDOrNDTup2VEs = either tup2NoteChordOrRest tup2Tuplet
   where
     tup2NoteChordOrRest (mPOOrPOs, durVal,accent)  = mkNoteChordOrRest mPOOrPOs durVal accent

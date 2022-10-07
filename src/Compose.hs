@@ -383,7 +383,7 @@ accumVoiceEventsByRange :: Scale -> Range -> Mottoss -> [VoiceEvent]
 accumVoiceEventsByRange scale (start,stop) (mpitss,durss,acctss) =
   accumVoiceEventsForFiniteMPits (mpits',concat durss,concat acctss)
   where
-    mpits' = takeWhile testRange $ xposeFromMPitOctOrPitOctss scale start mpitss
+    mpits' = takeWhile testRange $ concat (xposeFromMPitOctOrPitOctss scale start mpitss)
     testRange = maybe True (poInRange . poOrPOsToPO)
     poInRange po = if start < stop then po <= stop else po >= stop
 
@@ -964,10 +964,18 @@ sectionConfig2VoiceEventss timeSig (SectionConfigFadeAcross (SectionConfigCore s
           segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
           voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing (Just spotIx) cntVocs numVoc cntSegs numSeg |
                              numVoc <- [0..cntVocs - 1], (numSeg,spotIx) <- zip [0..cntSegs - 1] spotIxs]
-sectionConfig2VoiceEventss _ (SectionConfigExp _ motifs) = do
-  printIt (map (map (nDOrNDTup2VEs . nDOrNDTup2Arrs)) (nes2arrs motifs))
-  pure []
-
+-- Next:
+--  * Expand SectionConfigTup to include KeySignature, Maybe Scale, and PitOct to start at
+--  * Call xposeFromNoteDurOrNoteDurIsTup for [[NoteDurOrNoteDurTup]] after (map (map nDOrNDTup2Arrs)) (nes2arrs motifs))
+--  * Concatenate results to [NoteDurOrNoteDurTup] and call nnDOrNDTup2VEs once and answer single item array.
+sectionConfig2VoiceEventss _ (SectionConfigExp _ keySig mScale start motifss) = 
+  pure $ map (map nDOrNDTup2VEs) ndTupOutArrss
+  where
+    motArrss = nes2arrs motifss
+    ndTupInArrss = map (map nDOrNDTup2Arrs) motArrss
+    scale = fromMaybe (keySig2Scale M.! keySig) mScale
+    ndTupOutArrss = xposeFromNoteDurOrNoteDurIsTup scale start ndTupInArrss
+    
 -------------------------------------------------------
 -- GroupConfig[Neutral | EvenEnds | Ordered] helpers --
 -------------------------------------------------------

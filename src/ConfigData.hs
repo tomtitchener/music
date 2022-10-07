@@ -66,7 +66,10 @@ data SectionConfig =
       }
   | SectionConfigExp {
       _sceCore      :: SectionConfigCore
-      ,_sceMotifs   :: NE.NonEmpty (NE.NonEmpty NoteDurOrNoteDurTup)
+      ,_sceKeySig   :: KeySignature
+      ,_sceMScale   :: Maybe Scale
+      ,_sceInit     :: PitOct
+      ,_sceMotifs   :: NE.NonEmpty (NE.NonEmpty NoteDurOrNoteDurNETup)
       }
     deriving Show
 
@@ -350,6 +353,9 @@ sectionAndVoices2SectionConfigExp' :: SectionAndVoices2SectionConfig
 sectionAndVoices2SectionConfigExp' pre _ = 
   SectionConfigExp
       <$> path2SectionConfigCore pre
+      <*> searchConfigParam  (pre <> ".key")
+      <*> searchMConfigParam (pre <> ".scale")
+      <*> searchConfigParam  (pre <> ".init")
       <*> searchConfigParam  (pre <> ".motifs")
       
 name2SectionConfigMap :: M.Map String SectionAndVoices2SectionConfig

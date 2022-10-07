@@ -128,7 +128,7 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty Duration)) where
 instance FromConfig (NE.NonEmpty (NE.NonEmpty DurValOrDurTuplet)) where
   parseConfig = mkParseConfig (mkPss parseDurOrDurTup)  
 
-instance FromConfig (NE.NonEmpty (NE.NonEmpty NoteDurOrNoteDurTup)) where
+instance FromConfig (NE.NonEmpty (NE.NonEmpty NoteDurOrNoteDurNETup)) where
   parseConfig = mkParseConfig (mkPss parseNoteDurOrNoteDurTup)
 
 parseDurationVal :: Parser DurationVal
@@ -190,7 +190,7 @@ parseDurValAcc = pPr parseDurationVal pAccentStr
 parseDurTupletAccs :: Parser (DurTuplet,NE.NonEmpty Accent)
 parseDurTupletAccs = pPr parseDurTup (mkPs pAccentStr)
 
-parseNoteDurOrNoteDurTup :: Parser NoteDurOrNoteDurTup
+parseNoteDurOrNoteDurTup :: Parser NoteDurOrNoteDurNETup
 parseNoteDurOrNoteDurTup = try (Left <$> parseNoteDur) <|> (Right <$> parseNoteDurTup)
 
 parseNoteDur :: Parser (Maybe PitOctOrNEPitOcts,DurationVal,Accent)

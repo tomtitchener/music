@@ -237,5 +237,27 @@ type PitOctOrPitOcts = Either PitOct [PitOct]
 
 type Range = (PitOct,PitOct)
 
-type NoteDurOrNoteDurTup = Either (Maybe PitOctOrNEPitOcts,DurationVal,Accent) (NonEmpty (Maybe PitOctOrNEPitOcts),DurTuplet,NonEmpty Accent)
+-- What's parsed from YAML file into SectionConfigExp type
+
+type NoteRestOrChordNETuple = (Maybe PitOctOrNEPitOcts,DurationVal,Accent)
+
+type TupletNETuple = (NonEmpty (Maybe PitOctOrNEPitOcts),DurTuplet,NonEmpty Accent)
+
+type NoteDurOrNoteDurNETup = Either NoteRestOrChordNETuple TupletNETuple
+
+-- Equivalents with NonEmpty replaced by []
+
+type NoteRestOrChordTuple = (Maybe PitOctOrPitOcts,DurationVal,Accent)
+
+type TupletTuple = ([Maybe PitOctOrPitOcts],DurTuplet,[Accent])
+
+type NoteDurOrNoteDurTup = Either NoteRestOrChordTuple TupletTuple
+
+--
+
+type NoteRestOrChordIsTuple = (Maybe IntOrInts,DurationVal,Accent)
+
+type TupletIsTuple = ([Maybe IntOrInts],DurTuplet,[Accent])
+
+type NoteDurOrNoteDurIsTup = Either NoteRestOrChordIsTuple TupletIsTuple
 
