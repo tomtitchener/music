@@ -65,11 +65,12 @@ data SectionConfig =
       ,_scfcVoicesAB :: [(VoiceConfig,VoiceConfig)]
       }
   | SectionConfigExp {
-      _sceCore      :: SectionConfigCore
-      ,_sceKeySig   :: KeySignature
-      ,_sceMScale   :: Maybe Scale
-      ,_sceInit     :: PitOct
-      ,_sceMotifs   :: NE.NonEmpty (NE.NonEmpty NoteDurOrNoteDurNETup)
+      _sceCore       :: SectionConfigCore
+      ,_sceKeySig    :: KeySignature
+      ,_sceMScale    :: Maybe Scale
+      ,_sceInit      :: PitOct
+      ,_sceNumcycles :: Int
+      ,_sceMotifs    :: NE.NonEmpty (NE.NonEmpty NoteDurOrNoteDurNETup)
       }
     deriving Show
 
@@ -356,6 +357,7 @@ sectionAndVoices2SectionConfigExp' pre _ =
       <*> searchConfigParam  (pre <> ".key")
       <*> searchMConfigParam (pre <> ".scale")
       <*> searchConfigParam  (pre <> ".init")
+      <*> searchConfigParam  (pre <> ".numCycles")
       <*> searchConfigParam  (pre <> ".motifs")
       
 name2SectionConfigMap :: M.Map String SectionAndVoices2SectionConfig

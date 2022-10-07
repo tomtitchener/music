@@ -209,6 +209,7 @@ mkParseConfig parser input  = either (error . show) id . parse parser input $ in
 lexeme :: Parser a -> Parser a
 lexeme p = spaces *> p
 
+-- TBD: bug, fails if there's only one element, e.g. with no ',' separator.
 mkPs :: Parser a -> Parser (NE.NonEmpty a)
 mkPs p = NE.fromList <$> between (char '(') (char ')') (lexeme p `sepBy1` char ',')
 

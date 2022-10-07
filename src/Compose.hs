@@ -965,16 +965,16 @@ sectionConfig2VoiceEventss timeSig (SectionConfigFadeAcross (SectionConfigCore s
           voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing (Just spotIx) cntVocs numVoc cntSegs numSeg |
                              numVoc <- [0..cntVocs - 1], (numSeg,spotIx) <- zip [0..cntSegs - 1] spotIxs]
 -- Next:
---  * Expand SectionConfigTup to include KeySignature, Maybe Scale, and PitOct to start at
---  * Call xposeFromNoteDurOrNoteDurIsTup for [[NoteDurOrNoteDurTup]] after (map (map nDOrNDTup2Arrs)) (nes2arrs motifs))
---  * Concatenate results to [NoteDurOrNoteDurTup] and call nnDOrNDTup2VEs once and answer single item array.
-sectionConfig2VoiceEventss _ (SectionConfigExp _ keySig mScale start motifss) = 
-  pure $ map (map nDOrNDTup2VEs) ndTupOutArrss
+--  - add to the list of motifs so there are 10
+--  - add a configuration parameter saying how many times to repeat a cycle
+--  - create a single voice simply cycling from start to stop for the cycle count
+sectionConfig2VoiceEventss _ (SectionConfigExp _ keySig mScale start numCycles motifss) = 
+  pure [map nDOrNDTup2VEs cycles]
   where
-    motArrss = nes2arrs motifss
-    ndTupInArrss = map (map nDOrNDTup2Arrs) motArrss
     scale = fromMaybe (keySig2Scale M.! keySig) mScale
-    ndTupOutArrss = xposeFromNoteDurOrNoteDurIsTup scale start ndTupInArrss
+    ndTupInArrs = map (map nDOrNDTup2Arrs) (nes2arrs motifss)
+    ndTupOutArr = concat $ xposeFromNoteDurOrNoteDurIsTup scale start ndTupInArrs
+    cycles = take (numCycles * length ndTupOutArr) $ cycle ndTupOutArr
     
 -------------------------------------------------------
 -- GroupConfig[Neutral | EvenEnds | Ordered] helpers --
