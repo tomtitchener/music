@@ -72,6 +72,14 @@ data SectionConfig =
       ,_sceNumcycles :: Int
       ,_sceMotifs    :: NE.NonEmpty (NE.NonEmpty NoteDurOrNoteDurNETup)
       }
+  | SectionConfigExpOst {
+      _sceoCore        :: SectionConfigCore
+      ,_sceoKeySig     :: KeySignature
+      ,_sceoMScale     :: Maybe Scale
+      ,_sceoNumcycles  :: Int
+      ,_sceoMotifNames :: NE.NonEmpty String
+      ,_sceoStartNames :: NE.NonEmpty String
+      }
     deriving Show
 
 data VoiceConfigCore =
@@ -359,13 +367,24 @@ sectionAndVoices2SectionConfigExp' pre _ =
       <*> searchConfigParam  (pre <> ".init")
       <*> searchConfigParam  (pre <> ".numCycles")
       <*> searchConfigParam  (pre <> ".motifs")
+
+sectionAndVoices2SectionConfigExpOst :: SectionAndVoices2SectionConfig
+sectionAndVoices2SectionConfigExpOst pre _ = 
+  SectionConfigExpOst
+      <$> path2SectionConfigCore pre
+      <*> searchConfigParam  (pre <> ".key")
+      <*> searchMConfigParam (pre <> ".scale")
+      <*> searchConfigParam  (pre <> ".numCycles")
+      <*> searchConfigParam  (pre <> ".motifnames")
+      <*> searchConfigParam  (pre <> ".startnames")
       
 name2SectionConfigMap :: M.Map String SectionAndVoices2SectionConfig
 name2SectionConfigMap = M.fromList [("neutral"   ,sectionAndVoices2SectionConfigNeutral)
                                    ,("fadein"    ,sectionAndVoices2SectionConfigFadeIn)
                                    ,("fadeout"   ,sectionAndVoices2SectionConfigFadeOut)
                                    ,("fadeacross",sectionAndVoices2SectionConfigFadeAcross)
-                                   ,("exp"       ,sectionAndVoices2SectionConfigExp)]
+                                   ,("exp"       ,sectionAndVoices2SectionConfigExp)
+                                   ,("expost"    ,sectionAndVoices2SectionConfigExpOst)]
 
 path2SectionConfig :: String -> Driver SectionConfig
 path2SectionConfig section = do
