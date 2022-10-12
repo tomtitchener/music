@@ -48,7 +48,7 @@ executable music
   main-is:             Main.hs
   default-language:    Haskell2010
   default-extensions:
-  build-depends:       base >= 4.7 && < 5
+  build-depends:       base
                      , aeson
                      , directory
                      , extra
@@ -100,5 +100,5 @@ test-suite tests
                     , transformers
                     , unordered-containers
   default-language:   Haskell2010
-  ghc-options:        -Wall -Werror -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns -fno-warn-orphans
+  ghc-options:        -Wall -Werror -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns -fno-warn-orphans -fconstraint-solver-iterations=0
   other-modules:     Driver, Lily, Types, Utils, Config

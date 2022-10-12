@@ -6,8 +6,6 @@
 
 module Driver (initEnv
               ,runDriver
-              ,lookupConfig
-              ,lookupMConfig
               ,writeScore
               ,printLily
               ,randomElement
@@ -31,12 +29,12 @@ import Control.Monad.Free (Free(..), liftF)
 import Control.Monad.Random.Class (MonadRandom(getRandomR, getRandomRs))
 import Control.Monad.Reader (MonadIO(..), MonadReader, asks)
 import Data.Aeson (Value)
-import Data.Aeson.Lens
-    ( key, AsPrimitive(_String), AsValue(_Object) )
-import Data.HashMap.Strict (keys)
+import Data.Aeson.Lens (key, AsValue(_String), AsValue(_Object))
+import Data.Aeson.Key (fromString, toString)
+import Data.Aeson.KeyMap (keys)
 import Data.List (intercalate, sort)
 import Data.List.Split (splitOn)
-import Data.Text (pack,unpack)
+import Data.Text (unpack)
 import System.IO (hFlush,stdout)
 import System.Random.Shuffle (shuffleM)
 
@@ -102,7 +100,20 @@ showSeed = init . drop (length "StdGen {unStdGen = SMGen ")
 lookupConfig :: FromConfig a => String -> Value -> a
 lookupConfig path config =
   let segments = splitOn "." path
-  in case preview (foldl1 (.) (map (key . pack) segments) . _String) config of
+  -- config is JSON Value from read of YAML config file
+  -- path is '.' separated String of key values
+  -- used to be you converted String to Text to call key
+  -- the segments consist of a list of keys encoded as Strings ["a","b",..]
+  -- we parse step-by-step from the top-most key e.g. "a" to the next Value,
+  -- then parse with the next key e.g. "b" into the next Value,
+  -- and etc. until we're done with segments, at which point we convert
+  -- the Value to a String, JSON parse that and answer the result.
+  -- The problem is that the key method used to take a Text for input,
+  -- but now it takes a new Key type, which is the result of the key method.
+  -- Or no, that's not quite right, because the key method takes a Key and
+  -- answers a Value
+  -- 
+  in case preview (foldl1 (.) (map (key . fromString) segments) . _String) config of
     Nothing -> error $
                "Could not find value for path: " <>
                path <> "\nin values:\n" <>
@@ -112,17 +123,17 @@ lookupConfig path config =
 lookupMConfig :: FromConfig a => String -> Value -> Maybe a
 lookupMConfig path config =
   let segments = splitOn "." path
-  in parseConfig . unpack <$> preview (foldl1 (.) (map (key . pack) segments) . _String) config
+  in parseConfig . unpack <$> preview (foldl1 (.) (map (key . fromString) segments) . _String) config
 
 lookupConfigKeys :: String -> Value -> [String]
 lookupConfigKeys path config =
   let segments = splitOn "." path
-  in case preview (foldl1 (.) (map (key . pack) segments) . _Object) config of
+  in case preview (foldl1 (.) (map (key . fromString) segments) . _Object) config of
     Nothing -> error $
                "Could not find value for path: " <>
                path <> "\nin values:\n" <>
                show config
-    Just m -> unpack <$> keys m
+    Just m -> toString <$> keys m
 
 writeScore :: FilePath -> Score -> Driver ()
 writeScore fName s = liftF $ DoAction (WriteScore fName s) ()

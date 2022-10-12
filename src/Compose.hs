@@ -99,8 +99,8 @@ modMPitOctssOctaves mkIdWeight vrtCfg vcc@VoiceConfigBlend{..}    =
   modAnyMPitOctssOctaves mkIdWeight vrtCfg (_vcmPOOrPOss _vccCore) <&> \mPOOrPOss -> vcc { _vccCore = _vccCore { _vcmPOOrPOss  = mPOOrPOss } }
 modMPitOctssOctaves mkIdWeight vrtCfg vcx@VoiceConfigXPose{..}    =
   modAnyMPitOctssOctaves mkIdWeight vrtCfg (_vcmPOOrPOss _vcxCore) <&> \mPOOrPOss -> vcx { _vcxCore = _vcxCore { _vcmPOOrPOss = mPOOrPOss } }
-modMPitOctssOctaves mkIdWeight vrtCfg vcx@VoiceConfigAccrete{..}    =
-  modAnyMPitOctssOctaves mkIdWeight vrtCfg (_vcmPOOrPOss _vcaCore) <&> \mPOOrPOss -> vcx { _vcxCore = _vcaCore { _vcmPOOrPOss = mPOOrPOss } }
+modMPitOctssOctaves mkIdWeight vrtCfg vca@VoiceConfigAccrete{..}    =
+  modAnyMPitOctssOctaves mkIdWeight vrtCfg (_vcmPOOrPOss _vcaCore) <&> \mPOOrPOss -> vca { _vcaCore = _vcaCore { _vcmPOOrPOss = mPOOrPOss } }
 
 type MPitOctOrNEPitOctsss = NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
 
@@ -964,10 +964,7 @@ sectionConfig2VoiceEventss timeSig (SectionConfigFadeAcross (SectionConfigCore s
           segRuntimeTupss = chunksOf cntSegs voiceRTConfigs
           voiceRTConfigs  = [VoiceRuntimeConfig scnPath Nothing (Just spotIx) cntVocs numVoc cntSegs numSeg |
                              numVoc <- [0..cntVocs - 1], (numSeg,spotIx) <- zip [0..cntSegs - 1] spotIxs]
--- Next:
---  - add to the list of motifs so there are 10
---  - add a configuration parameter saying how many times to repeat a cycle
---  - create a single voice simply cycling from start to stop for the cycle count
+-- Experimental starting point, deprecate?
 sectionConfig2VoiceEventss _ (SectionConfigExp _ keySig mScale start numCycles motifss) = 
   pure [map nDOrNDTup2VEs cycles]
   where
@@ -975,6 +972,17 @@ sectionConfig2VoiceEventss _ (SectionConfigExp _ keySig mScale start numCycles m
     ndTupInArrs = map (map nDOrNDTup2Arrs) (nes2arrs motifss)
     ndTupOutArr = concat $ xposeFromNoteDurOrNoteDurIsTup scale start ndTupInArrs
     cycles = take (numCycles * length ndTupOutArr) $ cycle ndTupOutArr
+
+-- Using motifNames, lookup [NoteRestOrChordNETuple] for e.g. section.motifs.<motifName>
+-- and convert to NoteRestOrChordTuple to make Map String [NoteRestOrChordTuple]
+-- Then do the same for Map String [PitOct] for startNames and section.motifs.<startName>
+sectionConfig2VoiceEventss _ (SectionConfigExpOst  _ _ _ _ _ _ {-- SectionConfigCore{..} keySig mScale numCycles motifNames startNames --}) = do
+  -- motifss :: [[NoteDurOrNoteDurTup]] <- traverse getConfigParam motifPaths <&> map (map nDOrNDTup2Arrs . NE.toList)
+  pure []
+--  where
+--    scale = fromMaybe (keySig2Scale M.! keySig) mScale
+--    motifPaths = map ((_sccPath <> ".motifs.") <>) (NE.toList motifNames)
+
     
 -------------------------------------------------------
 -- GroupConfig[Neutral | EvenEnds | Ordered] helpers --
@@ -986,6 +994,7 @@ secCfg2SecName SectionConfigFadeIn{..}     = path2Name (_sccPath _scfiCore)
 secCfg2SecName SectionConfigFadeOut{..}    = path2Name (_sccPath _scfoCore)
 secCfg2SecName SectionConfigFadeAcross{..} = path2Name (_sccPath _scfcCore)
 secCfg2SecName SectionConfigExp{..}        = path2Name (_sccPath _sceCore)
+secCfg2SecName SectionConfigExpOst{..}     = path2Name (_sccPath _sceoCore)
 
 -- Repeatedly add [[VoiceEvent]] for last section to input until all [[VoiceEvent]] are the same
 -- total duration.  Tricky bit is that sectionConfig2VoiceEventss may not add [VoiceEvent] of

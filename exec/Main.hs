@@ -12,7 +12,7 @@ import Data.List.Split (splitOn)
 import qualified Data.Yaml as Y
 import Options.Applicative
 import Prelude (String, error, show, head)
-import Protolude hiding (option, print, show, to, second, head)
+import Protolude hiding (print, show, to, second, head)
 import System.Directory (doesFileExist)
 import System.Random
 import System.Random.Internal

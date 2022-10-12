@@ -130,6 +130,9 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty DurValOrDurTuplet)) where
 
 instance FromConfig (NE.NonEmpty (NE.NonEmpty NoteDurOrNoteDurNETup)) where
   parseConfig = mkParseConfig (mkPss parseNoteDurOrNoteDurTup)
+  
+instance FromConfig (NE.NonEmpty NoteDurOrNoteDurNETup) where
+  parseConfig = mkParseConfig (mkPs parseNoteDurOrNoteDurTup)
 
 parseDurationVal :: Parser DurationVal
 parseDurationVal = duration2DurationVal <$> parseDuration

@@ -7,27 +7,34 @@ packages:
 - completed:
     hackage: Interpolation-0.3.0@sha256:b0381214e6036ed2b6a0a04b7e4ec89736ca531ef03e315a3ec2c494059ff8fb,1319
     pantry-tree:
-      size: 226
       sha256: 1752aba83686801ae9f93c293a5555e4f694c2472a3c880ad9f05b7a05033a3c
+      size: 226
   original:
     hackage: Interpolation-0.3.0@sha256:b0381214e6036ed2b6a0a04b7e4ec89736ca531ef03e315a3ec2c494059ff8fb,1319
 - completed:
     hackage: natural-numbers-0.1.2.0@sha256:0fcbe1220979b83fa612fca73a1adb1a99ff43c84f9652b3ff32b2323309b43c,1407
     pantry-tree:
-      size: 220
       sha256: bd4beb677280f4586265c5657ab4e4a599c16f9e624df43d8edda6bf1e46dcdf
+      size: 220
   original:
     hackage: natural-numbers-0.1.2.0@sha256:0fcbe1220979b83fa612fca73a1adb1a99ff43c84f9652b3ff32b2323309b43c,1407
 - completed:
     hackage: parsec3-numbers-0.1.0@sha256:2f32295f9f4023f7f97da851549aaaf5e72866e98bf016a1ac3c6e8715bbaf8a,685
     pantry-tree:
-      size: 264
       sha256: a3d23f56cc2a9d17ed24ac5119a7b2102d40c0afeed5271f6b41b7597f181df0
+      size: 264
   original:
     hackage: parsec3-numbers-0.1.0@sha256:2f32295f9f4023f7f97da851549aaaf5e72866e98bf016a1ac3c6e8715bbaf8a,685
+- completed:
+    hackage: lens-aeson-1.2.2@sha256:9a90da3716f0148b14e036b52091192bcd567754b157d66dd225945f04ace0f9,1611
+    pantry-tree:
+      sha256: 66108c0406cf667ab583b0903ed98f5252e7fb62fef55ecaa023ccdb01153b02
+      size: 541
+  original:
+    hackage: lens-aeson-1.2.2
 snapshots:
 - completed:
-    size: 590100
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/28.yaml
-    sha256: 428ec8d5ce932190d3cbe266b9eb3c175cd81e984babf876b64019e2cbe4ea68
-  original: lts-18.28
+    sha256: d3ba2e94c3ccbd3da4949243c83b59667c5eb9ffc7646148661c16741bbad1d4
+    size: 643623
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/nightly/2022/10/11.yaml
+  original: nightly-2022-10-11

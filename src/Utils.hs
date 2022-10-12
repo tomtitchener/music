@@ -109,7 +109,7 @@ noteDurOrNoteDurss2NoteDurOrNoteDurIsDiffss s = map ((snd . mapAccumL accumF 0) 
     accumF prev (Right (mIntOrIntss,durTup,accents)) = (i,Right (mIntOrIntss',durTup,accents))
       where
         (i,mIntOrIntss') = mapAccumL diffIntOrInts prev mIntOrIntss
-        
+
 xposeFromNoteDurOrNoteDurIsTup :: Scale -> PitOct -> [[NoteDurOrNoteDurTup]] -> [[NoteDurOrNoteDurTup]]
 xposeFromNoteDurOrNoteDurIsTup s start = snd . mapAccumL (mapAccumL accumF) start . noteDurOrNoteDurss2NoteDurOrNoteDurIsDiffss s
   where
