@@ -401,7 +401,7 @@ accumVoiceEventsForFiniteMPits (mpits,dur:durs,accs) =
     mkve mps acs (Left d)  = ((tail mps,tail acs),mkNoteChordOrRest (head mps) d (head acs))
     mkve mps acs (Right t) = mkTuplet mps t acs
 accumVoiceEventsForFiniteMPits  (_,_,_) = error "accumVoiceEventsForFiniteMPits"
-                                          
+
 accumVoiceEventsForFiniteDurs :: Mottos -> [VoiceEvent]
 accumVoiceEventsForFiniteDurs (mpits,durs,accts) =
   snd $ mapAccumL mapAccumF (mpits,accts) durs
@@ -426,7 +426,7 @@ genVoiceEventsByAccrete vaName timeSig path VoiceConfigCore{..} numBars (keySig,
     scale      = keySig2Scale M.! keySig
     barDurVal  = timeSig2BarDurVal timeSig
     totDurVal  = DurationVal numBars * barDurVal
-    mIOrIsss   = mPOOrPOsToMIOrIsDiffs scale <$> (neMXss2MArrsXss _vcmPOOrPOss)
+    mIOrIsss   = mPOOrPOsToMIOrIsDiffs scale <$> neMXss2MArrsXss _vcmPOOrPOss
     dVAOrDTAss = zipWith mkDVAOrDTAss (nes2arrs _vcAcctss) (nes2arrs _vcDurss)
 
 --------------------------------
@@ -655,7 +655,7 @@ mkSlices :: VoiceConfigCore -> [Int] -> Mottos
 mkSlices VoiceConfigCore{..} manyIs =
   (ixByManyIs pitss',ixByManyIs durss',ixByManyIs acctss')
   where
-    ixByManyIs ss = concat ((ss !!) <$> manyIs)
+    ixByManyIs ss = concatMap (ss !!) manyIs
     (pitss',durss',acctss') = mkEqLenMottoss (neMXss2MArrsXss _vcmPOOrPOss, nes2arrs _vcDurss,nes2arrs _vcAcctss)
 
 -- Make sublists of equal counts of items, allowing for possible multiple durs in DurTuplet.
@@ -673,7 +673,7 @@ mkEqLenMottos :: Mottos -> Mottos
 mkEqLenMottos (mpos,durs,accs) =
   (take numDurs (cycle mpos), takeNDurs numDurs (cycle durs), take numDurs (cycle accs))
   where
-    numDurs = sumFromMinToNext cntDurValOrDurTup (maximum [length mpos,length accs]) (cntDurValOrDurTups durs) (cycle durs)
+    numDurs = sumFromMinToNext cntDurValOrDurTup (max (length mpos) (length accs)) (cntDurValOrDurTups durs) (cycle durs)
 
 cntDurValOrDurTup :: DurValOrDurTuplet -> Int
 cntDurValOrDurTup = either (const 1) (length . _durtupDurations)
@@ -970,19 +970,31 @@ sectionConfig2VoiceEventss _ (SectionConfigExp _ keySig mScale start numCycles m
   where
     scale = fromMaybe (keySig2Scale M.! keySig) mScale
     ndTupInArrs = map (map nDOrNDTup2Arrs) (nes2arrs motifss)
-    ndTupOutArr = concat $ xposeFromNoteDurOrNoteDurIsTup scale start ndTupInArrs
+    ndTupOutArr = concat $ xposeFromNoteDurOrNoteDurTupss scale start ndTupInArrs
     cycles = take (numCycles * length ndTupOutArr) $ cycle ndTupOutArr
-
--- Using motifNames, lookup [NoteRestOrChordNETuple] for e.g. section.motifs.<motifName>
--- and convert to NoteRestOrChordTuple to make Map String [NoteRestOrChordTuple]
--- Then do the same for Map String [PitOct] for startNames and section.motifs.<startName>
-sectionConfig2VoiceEventss _ (SectionConfigExpOst  _ _ _ _ _ _ {-- SectionConfigCore{..} keySig mScale numCycles motifNames startNames --}) = do
-  -- motifss :: [[NoteDurOrNoteDurTup]] <- traverse getConfigParam motifPaths <&> map (map nDOrNDTup2Arrs . NE.toList)
-  pure []
---  where
---    scale = fromMaybe (keySig2Scale M.! keySig) mScale
---    motifPaths = map ((_sccPath <> ".motifs.") <>) (NE.toList motifNames)
-
+-- Experimental ostinato, issues:
+-- * by chunking each motto into it's own [[]] (see zipWith), there's
+--   no transposition that takes place through xposeFromNoteDurOrNoteDurTupss
+--   so what you get is just verbatim repetition of ostinatos, rather than
+--   ostinatos used as transpose patterns.
+-- * 
+sectionConfig2VoiceEventss _ (SectionConfigExpOst  SectionConfigCore{..} keySig mScale numCycles motifNames startNames) = do
+  motMap   <- traverse (secondM motName2Mot . dupe) motNames <&> M.fromList
+  startMap <- traverse (secondM startName2Start . dupe) strtNames <&> M.fromList
+  mNames   <- randomizeList $ take (length motNames * numCycles) (cycle motNames)
+  stNames  <- randomizeList $ take (length motNames * numCycles) (cycle strtNames)
+  let mots   = (M.!) motMap <$> mNames
+      starts = (M.!) startMap <$> stNames
+      prs    = zipWith (\s m -> (s,[m])) starts mots
+      nDOrNDTupss  = concatMap (uncurry (xposeFromNoteDurOrNoteDurTupss scale)) prs
+  pure [concatMap (map nDOrNDTup2VEs) nDOrNDTupss]
+  where
+    scale = fromMaybe (keySig2Scale M.! keySig) mScale
+    motNames = NE.toList motifNames
+    strtNames = NE.toList startNames
+    keyAndName2Val key name = getConfigParam (_sccPath <> "." <> key <> "." <> name)
+    motName2Mot motName = keyAndName2Val "motifs" motName <&> map nDOrNDTup2Arrs . NE.toList
+    startName2Start = keyAndName2Val "starts" 
     
 -------------------------------------------------------
 -- GroupConfig[Neutral | EvenEnds | Ordered] helpers --

@@ -110,8 +110,8 @@ noteDurOrNoteDurss2NoteDurOrNoteDurIsDiffss s = map ((snd . mapAccumL accumF 0) 
       where
         (i,mIntOrIntss') = mapAccumL diffIntOrInts prev mIntOrIntss
 
-xposeFromNoteDurOrNoteDurIsTup :: Scale -> PitOct -> [[NoteDurOrNoteDurTup]] -> [[NoteDurOrNoteDurTup]]
-xposeFromNoteDurOrNoteDurIsTup s start = snd . mapAccumL (mapAccumL accumF) start . noteDurOrNoteDurss2NoteDurOrNoteDurIsDiffss s
+xposeFromNoteDurOrNoteDurTupss :: Scale -> PitOct -> [[NoteDurOrNoteDurTup]] -> [[NoteDurOrNoteDurTup]]
+xposeFromNoteDurOrNoteDurTupss s start = snd . mapAccumL (mapAccumL accumF) start . noteDurOrNoteDurss2NoteDurOrNoteDurIsDiffss s
   where
     accumF :: PitOct -> NoteDurOrNoteDurIsTup -> (PitOct,NoteDurOrNoteDurTup)
     accumF prev (Left (mIntOrInts,durVal,accent)) = (po,Left (mPOs,durVal,accent))
@@ -233,13 +233,13 @@ addEndDurs (TimeSignatureSimple numCnt denomDur) curLen addLen =
       | beatLen /= remBeat =
           let nextCur = if add < remBeat then cur + add else cur + remBeat
               nextAdd = if add < remBeat then 0 else add - remBeat
-              nextAcc = acc <> (reverse . durSum2Durs . DurationSum $ if add < remBeat then add else remBeat)
+              nextAcc = acc <> (reverse . durSum2Durs . DurationSum $ min add remBeat)
           in
             accum nextCur nextAdd nextAcc
       | barLen /= remBar =
           let nextCur = if add < remBar then cur + add else cur + remBar
               nextAdd = if add < remBar then 0 else add - remBar
-              nextAcc = (acc <> (durSum2Durs . DurationSum $ if add < remBar then add else remBar))
+              nextAcc = (acc <> (durSum2Durs . DurationSum $ min add remBar))
           in
             accum nextCur nextAdd nextAcc
       | add >= barLen =

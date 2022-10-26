@@ -29,7 +29,7 @@ import Types
 -- % "StdGen {unStdGen = SMGen 11888972784562141867 7849352481482538343}"
 --
 -- e.g.:
--- $ stack exec music -- -s "SMGen 11888972784562141867 7849352481482538343"
+-- $ stack exec gen -- -s "SMGen 11888972784562141867 7849352481482538343"
 
 data Options = Options
   { _optConfigYaml :: FilePath
@@ -51,7 +51,7 @@ options = Options
 
 opts :: ParserInfo Options
 opts = info (helper <*> options)
-            (header "music")
+            (header "gen")
 
 main :: IO ()
 main =  do

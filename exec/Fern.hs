@@ -1,0 +1,67 @@
+
+-- See:
+--   https://github.com/timbod7/haskell-chart/wiki,
+--   https://hackage.haskell.org/package/Chart-1.9.4
+
+-- NB:
+--  -Diagrams is the older, less efficent back end vs. Cairo.
+--   But "For the cairo backend, it is recommended to install and test gtk2hs first."
+--   And the instructions for that look complicated.
+--  -Examples on the wiki all show output to PNG, which
+--   default readers saw as corrupt.
+--   Files are just text though, with web headers showing SVG
+--   is actually the format, which does render though only inside a browser.
+--  -Also, when using 1000000 points the memory footprint blows up before
+--   it finishes writing the output file.
+--   The code below uses 100000 instead, which leaves holes in the lower
+--   leaves of the output fern but which does render, whereas 500000
+--   does successfully produces an output file but the rendering crashes
+--   at least on Chrome.
+--  -Code from https://en.wikipedia.org/wiki/Barnsley_fern for affine
+--   transform is easy to understand and copy, and works fine.
+
+module Main where
+
+import Control.Monad.Random.Class (MonadRandom(getRandoms))
+import Data.Traversable (mapAccumR)
+import Data.Tuple.Extra (dupe)
+import Data.List (sort)
+
+import Graphics.Rendering.Chart
+import Data.Colour
+import Data.Colour.Names
+import Data.Default.Class
+import Graphics.Rendering.Chart.Backend.Diagrams
+import Control.Lens
+
+main :: IO (PickFn ())
+main = do
+  xyPrs <- getRandoms <&> sort . snd . mapAccumR mapAccumF (0.0,0.0) . take 100000
+  renderableToFile def "fern.svg" (chart xyPrs)
+  where
+    mapAccumF pr d = dupe $ nextXY d pr
+
+nextXY :: Float -> (Float,Float) -> (Float,Float)
+nextXY r 
+  | r < 0.01  = uncurry f1
+  | r < 0.86  = uncurry f2
+  | r < 0.93  = uncurry f3
+  | otherwise = uncurry f4
+  where
+    f1 _ y = (0.0,                  0.16 * y)
+    f2 x y = (0.85 * x + 0.04 * y, -0.04 * x + 0.85 * y + 1.6)
+    f3 x y = (0.20 * x - 0.26 * y,  0.23 * x + 0.22 * y + 1.6)
+    f4 x y = (-0.15 * x + 0.28 * y, 0.26 * x + 0.24 * y + 0.44)
+
+chart :: (PlotValue x, PlotValue y) => [(x, y)] -> Renderable ()
+chart coords = toRenderable layout
+  where
+    fern = plot_points_style .~ filledCircles 1 (opaque green)
+           $ plot_points_values .~ coords
+           $ def
+    layout = layout_title .~ "fern"
+           $ layout_plots .~ [toPlot fern]
+           $ def
+
+
+
