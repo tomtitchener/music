@@ -78,9 +78,9 @@ executable fern
                      , colour
                      , data-default-class
                      , extra
-                     , MonadRandom
-                     , gloss
                      , lens
+                     , linear
+                     , MonadRandom
   ghc-options:       -Wall -Werror -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns -fno-warn-orphans -haddock
 
 test-suite tests

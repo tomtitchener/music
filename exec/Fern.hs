@@ -28,28 +28,33 @@
 
 module Main where
 
+import Control.Lens
 import Control.Monad.Random.Class (MonadRandom(getRandoms))
 import Data.Traversable (mapAccumR)
-import Data.Tuple.Extra (dupe)
+import Data.Tuple.Extra (dupe, (&&&))
 
 import Graphics.Rendering.Chart
 import Data.Colour
 import Data.Colour.Names
 import Data.Default.Class
 import Graphics.Rendering.Chart.Backend.Diagrams
-import Control.Lens
+
+import Linear.Matrix
+import Linear.V2
 
 main :: IO (PickFn ())
 main = do
-  xyPrs <- getRandoms <&> snd . mapAccumR nextXY (0.0,0.0) . take 100000
-  renderableToFile def "fern.svg" (chart xyPrs)
+  xyPrs <- getRandoms <&> snd . mapAccumR nextXY (V2 0.0 0.0) . take 100000
+  renderableToFile def "fern.svg" (chart (v22Pr <$> xyPrs))
+  where
+    v22Pr = (^. _x) &&& (^. _y)
 
-nextXY :: (Float,Float) -> Float -> ((Float,Float),(Float,Float))
-nextXY (x,y) r
-  | r < 0.01  = dupe (0.0,                  0.16 * y)
-  | r < 0.86  = dupe (0.85 * x + 0.04 * y, -0.04 * x + 0.85 * y + 1.6)
-  | r < 0.93  = dupe (0.20 * x - 0.26 * y,  0.23 * x + 0.22 * y + 1.6)
-  | otherwise = dupe (-0.15 * x + 0.28 * y, 0.26 * x + 0.24 * y + 0.44)
+nextXY :: V2 Float -> Float -> (V2 Float,V2 Float)
+nextXY v r
+  | r < 0.01  = dupe $ v *! V2 (V2   0.0    0.0)   (V2   0.0   0.16) + V2 0.0 0.0
+  | r < 0.86  = dupe $ v *! V2 (V2   0.85 (-0.04)) (V2   0.04  0.85) + V2 0.0 1.60
+  | r < 0.93  = dupe $ v *! V2 (V2   0.20   0.23)  (V2 (-0.26) 0.22) + V2 0.0 1.60
+  | otherwise = dupe $ v *! V2 (V2 (-0.15)  0.26)  (V2   0.28  0.24) + V2 0.0 0.44
 
 chart :: (PlotValue x, PlotValue y) => [(x, y)] -> Renderable ()
 chart coords = toRenderable layout
