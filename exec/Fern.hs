@@ -11,12 +11,18 @@
 --   default readers saw as corrupt.
 --   Files are just text though, with web headers showing SVG
 --   is actually the format, which does render though only inside a browser.
---  -Also, when using 1000000 points the memory footprint blows up before
+--  -When using 1000000 points the memory footprint blows up before
 --   it finishes writing the output file.
 --   The code below uses 100000 instead, which leaves holes in the lower
 --   leaves of the output fern but which does render, whereas 500000
---   does successfully produces an output file but the rendering crashes
+--   successfully produces an output file but the rendering crashes,
 --   at least on Chrome.
+--  -Takes around 3/4 of a minute to run:
+--    % time stack exec fern
+--    time stack exec fern
+--    stack exec fern  41.58s user 1.51s system 98% cpu 43.548 total
+--  -Seems to spend almost all the time writing out a large file:
+--    -rw-r--r--@  1 tomtitchener  staff  107188001 Oct 27 15:57 fern.svg
 --  -Code from https://en.wikipedia.org/wiki/Barnsley_fern for affine
 --   transform is easy to understand and copy, and works fine.
 
@@ -25,7 +31,6 @@ module Main where
 import Control.Monad.Random.Class (MonadRandom(getRandoms))
 import Data.Traversable (mapAccumR)
 import Data.Tuple.Extra (dupe)
-import Data.List (sort)
 
 import Graphics.Rendering.Chart
 import Data.Colour
@@ -36,22 +41,15 @@ import Control.Lens
 
 main :: IO (PickFn ())
 main = do
-  xyPrs <- getRandoms <&> sort . snd . mapAccumR mapAccumF (0.0,0.0) . take 100000
+  xyPrs <- getRandoms <&> snd . mapAccumR nextXY (0.0,0.0) . take 100000
   renderableToFile def "fern.svg" (chart xyPrs)
-  where
-    mapAccumF pr d = dupe $ nextXY d pr
 
-nextXY :: Float -> (Float,Float) -> (Float,Float)
-nextXY r 
-  | r < 0.01  = uncurry f1
-  | r < 0.86  = uncurry f2
-  | r < 0.93  = uncurry f3
-  | otherwise = uncurry f4
-  where
-    f1 _ y = (0.0,                  0.16 * y)
-    f2 x y = (0.85 * x + 0.04 * y, -0.04 * x + 0.85 * y + 1.6)
-    f3 x y = (0.20 * x - 0.26 * y,  0.23 * x + 0.22 * y + 1.6)
-    f4 x y = (-0.15 * x + 0.28 * y, 0.26 * x + 0.24 * y + 0.44)
+nextXY :: (Float,Float) -> Float -> ((Float,Float),(Float,Float))
+nextXY (x,y) r
+  | r < 0.01  = dupe (0.0,                  0.16 * y)
+  | r < 0.86  = dupe (0.85 * x + 0.04 * y, -0.04 * x + 0.85 * y + 1.6)
+  | r < 0.93  = dupe (0.20 * x - 0.26 * y,  0.23 * x + 0.22 * y + 1.6)
+  | otherwise = dupe (-0.15 * x + 0.28 * y, 0.26 * x + 0.24 * y + 0.44)
 
 chart :: (PlotValue x, PlotValue y) => [(x, y)] -> Renderable ()
 chart coords = toRenderable layout
