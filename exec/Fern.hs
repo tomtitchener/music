@@ -30,6 +30,7 @@ module Main where
 
 import Control.Lens
 import Control.Monad.Random.Class (MonadRandom(getRandoms))
+import Data.List (find)
 import Data.Traversable (mapAccumR)
 import Data.Tuple.Extra (dupe, (&&&))
 
@@ -44,17 +45,22 @@ import Linear.V2
 
 main :: IO (PickFn ())
 main = do
-  xyPrs <- getRandoms <&> snd . mapAccumR nextXY (V2 0.0 0.0) . take 100000
+  xyPrs <- getRandoms <&> snd . mapAccumR (nextXY params) (V2 0.0 0.0) . take 100000
   renderableToFile def "fern.svg" (chart (v22Pr <$> xyPrs))
   where
     v22Pr = (^. _x) &&& (^. _y)
 
-nextXY :: V2 Float -> Float -> (V2 Float,V2 Float)
-nextXY v r
-  | r < 0.01  = dupe $ v *! V2 (V2   0.0    0.0)   (V2   0.0   0.16) + V2 0.0 0.0
-  | r < 0.86  = dupe $ v *! V2 (V2   0.85 (-0.04)) (V2   0.04  0.85) + V2 0.0 1.60
-  | r < 0.93  = dupe $ v *! V2 (V2   0.20   0.23)  (V2 (-0.26) 0.22) + V2 0.0 1.60
-  | otherwise = dupe $ v *! V2 (V2 (-0.15)  0.26)  (V2   0.28  0.24) + V2 0.0 0.44
+params :: [(Float,M22 Float,V2 Float)]
+params = [(0.01, V2 (V2   0.0    0.0)   (V2   0.0   0.16), V2 0.0 0.0)
+         ,(0.86, V2 (V2   0.85 (-0.04)) (V2   0.04  0.85), V2 0.0 1.60)
+         ,(0.93, V2 (V2   0.20   0.23)  (V2 (-0.26) 0.22), V2 0.0 1.60)
+         ,(1.0,  V2 (V2 (-0.15)  0.26)  (V2   0.28  0.24), V2 0.0 0.44)]
+
+nextXY :: [(Float,M22 Float,V2 Float)] -> V2 Float -> Float -> (V2 Float,V2 Float)
+nextXY ps v r =
+  case find (\(x,_,_) -> r < x) ps of
+    Just (_,m,v') -> dupe $ v *! m + v'
+    Nothing -> error $ "nextXYP no such " <> show r <> " in " <> show ps
 
 chart :: (PlotValue x, PlotValue y) => [(x, y)] -> Renderable ()
 chart coords = toRenderable layout
@@ -66,5 +72,16 @@ chart coords = toRenderable layout
            $ layout_plots .~ [toPlot fern]
            $ def
 
-
-
+-- TBD: Add config file with data for list of 
+-- 1) random percent
+-- 2) V2 (V2 Float) matrix
+-- 3) V2 Float vector
+-- Create parsers for
+-- 1) V2 (V2 Float)
+-- 2) V2 Float
+-- 3) Float
+-- 4) Non-empty list of (Float, V2 (V2 Float), V2 Float)
+-- Add config param for name of config YML file with default fern.yml
+-- Call parser to get [(Float, V2 (V2 Float), V2 Float)]
+-- Intepret [(Float, V2 (V2 Float), V2 Float)] in nextXY
+-- Push with default config file for Barnsley fern.
