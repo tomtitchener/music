@@ -28,6 +28,7 @@ jobs:
       run: |
         wget -q https://lilypond.org/download/binaries/linux-64/lilypond-2.22.1-1.linux-64.sh
         sh lilypond-2.22.1-1.linux-64.sh --batch
+	apt-get install freeglut3 freeglut3-dev
         stack build --only-dependencies
 
     - name: Build
