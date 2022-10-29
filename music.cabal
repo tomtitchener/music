@@ -66,21 +66,30 @@ executable gen
                      , yaml
   ghc-options:       -Wall -Werror -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns -fno-warn-orphans -haddock
 
-executable fern
+executable aff
   hs-source-dirs:      exec
-  main-is:             Fern.hs
+  main-is:             Aff.hs
   default-language:    Haskell2010
   default-extensions:
   build-depends:       base
+                     , aeson
                      , bytestring
                      , Chart
                      , Chart-diagrams
                      , colour
                      , data-default-class
+                     , directory
                      , extra
                      , lens
+                     , lens-aeson
                      , linear
                      , MonadRandom
+                     , optparse-applicative
+                     , parsec
+                     , parsec3-numbers
+                     , split
+                     , text
+                     , yaml
   ghc-options:       -Wall -Werror -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns -fno-warn-orphans -haddock
 
 test-suite tests
