@@ -1,4 +1,4 @@
-# fern.yml
+# aff.yml
 
 fern:
   cntPoints: int 100000
@@ -6,3 +6,9 @@ fern:
            (0.86,((0.85,-0.04),(0.04,0.85)),(0.0,1.60)),
            (0.93,((0.20,0.23),(-0.26,0.22)),(0.0,1.60)),
            (1.0,((-0.15,0.26),(0.28,0.24)),(0.0,0.44)))
+
+# name:
+#   cntPoints: int number
+#   params: ((ordered float range (0.0..1.0) low-to-high,2x2 matrix for multiplication,vector offset),
+#            ...)
+# 	  )
