@@ -1,15 +1,17 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards   #-}
 
+-- Customize aff.yml for different affine transforms.
+-- To generate Barnsley fern:
 -- $ stack exec aff -- -t fern -c ./exec/aff.yml
-
--- customize aff.yml for different affine transform
+-- Code from https://en.wikipedia.org/wiki/Barnsley_fern for affine
+-- transform is easy to understand and copy, and works fine.
 
 -- See:
 --   https://github.com/timbod7/haskell-chart/wiki,
 --   https://hackage.haskell.org/package/Chart-1.9.4
 
--- NB:
+-- Notes:
 --  -Diagrams is the older, less efficent back end vs. Cairo.
 --   But "For the cairo backend, it is recommended to install and test gtk2hs first."
 --   And the instructions for that look complicated.
@@ -19,18 +21,16 @@
 --   is actually the format, which does render though only inside a browser.
 --  -When using 1000000 points the memory footprint blows up before
 --   it finishes writing the output file.
---   The code below uses 100000 instead, which leaves holes in the lower
+--   The configuration file uses 100000 instead, which leaves holes in the lower
 --   leaves of the output fern but which does render, whereas 500000
 --   successfully produces an output file but the rendering crashes,
 --   at least on Chrome.
---  -Takes around 3/4 of a minute to run:
+--  -Takes around 40+ seconds to run:
 --    % time stack exec aff
 --    time stack exec aff
 --    stack exec aff  41.58s user 1.51s system 98% cpu 43.548 total
---  -Seems to spend almost all the time writing out a large file:
+--  -Seems to spend almost all the time writing out a large output file:
 --    -rw-r--r--@  1 tomtitchener  staff  107188001 Oct 27 15:57 fern.svg
---  -Code from https://en.wikipedia.org/wiki/Barnsley_fern for affine
---   transform is easy to understand and copy, and works fine.
 
 module Main where
 

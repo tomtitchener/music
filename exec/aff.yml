@@ -1,5 +1,6 @@
 # aff.yml
 
+# Barnsley fern, see https://en.wikipedia.org/wiki/Barnsley_fern
 fern:
   cntPoints: int 100000
   params: ((0.01,((0.0,0.0),(0.0,0.16)),(0.0,0.0)),
