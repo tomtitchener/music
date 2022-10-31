@@ -625,6 +625,7 @@ shortInstrName = (shortInstrNames !!) . fromEnum
 instance ToLily Voice where
   toLily (PitchedVoice instr events) = toPitchedVoice instr events
   toLily (PercussionVoice instr events) = toPercussionVoice instr events
+  toLily (KeyboardVoice instr eventspr) = toKeyboardVoice instr eventspr
   toLily (VoiceGroup voices) = toVoiceGroup voices
   toLily (SplitStaffVoice instr events) = toSplitStaffVoice instr events
   toLily (PolyVoice instr eventss) = toPolyVoice instr eventss
@@ -698,6 +699,45 @@ parseSplitStaffVoiceEvents = NE.fromList . catMaybes <$> (string [str|\new Staff
                                                                       }
                                                                       |])
 
+
+toKeyboardVoice :: Instrument -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent) -> String
+toKeyboardVoice instr (lhevents,rhevents) =
+  [str|\new PianoStaff {
+      <<
+      \set PianoStaff.instrumentName = ##"$shortInstrName instr$"\set PianoStaff.midiInstrument = ##"$midiName instr$"
+      \new Staff = "lh" {
+      \new Voice {
+      { \clef treble $unwords (map toLily (NE.toList lhevents))$ } \bar "|."
+      }
+      }
+      \new Staff = "rh" {
+      \new Voice {
+      { \clef bass $unwords (map toLily (NE.toList rhevents))$ } \bar "|."
+      }
+      }
+      >>
+      }
+      |]
+
+parseKeyboardVoiceEvents :: Parser (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent)
+parseKeyboardVoiceEvents = (,) <$> (string [str|\new Staff = "lh" {
+                                                \new Voice {
+                                                { \clef treble |]
+                                   *> (NE.fromList <$> parseVoiceEvent `endBy` space)
+                                   <* string [str|} \bar "|."
+                                                       }
+                                                       }
+                                                       |])
+                                   <*>
+                                   (string [str|\new Staff = "rh" {
+                                                \new Voice {
+                                                { \clef bass |]
+                                   *> (NE.fromList <$> parseVoiceEvent `endBy` space)
+                                   <* string [str|} \bar "|."
+                                                       }
+                                                       }
+                                                       |])
+
 eventsToPolyVoice :: NE.NonEmpty VoiceEvent -> String
 eventsToPolyVoice events  =
   [str|\new Staff {
@@ -742,6 +782,16 @@ parseVoice = choice [
                    <*> (NE.fromList <$> (parseVoiceEvent `endBy` space
                         <* string [str|\bar "|."
                                       }|])))
+  ,try (KeyboardVoice <$> (string [str|\new PianoStaff {
+                                        <<
+                                        \set PianoStaff.instrumentName = ##|]
+                               *> parseQuotedIdentifier
+                               *> string [str|\set PianoStaff.midiInstrument = ##"|]
+                               *> parseInstrument
+                               <* string [str|"$endline$|])
+                               <*> parseKeyboardVoiceEvents
+                               <* string [str|>>
+                                            }|])
   ,try (VoiceGroup <$> (string [str|\new StaffGroup
                                    <<
                                    |]

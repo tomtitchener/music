@@ -63,6 +63,7 @@ tests =
   ,testProperty "parseLily . toLily Tremolo == id" (propParseLilytoLilyVal @Tremolo)
   --
   ,testCase     "parseLily . toLily PitchedVoice"    (assertParseLilytoLilyVal pitchedVoice)
+  ,testCase     "parseLily . toLily KeyboardVoice"   (assertParseLilytoLilyVal keyboardVoice)
   ,testCase     "parseLily . toLily PolyVoice"       (assertParseLilytoLilyVal polyVoice)
   ,testCase     "parseLily . toLily SplitStaffVoice" (assertParseLilytoLilyVal splitStaffVoice)
   ,testCase     "parseLily . toLily VoiceGroup"      (assertParseLilytoLilyVal voiceGroup)
@@ -70,14 +71,16 @@ tests =
   ,testCase     "parseLily . toLily min score"         (assertParseLilytoLilyVal minScore)
   ,testCase     "parseLily . toLily multi score"       (assertParseLilytoLilyVal multiScore)
   ,testCase     "parseLily . toLily poly score"        (assertParseLilytoLilyVal polyScore)
+  ,testCase     "parseLily . toLily keybord score"     (assertParseLilytoLilyVal keyboardScore)
   ,testCase     "parseLily . toLily split staff score" (assertParseLilytoLilyVal splitStaffScore)
   ,testCase     "parseLily . toLily group score"       (assertParseLilytoLilyVal groupScore)
   
-  ,testCase     "single-voice score" (testLilypond "single-voice.ly" minScore)
-  ,testCase     "multi-voice score"  (testLilypond "multi-voice.ly" multiScore)
-  ,testCase     "poly-voice score"   (testLilypond "poly-voice.ly" polyScore)
-  ,testCase     "split-staff score" (testLilypond "split-staff-voice.ly" splitStaffScore)
-  ,testCase     "group-voice score"  (testLilypond "group-voice.ly" groupScore)
+  ,testCase     "single-voice score"   (testLilypond "single-voice.ly" minScore)
+  ,testCase     "multi-voice score"    (testLilypond "multi-voice.ly" multiScore)
+  ,testCase     "poly-voice score"     (testLilypond "poly-voice.ly" polyScore)
+  ,testCase     "keyboard-voice score" (testLilypond "keyboard-voice.ly" keyboardScore)
+  ,testCase     "split-staff score"    (testLilypond "split-staff-voice.ly" splitStaffScore)
+  ,testCase     "group-voice score"    (testLilypond "group-voice.ly" groupScore)
   ]
 
 
@@ -237,6 +240,9 @@ minVEvents = VeClef Treble NE.:|
 pitchedVoice :: Voice
 pitchedVoice = PitchedVoice AcousticGrand minVEvents
 
+keyboardVoice :: Voice
+keyboardVoice = KeyboardVoice AcousticGrand (minVEvents,minVEvents)
+
 polyVoice :: Voice
 polyVoice = PolyVoice AcousticGrand (minVEvents NE.:| [minVEvents])
 
@@ -254,6 +260,9 @@ multiScore = Score "multi" "comment" (pitchedVoice NE.:| [pitchedVoice])
 
 polyScore :: Score
 polyScore = Score "poly" "comment" (polyVoice NE.:| [])
+
+keyboardScore :: Score
+keyboardScore = Score "keyboard" "comment" (keyboardVoice NE.:| [])
 
 splitStaffScore :: Score
 splitStaffScore = Score "split staff" "comment" (splitStaffVoice NE.:| [])

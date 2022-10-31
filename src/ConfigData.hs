@@ -77,8 +77,18 @@ data SectionConfig =
       ,_sceoKeySig     :: KeySignature
       ,_sceoMScale     :: Maybe Scale
       ,_sceoNumcycles  :: Int
-      ,_sceoMotifNames :: NE.NonEmpty String
-      ,_sceoStartNames :: NE.NonEmpty String
+      ,_sceoMotifNames :: NE.NonEmpty String -- keys for [NoteDurOrNoteDurTup]
+      ,_sceoStartNames :: NE.NonEmpty String -- keys for PitOct
+      }
+  -- Generate a series chords from a chord template and a line
+  -- Initial target, two pianos, each with explicit RH/LH in two staves
+  | SectionConfigExpGuides {
+      _scegCore       :: SectionConfigCore
+      ,_scegKeySig    :: KeySignature
+      ,_scegMScale    :: Maybe Scale
+      ,_scegNumcycles :: Int
+      ,_scegTmplNames :: NE.NonEmpty String -- keys for [PitOct]
+      ,_scegTuneNames :: NE.NonEmpty String -- keys for [NoteDurOrNoteDurTup]
       }
     deriving Show
 

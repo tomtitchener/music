@@ -973,11 +973,10 @@ sectionConfig2VoiceEventss _ (SectionConfigExp _ keySig mScale start numCycles m
     ndTupOutArr = concat $ xposeFromNoteDurOrNoteDurTupss scale start ndTupInArrs
     cycles = take (numCycles * length ndTupOutArr) $ cycle ndTupOutArr
 -- Experimental ostinato, issues:
--- * by chunking each motto into it's own [[]] (see zipWith), there's
+-- - by chunking each motto into it's own [[]] (see zipWith), there's
 --   no transposition that takes place through xposeFromNoteDurOrNoteDurTupss
 --   so what you get is just verbatim repetition of ostinatos, rather than
 --   ostinatos used as transpose patterns.
--- * 
 sectionConfig2VoiceEventss _ (SectionConfigExpOst  SectionConfigCore{..} keySig mScale numCycles motifNames startNames) = do
   motMap   <- traverse (secondM motName2Mot . dupe) motNames <&> M.fromList
   startMap <- traverse (secondM startName2Start . dupe) strtNames <&> M.fromList
@@ -995,6 +994,9 @@ sectionConfig2VoiceEventss _ (SectionConfigExpOst  SectionConfigCore{..} keySig 
     keyAndName2Val key name = getConfigParam (_sccPath <> "." <> key <> "." <> name)
     motName2Mot motName = keyAndName2Val "motifs" motName <&> map nDOrNDTup2Arrs . NE.toList
     startName2Start = keyAndName2Val "starts" 
+sectionConfig2VoiceEventss _ SectionConfigExpGuides{} =
+  pure []
+--sectionConfig2VoiceEventss _ (SectionConfigExpGuides SectionConfigCore{..} keySig mScale numCycles tmplNames startuneNames) = 
     
 -------------------------------------------------------
 -- GroupConfig[Neutral | EvenEnds | Ordered] helpers --
@@ -1007,6 +1009,7 @@ secCfg2SecName SectionConfigFadeOut{..}    = path2Name (_sccPath _scfoCore)
 secCfg2SecName SectionConfigFadeAcross{..} = path2Name (_sccPath _scfcCore)
 secCfg2SecName SectionConfigExp{..}        = path2Name (_sccPath _sceCore)
 secCfg2SecName SectionConfigExpOst{..}     = path2Name (_sccPath _sceoCore)
+secCfg2SecName SectionConfigExpGuides{..}  = path2Name (_sccPath _scegCore)
 
 -- Repeatedly add [[VoiceEvent]] for last section to input until all [[VoiceEvent]] are the same
 -- total duration.  Tricky bit is that sectionConfig2VoiceEventss may not add [VoiceEvent] of
@@ -1260,6 +1263,7 @@ tagTempo tempo (v1:rest) = tagVoice v1:rest
     tagVoice ::  Voice -> Voice
     tagVoice PitchedVoice {..}                  = PitchedVoice _ptvInstrument (VeTempo tempo NE.<| _ptvVoiceEvents)
     tagVoice PercussionVoice {..}               = PercussionVoice _pcvInstrument (VeTempo tempo NE.<| _pcvVoiceEvents)
+    tagVoice KeyboardVoice {..}                 = KeyboardVoice _kbvInstrument (first (VeTempo tempo NE.<|) _kbvVoiceEvents)
     tagVoice (PolyVoice instr (ves NE.:| vess)) = PolyVoice instr ((VeTempo tempo NE.<| ves) NE.:| vess)
     tagVoice SplitStaffVoice {..}               = SplitStaffVoice _ssvInstrument (VeTempo tempo NE.<| _ssvVoiceEvents)
     tagVoice (VoiceGroup (v1' NE.:| r))         = VoiceGroup (tagVoice v1' NE.:| r)
