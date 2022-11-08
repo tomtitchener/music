@@ -73,7 +73,10 @@ instance FromConfig PitOct where
 
 instance FromConfig Range where
   parseConfig = mkParseConfig pPitOctPr 
-  
+
+instance FromConfig (NE.NonEmpty (Maybe PitOct,Duration)) where
+  parseConfig = mkParseConfig (mkPs (pPr (pM pPitOct) parseDuration))
+
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))) where
   parseConfig = mkParseConfig (mkPs (mkPs (pM pPitOctOrPitOcts)))
 
@@ -104,8 +107,17 @@ instance FromConfig Dynamic where
 instance FromConfig (NE.NonEmpty Dynamic) where
   parseConfig = mkParseConfig (mkPs pDynamicStr)
 
+instance FromConfig Sustain where
+  parseConfig = mkParseConfig pSustainStr
+  
+instance FromConfig (NE.NonEmpty Sustain) where
+  parseConfig = mkParseConfig (mkPs pSustainStr)
+
 instance FromConfig (NE.NonEmpty Duration) where
   parseConfig = mkParseConfig (mkPs parseDuration)
+
+instance FromConfig Control where
+  parseConfig = mkParseConfig pControl 
 
 instance FromConfig (NE.NonEmpty (Maybe Int)) where
   parseConfig = mkParseConfig (mkPs pMInt)
@@ -243,6 +255,15 @@ dynamicVals = [PPPPP, PPPP, PPP, PP, Piano, MP, MF, FFFFF, FFFF, FFF, FF, FP, Fo
 pDynamicStr :: Parser Dynamic
 pDynamicStr = choice (zipWith mkParser dynamicStrs dynamicVals)
 
+sustainStrs :: [String]
+sustainStrs = ["sustOn", "sustOff"]
+
+sustainVals :: [Sustain]
+sustainVals = [SustainOn, SustainOff]
+
+pSustainStr :: Parser Sustain
+pSustainStr = choice (zipWith mkParser sustainStrs sustainVals)
+
 -- in practice, "Int" stands for Interval, which in musical terms,
 -- maps to 1/-1 for unison, 2/-2 for a second or one scale step,
 -- 3/-3 for a third or two scale steps and etc.  Zero is illegal.
@@ -289,6 +310,9 @@ pNatDurPr = pPr parseNatural parseDuration
 
 pTimeSignature :: Parser TimeSignature
 pTimeSignature = try pTimeSignatureGrouping <|> pTimeSig
+
+pControl :: Parser Control
+pControl = try (CtrlSustain <$> pSustainStr) <|> (CtrlDynamic <$> pDynamicStr) <|> (CtrlSustain <$> pSustainStr)
 
 pIntDurPr :: Parser (Int,Duration)
 pIntDurPr = pPr parseNat parseDuration

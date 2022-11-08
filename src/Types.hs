@@ -209,13 +209,36 @@ data Instrument =
        Cello |                   LeadVoice
   deriving (Eq, Ord, Show, Enum, Bounded)
 
--- Lilypond formats:
+-- Lilypond formats:  what I seem to have here is:
+-- 1) Mono voice, with only one staff per [VoiceEvent], divided between pitched and percussion,
+--    though percussion is unexplored and maybe needs a special version of VoiceEvent?
+-- 2) SplitStaff voice, with one [VoiceEvent] where Lilypond divides the events between two staffs.
+-- 3) Keyboard voice, with ([VoiceEvent],[VoiceEvent]) divided explicitly between two staffs.
+-- 4) Group of voices, a recursive type with a list of the other voices including possibly a subgroup
+--    with a list of voices e.g. for a wind section, probably will never be used?
+--
+-- To date, I have only ever generated scores using the SplitStaffVoice, which uses the Lilypond
+-- autoChange control, after trying to arrange a single voice across multiple bass and treble myself.
+-- But planning for right and left hands in the configuration file starts to make the split staff
+-- choice difficult, as you need to have one stream of Lilypond events with multiple lines in it.
+-- What I could have would be a tag in the config file per voice to select the translation method?
+--
+-- Don't forget Pan setting e.g. after \new Staff as in \tag #'midi \set Staff.midiPanPosition [-1.0..1.0]
+-- Seems like I need this on a per Voice basis, though intuitively, it feels like a post-processing sort of
+-- trick, once you have the Voices corralled in a Score?  But the translation of Score to Lilypond file
+-- doesn't work that way, if there was a post-processing step, it'd have to be Lilypond -> Lilypond, and
+-- I'm certain I don't want to write a Lilypond parser.  Seems like the best thing is to tuck it in as
+-- a Maybe Double field in the inclusive range [-1.0..1.0].  For simplicity, it's best to have a single
+-- Pan setting even for aggregate voices like PolyVoice, which means repeating the same Pan setting for
+-- each of the inner list of VoiceEvent.  For VoiceGroup, I can just map the Pan setting for each 
+-- embedded Voice instance.
+--
 data Voice =
   PitchedVoice      { _ptvInstrument :: Instrument, _ptvVoiceEvents :: NonEmpty VoiceEvent }
   | PercussionVoice { _pcvInstrument :: Instrument, _pcvVoiceEvents :: NonEmpty VoiceEvent }
+  | SplitStaffVoice { _ssvInstrument :: Instrument, _ssvVoiceEvents :: NonEmpty VoiceEvent }
   | KeyboardVoice   { _kbvInstrument :: Instrument, _kbvVoiceEvents :: (NonEmpty VoiceEvent,NonEmpty VoiceEvent) }
   | PolyVoice       { _povInstrument :: Instrument, _povVoiceEvents :: NonEmpty (NonEmpty VoiceEvent) }
-  | SplitStaffVoice { _ssvInstrument :: Instrument, _ssvVoiceEvents :: NonEmpty VoiceEvent }
   | VoiceGroup      { _vgVoices :: NonEmpty Voice }
   deriving (Eq, Ord, Show)
 
@@ -254,7 +277,7 @@ type TupletTuple = ([Maybe PitOctOrPitOcts],DurTuplet,[Accent])
 
 type NoteDurOrNoteDurTup = Either NoteRestOrChordTuple TupletTuple
 
---
+-- Interval equivalents 
 
 type NoteRestOrChordIsTuple = (Maybe IntOrInts,DurationVal,Accent)
 

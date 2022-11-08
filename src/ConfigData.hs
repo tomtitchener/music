@@ -57,12 +57,12 @@ data SectionConfig =
       ,_scfoVoices :: [VoiceConfig]
       }
   | SectionConfigFadeAcross {
-      _scfcCore      :: SectionConfigCore
-      ,_scfcReps     :: Int
+      _scfaCore      :: SectionConfigCore
+      ,_scfaReps     :: Int
       -- (a,b) pairs for two equal-length consorts
       -- both must be sliceable, though they can be
       -- different lengths
-      ,_scfcVoicesAB :: [(VoiceConfig,VoiceConfig)]
+      ,_scfaVoicesAB :: [(VoiceConfig,VoiceConfig)]
       }
   | SectionConfigExp {
       _sceCore       :: SectionConfigCore
@@ -83,12 +83,11 @@ data SectionConfig =
   -- Generate a series chords from a chord template and a line
   -- Initial target, two pianos, each with explicit RH/LH in two staves
   | SectionConfigExpGuides {
-      _scegCore       :: SectionConfigCore
-      ,_scegKeySig    :: KeySignature
-      ,_scegMScale    :: Maybe Scale
-      ,_scegNumcycles :: Int
-      ,_scegTmplNames :: NE.NonEmpty String -- keys for [PitOct]
-      ,_scegTuneNames :: NE.NonEmpty String -- keys for [NoteDurOrNoteDurTup]
+      _scegCore        :: SectionConfigCore
+      ,_scegKeySig     :: KeySignature
+      ,_scegMScale     :: Maybe Scale
+      ,_scegNumcycles  :: Int
+      ,_scegVoiceNames :: NE.NonEmpty String -- keys
       }
     deriving Show
 
@@ -97,6 +96,7 @@ data VoiceConfigCore =
    _vcmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
   ,_vcDurss     :: NE.NonEmpty (NE.NonEmpty DurValOrDurTuplet)
   ,_vcAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
+  ,_vcVoiceType :: String
   } deriving Show
 
 -- For each list of list of (Maybe PitOctOrNEPitOcts), the outer Maybe is
@@ -146,8 +146,8 @@ data VoiceConfig =
   -- d) generate list of notes from pitches, durations, and accents in lists
   --      e.g. for indices 0,1: ((p1,d1,a1),(p2,d1,a2),(p3,d2,a3),(p3,d3,a4))
   | VoiceConfigSlice {
-      _vccCore    :: VoiceConfigCore
-      ,_vcclDurVal :: Int
+      _vcsCore    :: VoiceConfigCore
+      ,_vcsDurVal :: Int
       }
   -- a) randomly permute list of list of pitches, durations, accents, so
   --    order in inner lists is preserved, order of inner lists themselves 
@@ -183,9 +183,9 @@ data VoiceConfig =
   -- sublist only, all voices use same list of pitches, durations, and accents 
   -- (even then, you need to use a config mod to stagger the arrival of the voices)
   | VoiceConfigBlend {
-      _vccCore   :: VoiceConfigCore
-      ,_vccDurVal :: Int
-      ,_vccRotVal :: Int -- default 0 if not in config
+      _vcbCore   :: VoiceConfigCore
+      ,_vcbDurVal :: Int
+      ,_vcbRotVal :: Int -- default 0 if not in config
       }
   -- same as blend, except concatenated, randomized selection of sublists from
   -- pitches are mapped to interval diffs extending over _vcxRange from first in
@@ -218,6 +218,7 @@ path2VoiceConfigCore pre =
   <$> searchConfigParam  (pre <> ".mPitOctsss") 
   <*> searchConfigParam  (pre <> ".durss")
   <*> searchConfigParam  (pre <> ".accentss")
+  <*> searchConfigParam  (pre <> ".voiceType")
 
 -- Add comparison of ordering in (start,stop) in Range
 -- to ordering in mPirtOctsss in Core
@@ -269,8 +270,8 @@ verifyVoiceConfigCoreListsLengths core@VoiceConfigCore{..}
 verifyVoiceConfigListsLengths :: VoiceConfig -> VoiceConfig
 verifyVoiceConfigListsLengths vc@VoiceConfigVerbatim{..}  = vc { _vcvCore = verifyVoiceConfigCoreListsLengths _vcvCore }
 verifyVoiceConfigListsLengths vc@VoiceConfigRepeat{..}    = vc { _vcrCore = verifyVoiceConfigCoreListsLengths _vcrCore }
-verifyVoiceConfigListsLengths vc@VoiceConfigBlend{..}     = vc { _vccCore = verifyVoiceConfigCoreListsLengths _vccCore }
-verifyVoiceConfigListsLengths vc@VoiceConfigSlice{..}     = vc { _vccCore = verifyVoiceConfigCoreListsLengths _vccCore }
+verifyVoiceConfigListsLengths vc@VoiceConfigBlend{..}     = vc { _vcbCore = verifyVoiceConfigCoreListsLengths _vcbCore }
+verifyVoiceConfigListsLengths vc@VoiceConfigSlice{..}     = vc { _vcsCore = verifyVoiceConfigCoreListsLengths _vcsCore }
 verifyVoiceConfigListsLengths vc@VoiceConfigXPose{..}     = vc { _vcxCore = verifyVoiceConfigCoreListsLengths _vcxCore }
 verifyVoiceConfigListsLengths vc@VoiceConfigAccrete{..}   = vc { _vcaCore = verifyVoiceConfigCoreListsLengths _vcaCore }
 
@@ -306,7 +307,7 @@ name2VoiceConfigMap = M.fromList [("verbatim",path2VoiceConfigVerbatim)
 
 path2VoiceConfig :: Path2VoiceConfig
 path2VoiceConfig path =
-  searchConfigParam (path <> ".vtype") >>= runConfigType
+  searchConfigParam (path <> ".vctype") >>= runConfigType
   where
     runConfigType cfgType =
       case M.lookup cfgType name2VoiceConfigMap of
@@ -387,6 +388,15 @@ sectionAndVoices2SectionConfigExpOst pre _ =
       <*> searchConfigParam  (pre <> ".numCycles")
       <*> searchConfigParam  (pre <> ".motifnames")
       <*> searchConfigParam  (pre <> ".startnames")
+
+sectionAndVoices2SectionConfigExpGuides :: SectionAndVoices2SectionConfig
+sectionAndVoices2SectionConfigExpGuides pre _ = 
+  SectionConfigExpGuides
+      <$> path2SectionConfigCore pre
+      <*> searchConfigParam  (pre <> ".key")
+      <*> searchMConfigParam (pre <> ".scale")
+      <*> searchConfigParam  (pre <> ".numCycles")
+      <*> searchConfigParam  (pre <> ".voicenames")
       
 name2SectionConfigMap :: M.Map String SectionAndVoices2SectionConfig
 name2SectionConfigMap = M.fromList [("neutral"   ,sectionAndVoices2SectionConfigNeutral)
@@ -394,7 +404,8 @@ name2SectionConfigMap = M.fromList [("neutral"   ,sectionAndVoices2SectionConfig
                                    ,("fadeout"   ,sectionAndVoices2SectionConfigFadeOut)
                                    ,("fadeacross",sectionAndVoices2SectionConfigFadeAcross)
                                    ,("exp"       ,sectionAndVoices2SectionConfigExp)
-                                   ,("expost"    ,sectionAndVoices2SectionConfigExpOst)]
+                                   ,("expost"    ,sectionAndVoices2SectionConfigExpOst)
+                                   ,("exguides"  ,sectionAndVoices2SectionConfigExpGuides)]
 
 path2SectionConfig :: String -> Driver SectionConfig
 path2SectionConfig section = do

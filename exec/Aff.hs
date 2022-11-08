@@ -62,6 +62,8 @@ import Data.Aeson.Lens (key,_String)
 import Text.Parsec (parse,char,spaces,string,between,sepBy1)
 import Text.Parsec.Number (int,floating)
 import Text.Parsec.String as PS (Parser)
+-- timing
+import System.TimeIt
 
 data Options = Options
   { _optConfigYaml :: FilePath
@@ -90,8 +92,10 @@ main = do
     then either (error . Y.prettyPrintParseException) id <$> Y.decodeFileEither _optConfigYaml
     else error $ "config file " <> _optConfigYaml <> " does not exist"
   let (cntPoints,params) = readParams _optTarget config
-  xyPrs <- getRandoms <&> snd . mapAccumR (nextXY params) (V2 0.0 0.0) . take cntPoints
-  renderableToFile def (_optTarget <> ".svg") (chart _optTarget (v22Pr <$> xyPrs))
+  putStrLn $ "cntPoints: " <> show cntPoints
+  xyPrs <- timeIt (getRandoms <&> snd . mapAccumR (nextXY params) (V2 0.0 0.0) . take cntPoints)
+  timeIt (putStrLn $ "end xyPrs: " <> show (last xyPrs))
+  timeIt (renderableToFile def (_optTarget <> ".svg") (chart _optTarget (v22Pr <$> xyPrs)))
   where
     v22Pr = (^. _x) &&& (^. _y)
 

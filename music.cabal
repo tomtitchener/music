@@ -89,6 +89,7 @@ executable aff
                      , parsec3-numbers
                      , split
                      , text
+                     , timeit
                      , yaml
   ghc-options:       -Wall -Werror -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns -fno-warn-orphans -haddock
 

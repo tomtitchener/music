@@ -42,3 +42,39 @@ exp-ost:
         start1: (c,1)
         start2: (c,-1)
 
+exp-guides:
+  common:
+    tempo:       (120,4)
+    key:         c major
+    instr:       acoustic grand
+    time:        (4,4)
+  group:
+    grtype: neutral
+    section:
+      stype:      expguides
+      key:        c major
+      scale:      (c,cis,d,dis,e,f,fis,g,aes,a,bes,b)
+      numCycles:  int 10
+      voiceNames:  (red,green)
+      voices:
+        red:
+          right:
+            # PitOct for departure point of transpositions
+            start: (g,0)
+            # list of (Maybe PitOct,Duration) pairs to use for transposition
+            guide: (((c,1),2.),(r,4),((a,1),2.),(r,4))
+            # list of (PitOctOrPitOcts,[Control]) to transpose using start and guide and for dynamic, accent or sustain
+            clusters: ((((c,1),(c,2)),(control)),(((g,1),(g,2)),(control)),(((a,1),(a,2)),(control)))a
+          left:
+            start: (c,-2)
+            guide: (((c,1),2.),(r,4),((a,1),2.),(r,4))
+            clusters: ((((c,0),(c,1)),(controls)),(((g,-1),(g,0)),(controls)),(((a,-1),(a,0)),(controls)))
+        green:
+          right:
+            guide:
+            cluster:
+          left:
+            guide:
+            cluster:
+
+

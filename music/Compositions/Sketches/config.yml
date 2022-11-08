@@ -14,7 +14,8 @@ poc:
       stype:        fadeacross
       reps:         int 4
       common:
-        vtype:     slice
+        vctype:    slice
+        voicetype:  splitstaff
         durval:    int 512 # 4 * 32 * 4
       voice1:
         mPitOctsss:  (((c,0),(e,0)),((g,0),(b,0)))
@@ -64,7 +65,8 @@ blend:
       fadeInDyn2:   p
       vesmods:      (fadeInAccs,fadeInDyns)
       common:
-        vtype:     blend
+        vctype:    blend
+        voicetype: splitstaff
         durval:    int 512
         accentss:  ((~,~,~))
       voice1:
@@ -84,7 +86,8 @@ blend:
       sectionDyns: (mf,f,ff,f)
       vesmods:    (uniformAccs,sectionDyns)
       common:
-        vtype:    blend
+        vctype:   blend
+        voicetype: splitstaff
         durval:   int 512
       voice1:
         rotval:   int 0
@@ -102,8 +105,9 @@ blend:
       sectionDyns: (mf,mp,p,ppp)
       vesmods:     (uniformAccs,sectionDyns)
       common:
-        vtype:    blend
-        durval:   int 512
+        vctype:    blend
+        voicetype: splitstaff
+        durval:    int 512
       voice1:
         rotval:   int 0
       voice2:
@@ -133,8 +137,9 @@ homophony:
     uniformDyn: mp
     vesmods:    (uniformAccs,uniformDyns)
     common:
-      vtype:    blend
-      durval:   int 512
+      vctype:    blend
+      voicetype: splitstaff
+      durval:    int 512
     voice1:
     voice2:
     voice3:

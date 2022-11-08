@@ -68,23 +68,36 @@ main =  do
         let stdGen = StdGen { unStdGen = smGen }
         setStdGen stdGen
   gen <- getStdGen
-  void . liftIO $ runReaderT (runDriver (cfg2Score _optTarget (show gen))) (initEnv config (show gen))
+  void . liftIO $ runReaderT (runDriver (cfg2MonoVoiceScore _optTarget (show gen))) (initEnv config (show gen))
 
-cfg2Score :: String -> String -> Driver ()
-cfg2Score path gen = do
-  tempo   <- searchConfigParam  (title <> ".common.tempo")
-  timeSig <- searchConfigParam  (title <> ".common.time")
+cfg2MonoVoiceScore :: String -> String -> Driver ()
+cfg2MonoVoiceScore path gen = do
+  tempo   <- searchConfigParam (title <> ".common.tempo")
+  timeSig <- searchConfigParam (title <> ".common.time")
   keySig  <- searchConfigParam  (title <> ".common.key")
-  instr   <- searchConfigParam  (title <> ".common.instr")
-  voices  <- config2VEss path timeSig <&> pipeline tempo timeSig keySig instr
+  instr   <- searchConfigParam (title <> ".common.instr")
+  voices  <- config2Voices path timeSig keySig instr <&> pipeline tempo timeSig 
   writeScore ("./" <> path <> ".ly") $ Score path gen (NE.fromList voices)
   where
     title :: String = head (splitOn "." path)
-    pipeline :: Tempo -> TimeSignature -> KeySignature -> Instrument -> [[VoiceEvent]] -> [Voice]
-    pipeline tempo timeSig keySig instr vess = 
-      fmap (alignVoiceEventsDurations timeSig) vess            -- -> [[VoiceEvent]]
-      & zipWith (mkVesTotDur timeSig (maximum veLens)) veLens  -- -> [[VoiceEvent]]
-      & fmap (genSplitStaffVoc instr keySig timeSig)           -- -> [Voice]
-      & tagTempo tempo                                         -- -> [Voice]
+    pipeline :: Tempo -> TimeSignature -> [Voice] -> [Voice]
+    pipeline tempo timeSig voices =
+       fmap (alignVoiceDurations timeSig) voices
+       & zipWith (mkVoiceTotDur timeSig (maximum voiceLens)) voiceLens
+       & tagTempo tempo
       where
-        veLens   = ves2DurVal <$> vess
+        voiceLens = voice2DurVal <$> voices
+    
+    -- -- 2) the signature changes here from -> [[VoiceEvent]] -> [Voice] to [Voice] -> [Voice]
+    -- pipeline :: Tempo -> TimeSignature -> KeySignature -> Instrument -> [[VoiceEvent]] -> [Voice]
+    -- pipeline tempo timeSig keySig instr vess =
+    --   -- 2a) alignVoiceEventsDurations takes and answers a Voice instead of a [VoiceEvent]
+    --   fmap (alignVoiceEventsDurations timeSig) vess            -- -> [[VoiceEvent]]
+    --   -- 2b) mkVesToTDur ditto
+    --   & zipWith (mkVesTotDur timeSig (maximum veLens)) veLens  -- -> [[VoiceEvent]]
+    --   -- 2c) eliminate this because we already have a [Voice]
+    --   & fmap (genSplitStaffVoc instr keySig timeSig)           -- -> [Voice]
+    --   & tagTempo tempo                                         -- -> [Voice]
+    --   where
+    --     -- 3) voice2DurVal replaces ves2DurVal and voices replaces vess
+    --     veLens = ves2DurVal <$> vess

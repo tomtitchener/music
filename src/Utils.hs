@@ -210,6 +210,8 @@ durSum2Durs = unfoldr f
         d = durVal2Duration M.! v
         ds = DurationSum (i - v)
 
+-- Add ending duration(s) to fill out to the end of the last bar given
+-- the current max length and the length to add in 128th notes
 -- Aggregation that takes time signature and current length into account
 -- Len vars are all in 128th notes
 -- beatLen is length for beat (numerator from time signature)

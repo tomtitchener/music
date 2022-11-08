@@ -13,7 +13,7 @@ accrete-simple:
       stype:   neutral
       reps:    int 1
       voice1:
-        vtype:   accrete
+        vctype:  accrete
         numBars: int 8
         init:    (c major,(c,0))
         mPitOctsss: (((c,0),(c,0),r,((c,0),(e,0)),(c,0)),((a,-1),(f,-1),((d,0),(e,0)),r,(a,-1),(c,0)),

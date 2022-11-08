@@ -20,7 +20,7 @@ pattern-free:
       vesmods:    (uniformDyns)
       common:
         durval: int 512 # four bars in 4/4 time
-        vtype:  blend
+        vctype: blend
       voice1:
         # additional constraints here:
         # - want something identifiable as a single voice:
