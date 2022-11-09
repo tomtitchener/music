@@ -26,8 +26,8 @@ jobs:
 
     - name: Install dependencies
       run: |
-        wget -q https://lilypond.org/download/binaries/linux-64/lilypond-2.22.1-1.linux-64.sh
-        sh lilypond-2.22.1-1.linux-64.sh --batch
+        wget -q https://lilypond.org/download/binaries/linux-64/lilypond-2.22.2-1.linux-64.sh
+        sh lilypond-2.22.2-1.linux-64.sh --batch
         sudo apt install libgl1-mesa-dev
         sudo apt install freeglut3{,-dev}
         stack build --only-dependencies
