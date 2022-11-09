@@ -1130,54 +1130,31 @@ groupConfig2VoiceEvents timeSig (GroupConfigOrdered _ _ orderedSectionNames secC
 -- config2Voices --
 -------------------
 
--- Would be nice to have a filter here, inspecting for and eliminating any duplicate VeClef, VeTempo, VeKeySignature, VeTimeSignature
--- from v1 in v2.
--- Note the foldl1 is grossly inefficient as I keep on copying over the starting voices again and again.
--- It'd be much better to assemble this with a foldr1 concat2Voices, then have a post-processing step to
--- remove redundant controls.
--- Or just map all [Voice] to [[VoiceEvent]] vi monoVoice2VEs and then do a replaceMonoVoiceVEs v1 with the concat of the result
---concatVoices' :: [Voice] -> Voice
---concatVoices' = foldl1' concat2Voices
---  where
---    concat2Voices :: Voice -> Voice -> Voice
---    concat2Voices v1 v2 = replaceMonoVoiceVEs v1 (monoVoice2VEs v1 ++ monoVoice2VEs v2)
-    
+-- Strip duplicate time and key signatures, though it looks like Lilypond only renders time signatures.
+-- Could be done in one pass with multiple tests per VoiceEvent but it's probably not worth the complexity.
 concatVoices :: [Voice] -> Voice
 concatVoices voices = replaceMonoVoiceVEs (head voices) ves
   where
-    ves = filterDuplicateTimeSignatures $ filterDuplicateKeySignatures $ concatMap monoVoice2VEs voices
+    ves = filterDuplicateControls isVeKeySig $ filterDuplicateControls isVeTimeSig $ concatMap monoVoice2VEs voices
 
--- 1) traverse [VoiceEvent] starting with Nothing for Maybe KeySignature
--- 2) is VoiceEvent VeKeySignature ?
---    Yes -> is our record for the curent KeySignature Nothing?
---        Yes -> remember new KeySignature, copy over VeKeySignature to output and keep going
---        No  -> is this KeySignature the same as our record?
---               Yes -> skip over redundant KeySignature
---               No  -> copy over new KeySignature and record new KeySignature in Maybe KeySignature
---    No -> copy over VoiceEvent to output and keep going
-filterDuplicateKeySignatures :: [VoiceEvent] -> [VoiceEvent]
-filterDuplicateKeySignatures = remDupKeySig Nothing 
+isVeKeySig :: VoiceEvent -> Bool
+isVeKeySig (VeKeySignature _) = True
+isVeKeySig _                  = False
+
+isVeTimeSig :: VoiceEvent -> Bool
+isVeTimeSig (VeTimeSignature _) = True
+isVeTimeSig _                   = False
+
+filterDuplicateControls :: (VoiceEvent -> Bool) -> [VoiceEvent] -> [VoiceEvent]
+filterDuplicateControls veIsCtrl = reverse . snd . foldl' f (Nothing,[])
   where
-    remDupKeySig :: Maybe KeySignature -> [VoiceEvent] -> [VoiceEvent]
-    remDupKeySig _ [] = []
-    remDupKeySig Nothing (ve@(VeKeySignature keySignature):rest) = ve : remDupKeySig (Just keySignature) rest
-    remDupKeySig (Just targetKeySignature) (ve@(VeKeySignature keySignature):rest) =
-      if targetKeySignature == keySignature
-      then remDupKeySig (Just keySignature) rest
-      else ve : remDupKeySig (Just targetKeySignature) rest
-    remDupKeySig maybeKeySignature (ve:rest) = ve : remDupKeySig maybeKeySignature rest
-    
-filterDuplicateTimeSignatures :: [VoiceEvent] -> [VoiceEvent]
-filterDuplicateTimeSignatures = remDupTimeSig Nothing 
-  where
-    remDupTimeSig :: Maybe TimeSignature -> [VoiceEvent] -> [VoiceEvent]
-    remDupTimeSig _ [] = []
-    remDupTimeSig Nothing (ve@(VeTimeSignature timeSignature):rest) = ve : remDupTimeSig (Just timeSignature) rest
-    remDupTimeSig (Just targetTimeSignature) (ve@(VeTimeSignature timeSignature):rest) =
-      if targetTimeSignature == timeSignature
-      then remDupTimeSig (Just timeSignature) rest
-      else ve : remDupTimeSig (Just targetTimeSignature) rest
-    remDupTimeSig maybeTimeSignature (ve:rest) = ve : remDupTimeSig maybeTimeSignature rest
+    f (Nothing,ves)   ve
+      |  veIsCtrl ve = (Just ve,ve:ves)
+      |  otherwise   = (Nothing,ve:ves)
+    f (Just ctrl,ves) ve
+      | ve == ctrl   = (Just ctrl,ves)
+      | veIsCtrl ve  = (Just ve,ve:ves)
+      | otherwise    = (Just ctrl,ve:ves)
 
 groupConfig2SectionConfigs :: GroupConfig -> NE.NonEmpty SectionConfig
 groupConfig2SectionConfigs GroupConfigNeutral{..}  = _gcnConfigs
@@ -1256,11 +1233,6 @@ grpNames2Voices timeSig keySig instr grpNames = do
   grpScnsPrs <- traverse (secondM (cfgPath2Keys ("section" `isPrefixOf`)) . dupe) grpNames
   grpCfgs    <- traverse (uncurry cfg2GroupConfig) (second NE.fromList <$> grpScnsPrs)
   voicess    <- traverse (groupConfig2Voices timeSig keySig instr) grpCfgs
-  -- printIt $ "length voicess: " <> show (length voicess) <> " length inner voices " <> show (map length voicess)
-  -- voicess at this point is [[Voice,Voice,Voice,Voice],[Voice,Voice,Voice,Voice]]
-  -- and there's only two groups, so that maps to [group1,group2]
-  -- and what I need is to combine [[Voice1,Voice2,Voice3,Voice4],[Voice1,Voice2,Voice3,Voice4]]
-  -- to become [Voice1,Voice2,Voice3,Voice4], at least to start
   pure $ concatVoices <$> transpose voicess
 
 section2Voices :: String -> TimeSignature -> KeySignature -> Instrument -> Driver [Voice]
@@ -1270,7 +1242,6 @@ voice2Voices :: String -> TimeSignature -> KeySignature -> Instrument -> Driver 
 voice2Voices path timeSig keySig instr = path2VoiceConfig path >>= voiceConfig2MonoVoice path timeSig keySig instr <&> (:[])
 
 -- The tempo, time signature, key signature, and instrument are all from the top level config data.
--- TBD: overrides at the section level?
 config2Voices :: String -> TimeSignature -> KeySignature -> Instrument -> Driver [Voice]
 config2Voices path timeSig keySig instr =
   case length (splitOn "." path) of
