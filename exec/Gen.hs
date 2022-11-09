@@ -87,17 +87,3 @@ cfg2MonoVoiceScore path gen = do
        & tagTempo tempo
       where
         voiceLens = voice2DurVal <$> voices
-    
-    -- -- 2) the signature changes here from -> [[VoiceEvent]] -> [Voice] to [Voice] -> [Voice]
-    -- pipeline :: Tempo -> TimeSignature -> KeySignature -> Instrument -> [[VoiceEvent]] -> [Voice]
-    -- pipeline tempo timeSig keySig instr vess =
-    --   -- 2a) alignVoiceEventsDurations takes and answers a Voice instead of a [VoiceEvent]
-    --   fmap (alignVoiceEventsDurations timeSig) vess            -- -> [[VoiceEvent]]
-    --   -- 2b) mkVesToTDur ditto
-    --   & zipWith (mkVesTotDur timeSig (maximum veLens)) veLens  -- -> [[VoiceEvent]]
-    --   -- 2c) eliminate this because we already have a [Voice]
-    --   & fmap (genSplitStaffVoc instr keySig timeSig)           -- -> [Voice]
-    --   & tagTempo tempo                                         -- -> [Voice]
-    --   where
-    --     -- 3) voice2DurVal replaces ves2DurVal and voices replaces vess
-    --     veLens = ves2DurVal <$> vess
