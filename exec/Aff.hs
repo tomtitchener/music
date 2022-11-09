@@ -47,7 +47,7 @@ import Graphics.Rendering.Chart
 import Data.Colour
 import Data.Colour.Names
 import Data.Default.Class
-import Graphics.Rendering.Chart.Backend.Diagrams
+import Graphics.Rendering.Chart.Backend.Cairo
 -- math 
 import Linear.Matrix
 import Linear.V2
@@ -95,7 +95,7 @@ main = do
   putStrLn $ "cntPoints: " <> show cntPoints
   xyPrs <- timeIt (getRandoms <&> snd . mapAccumR (nextXY params) (V2 0.0 0.0) . take cntPoints)
   timeIt (putStrLn $ "end xyPrs: " <> show (last xyPrs))
-  timeIt (renderableToFile def (_optTarget <> ".svg") (chart _optTarget (v22Pr <$> xyPrs)))
+  timeIt (renderableToFile def (_optTarget <> ".png") (chart _optTarget (v22Pr <$> xyPrs)))
   where
     v22Pr = (^. _x) &&& (^. _y)
 
@@ -112,7 +112,7 @@ readParams target config = (cnt,params)
 
 nextXY :: [(Float,M22 Float,V2 Float)] -> V2 Float -> Float -> (V2 Float,V2 Float)
 nextXY ps v r =
-  case find (\(x,_,_) -> r < x) ps of   -- lookup row in ps by r (0..1) < first column
+  case find (\(x,_,_) -> r <= x) ps of   -- lookup row in ps by r (0..1) < first column
     Just (_,m,v') -> dupe $ v *! m + v' -- affine xform: V2 Float (*!) M22 Float + V2 Float -> V2 Float
     Nothing -> error $ "nextXY no such " <> show r <> " in " <> show ps -- random ranges in first column are bad?
 

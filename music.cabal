@@ -75,7 +75,7 @@ executable aff
                      , aeson
                      , bytestring
                      , Chart
-                     , Chart-diagrams
+                     , Chart-cairo
                      , colour
                      , data-default-class
                      , directory
