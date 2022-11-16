@@ -4,7 +4,6 @@ bridge:
   common:
     tempo:       (120,4)
     key:         c major
-    changeclefs: int 3
     instr:       acoustic grand
     time:        ((2,2,3),(7,8))
     scale:       (c,cis,d,dis,e,f,fis,g,gis,a,ais,b)
