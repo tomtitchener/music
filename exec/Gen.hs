@@ -2,6 +2,15 @@
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- Gen(erate) lilypond output given the name of a config YAML
+-- file and a top-level target or chain of up to four components
+-- e.g. title.group.section.voice assuming that the YAML structure
+-- is a list of GroupConfig from src/ConfigData.hs.  Optionally,
+-- specify a seed for the random number generator.
+-- Note: all voices must be mono voices only, e.g. each Voice
+-- contains a single NE.NonEmpty VoiceEvent, e.g. PitchedVoice,
+-- PercussionVoice (TBD), or SplitStaffVoice.
+
 module Main where
 
 import Control.Monad
@@ -70,20 +79,13 @@ main =  do
   gen <- getStdGen
   void . liftIO $ runReaderT (runDriver (cfg2MonoVoiceScore _optTarget (show gen))) (initEnv config (show gen))
 
+-- Expects top-level keys for tempo, time signature and key signature, assuming all voices are the same.
 cfg2MonoVoiceScore :: String -> String -> Driver ()
 cfg2MonoVoiceScore path gen = do
   tempo   <- searchConfigParam (title <> ".common.tempo")
   timeSig <- searchConfigParam (title <> ".common.time")
-  keySig  <- searchConfigParam  (title <> ".common.key")
-  instr   <- searchConfigParam (title <> ".common.instr")
-  voices  <- config2Voices path timeSig keySig instr <&> pipeline tempo timeSig 
+  keySig  <- searchConfigParam (title <> ".common.key")
+  voices  <- config2MonoVoices path timeSig keySig <&> groupAndTrimDursAndAddTempo tempo timeSig 
   writeScore ("./" <> path <> ".ly") $ Score path gen (NE.fromList voices)
   where
-    title :: String = head (splitOn "." path)
-    pipeline :: Tempo -> TimeSignature -> [Voice] -> [Voice]
-    pipeline tempo timeSig voices =
-       fmap (alignVoiceDurations timeSig) voices
-       & zipWith (mkVoiceTotDur timeSig (maximum voiceLens)) voiceLens
-       & tagTempo tempo
-      where
-        voiceLens = voice2DurVal <$> voices
+    title = head (splitOn "." path)

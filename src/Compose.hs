@@ -1,18 +1,12 @@
-{-# LANGUAGE PackageImports      #-}
+{-# Language PackageImports      #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Compose (config2VEss
-               ,config2Voices
-               ,alignVoiceDurations
-               ,mkVoiceTotDur
-               ,concatVoices
-               ,genSplitStaffVoc
-               ,tagTempo
-               ,voice2DurVal
+module Compose (config2MonoVoices
+               ,groupAndTrimDursAndAddTempo
                ) where
-  
+
 import Data.Bifunctor (second)
 import Control.Lens hiding (both)
 import Control.Monad (foldM)
@@ -848,17 +842,17 @@ slice2Tup (mPitOctss,durs,accents) = (NE.fromList mPitOctss,NE.fromList durs,NE.
 
 tup2VoiceConfig :: VoiceConfig -> ConfigTup -> VoiceConfig
 tup2VoiceConfig (VoiceConfigVerbatim VoiceConfigCore{..} durVal) (mPitOrPits,durss,accents) =
-  VoiceConfigVerbatim (VoiceConfigCore mPitOrPits durss accents _vcVoiceType) durVal
+  VoiceConfigVerbatim (VoiceConfigCore mPitOrPits durss accents _vcInstr _vcVoiceType) durVal
 tup2VoiceConfig (VoiceConfigRepeat VoiceConfigCore{..} durVal) (mPitOrPits,durss,accents) =
-  VoiceConfigRepeat (VoiceConfigCore mPitOrPits durss accents _vcVoiceType) durVal
+  VoiceConfigRepeat (VoiceConfigCore mPitOrPits durss accents _vcInstr _vcVoiceType) durVal
 tup2VoiceConfig (VoiceConfigSlice VoiceConfigCore{..} durVal) (mPitOrPits,durss,accents) =
-  VoiceConfigSlice (VoiceConfigCore mPitOrPits durss accents _vcVoiceType) durVal
+  VoiceConfigSlice (VoiceConfigCore mPitOrPits durss accents _vcInstr _vcVoiceType) durVal
 tup2VoiceConfig (VoiceConfigBlend VoiceConfigCore{..} durVal rotVal) (mPitOrPits,durss,accents) =
-  VoiceConfigBlend (VoiceConfigCore mPitOrPits durss accents _vcVoiceType) durVal rotVal
+  VoiceConfigBlend (VoiceConfigCore mPitOrPits durss accents _vcInstr _vcVoiceType) durVal rotVal
 tup2VoiceConfig (VoiceConfigXPose VoiceConfigCore{..} scale vcxRange') (mPitOrPits,durss,accents) =
-  VoiceConfigXPose (VoiceConfigCore mPitOrPits durss accents _vcVoiceType) scale vcxRange'
+  VoiceConfigXPose (VoiceConfigCore mPitOrPits durss accents _vcInstr _vcVoiceType) scale vcxRange'
 tup2VoiceConfig (VoiceConfigAccrete VoiceConfigCore{..} scale vcxRange') (mPitOrPits,durss,accents) =
-  VoiceConfigAccrete (VoiceConfigCore mPitOrPits durss accents _vcVoiceType) scale vcxRange'
+  VoiceConfigAccrete (VoiceConfigCore mPitOrPits durss accents _vcInstr _vcVoiceType) scale vcxRange'
 
 -- TBD: always blends voices in order, e.g. for four voices 1, 2, 3, 4.  Randomize?
 -- unfold instead of map because we don't just map over is, but rather use it to track progress of 
@@ -1012,20 +1006,8 @@ sectionConfig2VoiceEventss _ (SectionConfigExpOst  SectionConfigCore{..} keySig 
     keyAndName2Val key name = getConfigParam (_sccPath <> "." <> key <> "." <> name)
     motName2Mot motName = keyAndName2Val "motifs" motName <&> map nDOrNDTup2Arrs . NE.toList
     startName2Start = keyAndName2Val "starts"
---
--- What to do here?  To fit pattern, output has to answer [[VoiceEvent]], one per voice.
--- That flows into Gen.hs:cfg2Score:pipeline, which *only* emits a SplitStaff score!
--- But what I want here is goingg to be 
+-- To be deprecated
 sectionConfig2VoiceEventss _ _  = pure []
--- sectionConfig2VoiceEventss _ (SectionConfigExpGuides SectionConfigCore{..} keySig mScale numCycles voiceNames) = do
---   voicesMap <- traverse (secondM voiceName2TupPr . dupe) (NE.toList voiceNames) <&> M.fromList
---   pure []
---   where
---     scale = fromMaybe (keySig2Scale M.! keySig) mScale
---     key2Val key = getConfigParam (_sccPath <> "." <> key)
---     key2Tup key = (key2Val (key <> "." <> "start"),key2Val (key <> "." <> "guide"),key2Val (key <> "." <> "clusters"))
---     voiceName2TupPr vName = (key2Tup ("voices" <> "." <> vName <> "." <> "right"),key2Tup ("voices" <> "." <> vName <> "." <> "left"))
-                       
     
 -------------------------------------------------------
 -- GroupConfig[Neutral | EvenEnds | Ordered] helpers --
@@ -1040,25 +1022,24 @@ secCfg2SecName SectionConfigExp{..}        = path2Name (_sccPath _sceCore)
 secCfg2SecName SectionConfigExpOst{..}     = path2Name (_sccPath _sceoCore)
 secCfg2SecName SectionConfigExpGuides{..}  = path2Name (_sccPath _scegCore)
 
--- Repeatedly add [[VoiceEvent]] for last section to input until all [[VoiceEvent]] are the same
--- total duration.  Tricky bit is that sectionConfig2VoiceEventss may not add [VoiceEvent] of
+-- Repeatedly add [VoiceEvent] for last section to Voice until all [Voice] are the same
+-- total duration.  Tricky bit is that sectionConfig2Voices may not add [VoiceEvent] of
 -- sufficiently long sum duration to match difference in length needed, in which case, loop.
 -- To polish, trim final result to end at the bar line.
-extendVoicesEvents :: TimeSignature -> SectionConfig -> [[[VoiceEvent]]] -> Driver [[[VoiceEvent]]]
-extendVoicesEvents timeSig sectionConfig vesssIn =
-  let go vesss = do
-        let vess = concat <$> transpose vesss
-            veLens = ves2DurVal <$> vess
+extendVoices :: TimeSignature  -> SectionConfig -> [Voice] -> Driver [Voice]
+extendVoices timeSig sectionConfig voices =
+  let go vess = do
+        let veLens = ves2DurVal <$> vess
         if sum veLens == length veLens * head veLens
         then do
-          pure vesss
+          pure $ zipWith replaceMonoVoiceVEs voices vess
         else do
           let maxLen = bump2FullBar timeSig $ maximum veLens
               veLenDiffs = (-) maxLen <$> veLens
           vessNew <- sectionConfig2VoiceEventss timeSig sectionConfig <&> zipWith maybeTrimVes veLenDiffs
-          go $ vesss <> [vessNew]
+          go $ zipWith (<>) vess vessNew
   in 
-    go vesssIn
+    go $ monoVoice2VEs <$> voices
 
 -- Adjust partial bar to next full bar so len diffs above are always positive
 -- and we always end at the beginning of a bar (hack).
@@ -1100,40 +1081,18 @@ isSpacer :: VoiceEvent -> Bool
 isSpacer VeSpacer {} = True
 isSpacer _           = False
 
----------------------------------------------------------------
--- GroupConfig[Neutral | EvenEnds | Ordered] implementations --
----------------------------------------------------------------
-
--- Works only for choir type organization with consistent count
--- and instrumentation of voices.
--- TBD: assumes uniform count and instruments for voices between
--- consecutive sections between groups.  Nothing to e.g pad an
--- added voice with rests for voices that come before or after.
--- TBD:  pipeline forces genSplitStaffVoc which will need to be configurable
--- either by VoiceConfig or SectionConfig or else associated with an instrument.
-groupConfig2VoiceEvents :: TimeSignature -> GroupConfig -> Driver [[[VoiceEvent]]]
-groupConfig2VoiceEvents timeSig (GroupConfigNeutral _ _ secCfgs) =
-  traverse (sectionConfig2VoiceEventss timeSig) (NE.toList secCfgs)
-groupConfig2VoiceEvents timeSig (GroupConfigEvenEnds _ _ secCfgs) =
-  traverse (sectionConfig2VoiceEventss timeSig) (NE.toList secCfgs) >>= extendVoicesEvents timeSig (NE.last secCfgs)
-groupConfig2VoiceEvents timeSig (GroupConfigOrdered _ _ orderedSectionNames secCfgs) =
-  traverse (sectionConfig2VoiceEventss timeSig) orderedConfigs
-  where
-    name2ConfigMap = M.fromList ((secCfg2SecName &&& id) <$> NE.toList secCfgs)
-    orderedConfigs = (M.!) name2ConfigMap <$> NE.toList orderedSectionNames
-
 ---------
 -- API --
 ---------
 
--------------------
--- config2Voices --
--------------------
+-----------------------
+-- config2MonoVoices --
+-----------------------
 
 -- Strip duplicate time and key signatures, though it looks like Lilypond only renders time signatures.
 -- Could be done in one pass with multiple tests per VoiceEvent but it's probably not worth the complexity.
-concatVoices :: [Voice] -> Voice
-concatVoices voices = replaceMonoVoiceVEs (head voices) ves
+concatMonoVoices :: [Voice] -> Voice
+concatMonoVoices voices = replaceMonoVoiceVEs (head voices) ves
   where
     ves = filterDuplicateControls isVeKeySig $ filterDuplicateControls isVeTimeSig $ concatMap monoVoice2VEs voices
 
@@ -1156,38 +1115,48 @@ filterDuplicateControls veIsCtrl = reverse . snd . foldl' f (Nothing,[])
       | veIsCtrl ve  = (Just ve,ve:ves)
       | otherwise    = (Just ctrl,ve:ves)
 
-groupConfig2SectionConfigs :: GroupConfig -> NE.NonEmpty SectionConfig
-groupConfig2SectionConfigs GroupConfigNeutral{..}  = _gcnConfigs
-groupConfig2SectionConfigs GroupConfigEvenEnds{..} = _gceConfigs
-groupConfig2SectionConfigs GroupConfigOrdered{..}  = _gcoConfigs
-
-groupConfig2Voices :: TimeSignature -> KeySignature -> Instrument -> GroupConfig -> Driver [Voice]
-groupConfig2Voices timeSig keySig instr groupConfig = 
-  traverse (sectionConfig2Voices timeSig keySig instr) (NE.toList sectionConfigs) <&> map concatVoices . transpose
+groupConfig2Voices :: TimeSignature -> KeySignature -> GroupConfig -> Driver [Voice]
+groupConfig2Voices timeSig keySig (GroupConfigNeutral _ _ sectionConfigs) = 
+  traverse (sectionConfig2Voices timeSig keySig) (NE.toList sectionConfigs) <&> map concatMonoVoices . transpose
+groupConfig2Voices timeSig keySig (GroupConfigEvenEnds _ _ sectionConfigs) = 
+  traverse (sectionConfig2Voices timeSig keySig) (NE.toList sectionConfigs) >>=
+    extendVoices timeSig (NE.last sectionConfigs) . map concatMonoVoices . transpose
+groupConfig2Voices timeSig keySig (GroupConfigOrdered _ _ orderedSectionNames sectionConfigs) = 
+  traverse (sectionConfig2Voices timeSig keySig) orderedConfigs <&> map concatMonoVoices . transpose
   where
-    sectionConfigs = groupConfig2SectionConfigs groupConfig
+    name2ConfigMap = M.fromList ((secCfg2SecName &&& id) <$> NE.toList sectionConfigs)
+    orderedConfigs = (M.!) name2ConfigMap <$> NE.toList orderedSectionNames
     
-sectionConfig2Voices :: TimeSignature -> KeySignature -> Instrument -> SectionConfig -> Driver [Voice]
-sectionConfig2Voices timeSig keySig instr sectionConfig@SectionConfigNeutral{..} =
-  sectionConfig2VoiceEventss timeSig sectionConfig <&> zipWith (ves2Voice timeSig keySig instr) _scnVoices
-sectionConfig2Voices timeSig  keySig instr sectionConfig@SectionConfigFadeIn{..} =
-  sectionConfig2VoiceEventss timeSig sectionConfig <&> zipWith (ves2Voice timeSig keySig instr) _scfiVoices
-sectionConfig2Voices timeSig keySig instr sectionConfig@SectionConfigFadeOut{..} = 
-  sectionConfig2VoiceEventss timeSig sectionConfig <&> zipWith (ves2Voice timeSig keySig instr) _scfoVoices
-sectionConfig2Voices timeSig keySig instr sectionConfig@SectionConfigFadeAcross{..} = 
-  sectionConfig2VoiceEventss timeSig sectionConfig <&> zipWith (ves2Voice timeSig keySig instr) (fst <$> _scfaVoicesAB)
-sectionConfig2Voices _       _       _    sectionConfig = error $ "sectionConfig2Voices no voices for sectionConfig " <> show sectionConfig
+sectionConfig2Voices :: TimeSignature -> KeySignature -> SectionConfig -> Driver [Voice]
+sectionConfig2Voices timeSig keySig sectionConfig@SectionConfigNeutral{..} =
+  sectionConfig2VoiceEventss timeSig sectionConfig <&> zipWith (ves2Voice timeSig keySig) _scnVoices
+sectionConfig2Voices timeSig  keySig sectionConfig@SectionConfigFadeIn{..} =
+  sectionConfig2VoiceEventss timeSig sectionConfig <&> zipWith (ves2Voice timeSig keySig) _scfiVoices
+sectionConfig2Voices timeSig keySig sectionConfig@SectionConfigFadeOut{..} = 
+  sectionConfig2VoiceEventss timeSig sectionConfig <&> zipWith (ves2Voice timeSig keySig) _scfoVoices
+sectionConfig2Voices timeSig keySig sectionConfig@SectionConfigFadeAcross{..} = 
+  sectionConfig2VoiceEventss timeSig sectionConfig <&> zipWith (ves2Voice timeSig keySig) (fst <$> _scfaVoicesAB)
+sectionConfig2Voices _       _       sectionConfig = error $ "sectionConfig2Voices no voices for sectionConfig " <> show sectionConfig
 
-ves2Voice :: TimeSignature -> KeySignature -> Instrument -> VoiceConfig -> [VoiceEvent] -> Voice
-ves2Voice timeSig keySig instr voiceConfig = voiceEvents2MonoVoice (voiceConfig2VoiceType voiceConfig) instr timeSig keySig 
+ves2Voice :: TimeSignature -> KeySignature -> VoiceConfig -> [VoiceEvent] -> Voice
+ves2Voice timeSig keySig voiceConfig = voiceEvents2MonoVoice vType instr timeSig keySig
+  where
+    vType = voiceConfig2VoiceType voiceConfig
+    instr = voiceConfig2Instrument voiceConfig
+
+voiceConfig2VoiceConfigCore :: VoiceConfig -> VoiceConfigCore
+voiceConfig2VoiceConfigCore VoiceConfigVerbatim{..} = _vcvCore
+voiceConfig2VoiceConfigCore VoiceConfigRepeat{..}   = _vcrCore
+voiceConfig2VoiceConfigCore VoiceConfigSlice{..}    = _vcsCore
+voiceConfig2VoiceConfigCore VoiceConfigBlend{..}    = _vcbCore
+voiceConfig2VoiceConfigCore VoiceConfigXPose{..}    = _vcxCore
+voiceConfig2VoiceConfigCore VoiceConfigAccrete{..}  = _vcaCore
 
 voiceConfig2VoiceType :: VoiceConfig -> String
-voiceConfig2VoiceType VoiceConfigVerbatim{..} = _vcVoiceType _vcvCore
-voiceConfig2VoiceType VoiceConfigRepeat{..}   = _vcVoiceType _vcrCore
-voiceConfig2VoiceType VoiceConfigSlice{..}    = _vcVoiceType _vcsCore
-voiceConfig2VoiceType VoiceConfigBlend{..}    = _vcVoiceType _vcbCore
-voiceConfig2VoiceType VoiceConfigXPose{..}    = _vcVoiceType _vcxCore
-voiceConfig2VoiceType VoiceConfigAccrete{..}  = _vcVoiceType _vcaCore
+voiceConfig2VoiceType = _vcVoiceType . voiceConfig2VoiceConfigCore
+
+voiceConfig2Instrument :: VoiceConfig -> Instrument
+voiceConfig2Instrument = _vcInstr . voiceConfig2VoiceConfigCore 
 
 voiceEvents2MonoVoice :: String -> Instrument -> TimeSignature -> KeySignature -> [VoiceEvent] -> Voice
 voiceEvents2MonoVoice "pitched"    i ts ks ves = genPitchedVoice i ts ks ves
@@ -1195,9 +1164,9 @@ voiceEvents2MonoVoice "percussion" i ts ks ves = genPercussionVoice i ts ks ves
 voiceEvents2MonoVoice "splitstaff" i ts ks ves = genSplitStaffVoice i ts ks ves
 voiceEvents2MonoVoice vType        _ _  _  _   = error $ "voiceEvents2MonoVoice unknown voice type " <> vType
 
-voiceConfig2MonoVoice :: String -> TimeSignature -> KeySignature -> Instrument -> VoiceConfig -> Driver Voice
-voiceConfig2MonoVoice path timeSig keySig instr voiceConfig =
-  voiceConfig2VoiceEvents path timeSig voiceConfig <&> ves2Voice timeSig keySig instr voiceConfig
+voiceConfig2MonoVoice :: String -> TimeSignature -> KeySignature -> VoiceConfig -> Driver Voice
+voiceConfig2MonoVoice path timeSig keySig voiceConfig =
+  voiceConfig2VoiceEvents path timeSig voiceConfig <&> ves2Voice timeSig keySig voiceConfig
 
 genPitchedVoice :: Instrument -> TimeSignature -> KeySignature -> [VoiceEvent] -> Voice
 genPitchedVoice instr timeSig keySig ves = 
@@ -1211,89 +1180,51 @@ genSplitStaffVoice :: Instrument -> TimeSignature -> KeySignature -> [VoiceEvent
 genSplitStaffVoice instr timeSig keySig ves = 
     SplitStaffVoice instr (VeKeySignature keySig NE.<| VeTimeSignature timeSig NE.<| NE.fromList ves)
 
---applyMVoiceEventsMods2MonoVoice :: Maybe (NE.NonEmpty String) -> (VoiceRuntimeConfig,Voice) -> Driver Voice
---applyMVoiceEventsMods2MonoVoice mNames (rtCfg,voice) = applyMVoiceEventsMods mNames (rtCfg,monoVoice2VEs voice) <&> replaceMonoVoiceVEs voice
+title2Voices :: String -> TimeSignature -> KeySignature -> Driver [Voice]
+title2Voices path timeSig keySig =
+  cfgPath2Keys ("group" `isPrefixOf`) path <&> fmap ((path <> ".") <>) >>= grpNames2Voices timeSig keySig
 
--- this is only going to be of use from the context of the experimental versions of the section config
---genKeyboardVoc :: Instrument -> TimeSignature -> KeySignature -> ([VoiceEvent],[VoiceEvent]) -> Voice
---genKeyboardVoc instr timeSig keySig vesPr =
---  KeyboardVoice instr (both toVoice vesPr)
---  where
---    toVoice ves = VeKeySignature keySig NE.<| VeTimeSignature timeSig NE.<| NE.fromList ves
+group2Voices :: String -> TimeSignature -> KeySignature -> Driver [Voice]
+group2Voices path timeSig keySig = grpNames2Voices timeSig keySig [path] 
 
-title2Voices :: String -> TimeSignature -> KeySignature -> Instrument -> Driver [Voice]
-title2Voices path timeSig keySig instr =
-  cfgPath2Keys ("group" `isPrefixOf`) path <&> fmap ((path <> ".") <>) >>= grpNames2Voices timeSig keySig instr
-
-group2Voices :: String -> TimeSignature -> KeySignature -> Instrument -> Driver [Voice]
-group2Voices path timeSig keySig instr = grpNames2Voices timeSig keySig instr [path] 
-
-grpNames2Voices :: TimeSignature -> KeySignature -> Instrument -> [String] -> Driver [Voice]
-grpNames2Voices timeSig keySig instr grpNames = do
+grpNames2Voices :: TimeSignature -> KeySignature -> [String] -> Driver [Voice]
+grpNames2Voices timeSig keySig grpNames = do
   grpScnsPrs <- traverse (secondM (cfgPath2Keys ("section" `isPrefixOf`)) . dupe) grpNames
   grpCfgs    <- traverse (uncurry cfg2GroupConfig) (second NE.fromList <$> grpScnsPrs)
-  voicess    <- traverse (groupConfig2Voices timeSig keySig instr) grpCfgs
-  pure $ concatVoices <$> transpose voicess
+  voicess    <- traverse (groupConfig2Voices timeSig keySig) grpCfgs
+  pure $ concatMonoVoices <$> transpose voicess
 
-section2Voices :: String -> TimeSignature -> KeySignature -> Instrument -> Driver [Voice]
-section2Voices path timeSig keySig instr = path2SectionConfig path >>= sectionConfig2Voices timeSig keySig instr
+section2Voices :: String -> TimeSignature -> KeySignature -> Driver [Voice]
+section2Voices path timeSig keySig = path2SectionConfig path >>= sectionConfig2Voices timeSig keySig 
 
-voice2Voices :: String -> TimeSignature -> KeySignature -> Instrument -> Driver [Voice]
-voice2Voices path timeSig keySig instr = path2VoiceConfig path >>= voiceConfig2MonoVoice path timeSig keySig instr <&> (:[])
+voice2Voices :: String -> TimeSignature -> KeySignature -> Driver [Voice]
+voice2Voices path timeSig keySig = path2VoiceConfig path >>= voiceConfig2MonoVoice path timeSig keySig <&> (:[])
 
--- The tempo, time signature, key signature, and instrument are all from the top level config data.
-config2Voices :: String -> TimeSignature -> KeySignature -> Instrument -> Driver [Voice]
-config2Voices path timeSig keySig instr =
+-- The tempo, time signature and key signature, are all from the top level config data.
+config2MonoVoices :: String -> TimeSignature -> KeySignature -> Driver [Voice]
+config2MonoVoices path timeSig keySig =
   case length (splitOn "." path) of
-    1 -> title2Voices   path timeSig keySig instr
-    2 -> group2Voices   path timeSig keySig instr
-    3 -> section2Voices path timeSig keySig instr
-    4 -> voice2Voices   path timeSig keySig instr
-    n ->  error $ "config2Voices unexpected count of keys " <> show n <> " in " <> path
+    1 -> title2Voices   path timeSig keySig
+    2 -> group2Voices   path timeSig keySig
+    3 -> section2Voices path timeSig keySig
+    4 -> voice2Voices   path timeSig keySig
+    n ->  error $ "config2MonoVoices unexpected count of keys " <> show n <> " in " <> path
 
------------------
--- config2VEss --
------------------
+---------------------------------
+-- groupAndTrimDursAndAddTempo --
+---------------------------------
 
---- Generalize title to path from input arg.
-title2VEss :: String -> TimeSignature -> Driver [[VoiceEvent]]
-title2VEss path timeSig =
-  cfgPath2Keys ("group" `isPrefixOf`) path <&> fmap ((path <> ".") <>) >>= flip grpNames2VEss timeSig
-
-group2VEss :: String -> TimeSignature -> Driver [[VoiceEvent]]
-group2VEss path = grpNames2VEss [path]
-
-grpNames2VEss :: [String] -> TimeSignature -> Driver [[VoiceEvent]]
-grpNames2VEss grpNames timeSig = do
-  grpScnsPrs <- traverse (secondM (cfgPath2Keys ("section" `isPrefixOf`)) . dupe) grpNames
-  grpCfgs    <- traverse (uncurry cfg2GroupConfig) (second NE.fromList <$> grpScnsPrs)
-  vesss      <- traverse (groupConfig2VoiceEvents timeSig) grpCfgs <&> concat
-  pure $ concat <$> transpose vesss
-
-section2VEss :: String -> TimeSignature -> Driver [[VoiceEvent]]
-section2VEss path timeSig = path2SectionConfig path >>= sectionConfig2VoiceEventss timeSig
-
-voice2VEss :: String -> TimeSignature -> Driver [[VoiceEvent]]
-voice2VEss path timeSig = path2VoiceConfig path >>= voiceConfig2VoiceEvents path timeSig  <&> (:[])
-
--- Convert config data in DriverEnv to list of VoiceEvent per voice
--- according to length of config path so e.g. you can focus all the
--- way down to a single voice, section, or group, as well as top-level
--- title.  Allowable options:  title, title.group, title.group.section,
--- title.group.section.voice. 
-config2VEss :: String -> TimeSignature -> Driver [[VoiceEvent]]
-config2VEss path timeSig =
-  case length (splitOn "." path) of
-    1 -> title2VEss   path timeSig
-    2 -> group2VEss   path timeSig
-    3 -> section2VEss path timeSig
-    4 -> voice2VEss   path timeSig
-    n ->  error $ "config2VEss unexpected count of keys " <> show n <> " in " <> path
-
--------------------------------
--- alignVoiceEventsDurations --
--------------------------------
-
+-- Coordinate durations with time signature, bar divisions.
+-- Add rests at the end of the voices so they end on the same bar.
+-- Add a tempo to the top voice.
+groupAndTrimDursAndAddTempo :: Tempo -> TimeSignature -> [Voice] -> [Voice]
+groupAndTrimDursAndAddTempo tempo timeSig voices =
+  fmap (alignVoiceDurations timeSig) voices
+  & zipWith (mkVoiceTotDur timeSig (maximum voiceLens)) voiceLens
+  & tagTempo tempo
+  where
+    voiceLens = voice2DurVal <$> voices
+    
 alignVoiceDurations :: TimeSignature -> Voice -> Voice
 alignVoiceDurations timeSig voice =
   replaceMonoVoiceVEs voice . alignVoiceEventsDurations timeSig $ monoVoice2VEs voice
@@ -1387,11 +1318,7 @@ swapVeLens dur ve@VeRhythm{} = ve & veRhythm . rhythmDur .~ duration2DurationVal
 swapVeLens dur ve@VeSpacer{} = ve & veSpacer . spacerDur .~ duration2DurationVal dur
 swapVeLens dur VeTuplet{}    = VeRest $ Rest (duration2DurationVal dur) []
 swapVeLens _   ve            = ve
-
--------------------
--- mkVoiceTotDur --
--------------------
-
+    
 mkVoiceTotDur :: TimeSignature -> Int -> Int -> Voice -> Voice
 mkVoiceTotDur timeSig maxLen vesLen voice = replaceMonoVoiceVEs voice . mkVesTotDur timeSig maxLen vesLen $ monoVoice2VEs voice
   
@@ -1413,24 +1340,6 @@ mkVesTotDur timeSig maxLen vesLen ves =
     addLen  = if maxLen > vesLen then (maxLen - vesLen) + remBar else remBar
     spacerOrRest = if not (null ves) && isSpacer (last ves) then VeSpacer . (\dur -> Spacer dur NoDynamic "") else VeRest . (`Rest` [])
 
-----------------------
--- genSplitStaffVoc --
-----------------------
-
-genSplitStaffVoc :: Instrument -> KeySignature -> TimeSignature -> [VoiceEvent] -> Voice
-genSplitStaffVoc instr keySig timeSig ves =
-  SplitStaffVoice instr (VeKeySignature keySig NE.<| VeTimeSignature timeSig NE.<| NE.fromList ves)
-
--- genKeyboardVoc :: Instrument -> KeySignature -> TimeSignature -> ([VoiceEvent],[VoiceEvent]) -> Voice
--- genKeyboardVoc instr keySig timeSig vesPr =
---   KeyboardVoice instr (both toVoice vesPr)
---   where
---     toVoice ves = VeKeySignature keySig NE.<| VeTimeSignature timeSig NE.<| NE.fromList ves
-
---------------
--- tagTempo --
---------------
-
 tagTempo :: Tempo -> [Voice] -> [Voice]
 tagTempo tempo (v1:rest) = tagVoice v1:rest
   where
@@ -1442,5 +1351,4 @@ tagTempo tempo (v1:rest) = tagVoice v1:rest
     tagVoice SplitStaffVoice {..}               = SplitStaffVoice _ssvInstrument (VeTempo tempo NE.<| _ssvVoiceEvents)
     tagVoice (VoiceGroup (v1' NE.:| r))         = VoiceGroup (tagVoice v1' NE.:| r)
 tagTempo _ vs = vs
-
 

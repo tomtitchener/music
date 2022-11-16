@@ -96,6 +96,7 @@ data VoiceConfigCore =
    _vcmPOOrPOss :: NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))
   ,_vcDurss     :: NE.NonEmpty (NE.NonEmpty DurValOrDurTuplet)
   ,_vcAcctss    :: NE.NonEmpty (NE.NonEmpty Accent)
+  ,_vcInstr     :: Instrument
   ,_vcVoiceType :: String
   } deriving Show
 
@@ -215,10 +216,11 @@ makeLenses ''VoiceConfig
 path2VoiceConfigCore :: String -> Driver VoiceConfigCore
 path2VoiceConfigCore pre =
   VoiceConfigCore
-  <$> searchConfigParam  (pre <> ".mPitOctsss") 
-  <*> searchConfigParam  (pre <> ".durss")
-  <*> searchConfigParam  (pre <> ".accentss")
-  <*> searchConfigParam  (pre <> ".voiceType")
+  <$> searchConfigParam (pre <> ".mPitOctsss") 
+  <*> searchConfigParam (pre <> ".durss")
+  <*> searchConfigParam (pre <> ".accentss")
+  <*> searchConfigParam (pre <> ".instr")
+  <*> searchConfigParam (pre <> ".voiceType")
 
 -- Add comparison of ordering in (start,stop) in Range
 -- to ordering in mPirtOctsss in Core
