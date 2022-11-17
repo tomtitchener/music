@@ -15,7 +15,7 @@ jobs:
     - uses: actions/checkout@v2
     - uses: actions/setup-haskell@v1
       with:
-        ghc-version: '9.2.4'
+        ghc-version: '9.2.5'
         cabal-version: '3.4'
     
     - name: Cache ~/.stack
@@ -28,8 +28,8 @@ jobs:
       run: |
         wget -q https://lilypond.org/download/binaries/linux-64/lilypond-2.22.2-1.linux-64.sh
         sh lilypond-2.22.2-1.linux-64.sh --batch
-        sudo apt install libgl1-mesa-dev
-        sudo apt install freeglut3{,-dev}
+        # sudo apt install libgl1-mesa-dev
+        # sudo apt install freeglut3{,-dev}
         stack build --only-dependencies
 
     - name: Build
