@@ -92,6 +92,7 @@ deriving instance Generic Duration
 deriving instance Generic Dynamic
 deriving instance Generic Swell
 deriving instance Generic Sustain
+deriving instance Generic Slur
 deriving instance Generic KeySignature
 deriving instance Generic Mode
 deriving instance Generic Note
@@ -138,12 +139,17 @@ instance Arbitrary Pitch where
 instance Arbitrary Sustain where
   arbitrary = genericArbitrary
   shrink = genericShrink
+  
+instance Arbitrary Slur where
+  arbitrary = genericArbitrary
+  shrink = genericShrink
 
 instance Arbitrary Control where
   arbitrary = oneof [CtrlAccent     <$> arbitrary 
                     ,CtrlDynamic    <$> arbitrary
                     ,CtrlSwell      <$> arbitrary
                     ,CtrlSustain    <$> arbitrary
+                    ,CtrlSlur       <$> arbitrary
                     ,CtrlAnnotation <$> elements ["a","b","c"]]
 
 instance Arbitrary MidiControl where
@@ -232,8 +238,8 @@ minVEvents :: NE.NonEmpty VoiceEvent
 minVEvents = VeClef Treble NE.:|
              [VeTempo (TempoDur QDur 120)
              ,VeTimeSignature (TimeSignatureSimple 4 QDur)
-             ,VeNote (Note C COct (duration2DurationVal QDur) [] [CtrlAccent Marcato,CtrlAnnotation "a"] False)
-             ,VeNote (Note G COct (duration2DurationVal QDur) [] [CtrlDynamic Forte,CtrlAnnotation "b."] False)
+             ,VeNote (Note C COct (duration2DurationVal QDur) [] [CtrlAccent Marcato,CtrlAnnotation "a",CtrlSlur SlurOn] False)
+             ,VeNote (Note G COct (duration2DurationVal QDur) [] [CtrlDynamic Forte,CtrlAnnotation "b.",CtrlSlur SlurOff] False)
              ,VeNote (Note C COct (duration2DurationVal QDur) [] [CtrlAnnotation "C!"] False)
              ,VeTremolo (NoteTremolo (Note C COct (duration2DurationVal QDur) [] [] False))]
 

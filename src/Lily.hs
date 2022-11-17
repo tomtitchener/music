@@ -205,6 +205,25 @@ parseSustain = choice (zipWith mkParser sustainSyms sustainVals)
 instance FromLily Sustain where
   parseLily = mkParseLily parseSustain
 
+----------
+-- Slur --
+----------
+
+slurSyms :: [String]
+slurSyms = ["(",")"]
+
+slurVals :: [Slur]
+slurVals = [SlurOn,SlurOff]
+
+instance ToLily Slur where
+  toLily = mkToLily "slur" slurVals slurSyms
+
+parseSlur :: Parser Slur
+parseSlur = choice (zipWith mkParser slurSyms slurVals)
+
+instance FromLily Slur where
+  parseLily = mkParseLily parseSlur
+
 -------------
 -- Control --
 -------------
@@ -214,13 +233,15 @@ instance ToLily Control where
   toLily CtrlDynamic{..}    = toLily _ctrlDynamic
   toLily CtrlSwell{..}      = toLily _ctrlSwell
   toLily CtrlSustain{..}    = toLily _ctrlSustain
+  toLily CtrlSlur{..}       = toLily _ctrlSlur
   toLily CtrlAnnotation{..} = mkAnnotation _ctrlAnnotation
 
 parseControl :: Parser Control
 parseControl = choice [try (CtrlAccent     <$> parseOnlyAccent)
                       ,try (CtrlDynamic    <$> parseOnlyDynamic)
-                      ,try (CtrlSwell      <$> parseSwell)
                       ,try (CtrlSustain    <$> parseSustain)
+                      ,try (CtrlSlur       <$> parseSlur)
+                      ,try (CtrlSwell      <$> parseSwell)
                       ,try (CtrlAnnotation <$> parseOnlyAnnotation)]
 
 instance FromLily Control where
@@ -242,8 +263,8 @@ instance FromLily MidiControl where
 ----------
 
 instance ToLily Note where
-  toLily (Note pit oct dur midiCtrls ctrls slr) =
-    toLily pit <> toLily oct <> toLily dur <> toLilyFromList midiCtrls <> toLilyFromList ctrls <> if slr then "~" else ""
+  toLily (Note pit oct dur midiCtrls ctrls tie) =
+    toLily pit <> toLily oct <> toLily dur <> toLilyFromList midiCtrls <> toLilyFromList ctrls <> if tie then "~" else ""
 
 parseNote :: Parser Note
 parseNote = Note <$> parsePitch <*> parseOctave <*> parseDurationVal <*> many parseMidiControl <*> many parseControl <*> parseBool
@@ -317,8 +338,8 @@ pitchOctavePairsToLily :: NE.NonEmpty PitOct -> String
 pitchOctavePairsToLily = unwords . NE.toList . NE.map pitchOctavePairToLily
 
 instance ToLily Chord where
-  toLily (Chord prs dur midiCtrls ctrls slr) =
-    "<" <> pitchOctavePairsToLily prs <> ">" <> toLily dur <> toLilyFromList midiCtrls <> toLilyFromList ctrls <> if slr then "~" else ""
+  toLily (Chord prs dur midiCtrls ctrls tie) =
+    "<" <> pitchOctavePairsToLily prs <> ">" <> toLily dur <> toLilyFromList midiCtrls <> toLilyFromList ctrls <> if tie then "~" else ""
 
 parsePitOct :: Parser PitOct
 parsePitOct = PitOct <$> parsePitch <*> parseOctave
@@ -375,12 +396,12 @@ instance FromLily Tempo where
 -------------
 
 instance ToLily Tremolo where
-  toLily (NoteTremolo (Note pit oct dur midiCtrls ctrls slr)) =
-    [str|\repeat tremolo $:reps$ {$toLily pit <> toLily oct <> toLily barring <> toLilyFromList midiCtrls <> toLilyFromList ctrls <> if slr then "~" else ""$}|]
+  toLily (NoteTremolo (Note pit oct dur midiCtrls ctrls tie)) =
+    [str|\repeat tremolo $:reps$ {$toLily pit <> toLily oct <> toLily barring <> toLilyFromList midiCtrls <> toLilyFromList ctrls <> if tie then "~" else ""$}|]
     where
       (reps,barring) = splitTremolo (durationVal2Durations dur) [SFDur, HTEDur]
-  toLily (ChordTremolo (Chord prsL durL midiCtrlsL ctrlsL slrL) (Chord prsR durR midiCtrlsR ctrlsR slrR)) =
-    [str|\repeat tremolo $:reps$ {<$pos2Lily prsL$>$toLily barring <> toLilyFromList midiCtrlsL <> toLilyFromList ctrlsL <> if slrL then "~" else ""$ <$pos2Lily prsR$>$toLily barring <> toLilyFromList midiCtrlsR <> toLilyFromList ctrlsR <> if slrR then "~" else ""$}|]
+  toLily (ChordTremolo (Chord prsL durL midiCtrlsL ctrlsL tieL) (Chord prsR durR midiCtrlsR ctrlsR tieR)) =
+    [str|\repeat tremolo $:reps$ {<$pos2Lily prsL$>$toLily barring <> toLilyFromList midiCtrlsL <> toLilyFromList ctrlsL <> if tieL then "~" else ""$ <$pos2Lily prsR$>$toLily barring <> toLilyFromList midiCtrlsR <> toLilyFromList ctrlsR <> if tieR then "~" else ""$}|]
     where
       (reps,barring) = splitTremolo (durationVal2Durations durL <> durationVal2Durations durR) [SFDur, HTEDur]
       poToLily (PitOct p o) = toLily p <> toLily o

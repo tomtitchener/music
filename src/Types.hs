@@ -78,11 +78,15 @@ data Swell = Crescendo | Decrescendo | Espressivo | SwellStop
 data Sustain = SustainOn | SustainOff 
   deriving (Eq, Ord, Show, Enum, Bounded)
 
+data Slur = SlurOn | SlurOff 
+  deriving (Eq, Ord, Show, Enum, Bounded)
+
 data Control =
     CtrlAccent     { _ctrlAccent     :: Accent }
   | CtrlDynamic    { _ctrlDynamic    :: Dynamic }
   | CtrlSwell      { _ctrlSwell      :: Swell }
   | CtrlSustain    { _ctrlSustain    :: Sustain }
+  | CtrlSlur       { _ctrlSlur       :: Slur }
   | CtrlAnnotation { _ctrlAnnotation :: String }
   deriving (Eq, Ord, Show)
 
