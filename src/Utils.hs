@@ -99,28 +99,42 @@ xposeFromMPitOctOrPitOctss s start = snd . mapAccumL (mapAccumL (accumMPitOctOrP
 noteDurOrNoteDurs2NoteDurOrNoteDurIs :: Scale -> NoteDurOrNoteDurTup -> NoteDurOrNoteDurIsTup
 noteDurOrNoteDurs2NoteDurOrNoteDurIs s = bimap (first3 (fmap $ poOrPOsToIOrIss s)) (first3 (map (fmap $ poOrPOsToIOrIss s)))
 
-noteDurOrNoteDurss2NoteDurOrNoteDurIsDiffss :: Scale -> [[NoteDurOrNoteDurTup]] -> [[NoteDurOrNoteDurIsTup]]
-noteDurOrNoteDurss2NoteDurOrNoteDurIsDiffss s = map ((snd . mapAccumL accumF 0) . map (noteDurOrNoteDurs2NoteDurOrNoteDurIs s))
+accumIDiffs :: Int -> NoteDurOrNoteDurIsTup -> (Int,NoteDurOrNoteDurIsTup)
+accumIDiffs prev (Left (mIntOrInts,durVal,accent)) = (i,Left (mIntOrInts',durVal,accent))
   where
-    accumF :: Int -> NoteDurOrNoteDurIsTup -> (Int,NoteDurOrNoteDurIsTup)
-    accumF prev (Left (mIntOrInts,durVal,accent)) = (i,Left (mIntOrInts',durVal,accent))
-      where
-        (i,mIntOrInts') = diffIntOrInts prev mIntOrInts
-    accumF prev (Right (mIntOrIntss,durTup,accents)) = (i,Right (mIntOrIntss',durTup,accents))
-      where
-        (i,mIntOrIntss') = mapAccumL diffIntOrInts prev mIntOrIntss
+    (i,mIntOrInts') = diffIntOrInts prev mIntOrInts
+accumIDiffs prev (Right (mIntOrIntss,durTup,accents)) = (i,Right (mIntOrIntss',durTup,accents))
+  where
+    (i,mIntOrIntss') = mapAccumL diffIntOrInts prev mIntOrIntss
+
+noteDurOrNoteDurss2NoteDurOrNoteDurIsDiffss :: Scale -> [[NoteDurOrNoteDurTup]] -> [[NoteDurOrNoteDurIsTup]]
+noteDurOrNoteDurss2NoteDurOrNoteDurIsDiffss s = map ((snd . mapAccumL accumIDiffs 0) . map (noteDurOrNoteDurs2NoteDurOrNoteDurIs s))
+
+accumNDOrNDTup :: (Scale,PitOct) -> NoteDurOrNoteDurIsTup -> ((Scale,PitOct),NoteDurOrNoteDurTup)
+accumNDOrNDTup (s,prev) (Left (mIntOrInts,durVal,accent)) = ((s,po),Left (mPOs,durVal,accent))
+  where
+    (po,mPOs) = accumMPitOctOrPitOcts s prev mIntOrInts
+accumNDOrNDTup (s,prev) (Right (mIntOrIntss,durTup,accents)) = ((s,po),Right (mPOss,durTup,accents))
+  where
+    (po,mPOss) = mapAccumL (accumMPitOctOrPitOcts s) prev mIntOrIntss
 
 xposeFromNoteDurOrNoteDurTupss :: Scale -> PitOct -> [[NoteDurOrNoteDurTup]] -> [[NoteDurOrNoteDurTup]]
-xposeFromNoteDurOrNoteDurTupss s start = snd . mapAccumL (mapAccumL accumF) start . noteDurOrNoteDurss2NoteDurOrNoteDurIsDiffss s
+xposeFromNoteDurOrNoteDurTupss s start = snd . mapAccumL (mapAccumL accumNDOrNDTup) (s,start) . noteDurOrNoteDurss2NoteDurOrNoteDurIsDiffss s
+
+{--
+-- Abandoned ndOrNDIsDiffs
+-- Also need to carry last PitOct from output NOteDurOrNoteDurTup across as new start to next iteration.
+-- Or maybe not, could just use next PitOct from [PitOct] for successive transpositions.
+-- Should be able to fip accumNDOrNDTup
+--
+    
+xposeNoteDurOrNoteDurTupsFromPitOcts :: [NoteDurOrNoteDurTup] -> [(Scale,PitOct)] -> [NoteDurOrNoteDurTup]
+xposeNoteDurOrNoteDurTupsFromPitOcts ndOrNDTups = concat . snd . mapAccumL (flip accumNDOrNDTup) ndOrNDIsDiffs -- mapping over [(Scale,PitOct)]
   where
-    accumF :: PitOct -> NoteDurOrNoteDurIsTup -> (PitOct,NoteDurOrNoteDurTup)
-    accumF prev (Left (mIntOrInts,durVal,accent)) = (po,Left (mPOs,durVal,accent))
-      where
-        (po,mPOs) = accumMPitOctOrPitOcts s prev mIntOrInts
-    accumF prev (Right (mIntOrIntss,durTup,accents)) = (po,Right (mPOss,durTup,accents))
-      where
-        (po,mPOss) = mapAccumL (accumMPitOctOrPitOcts s) prev mIntOrIntss
-        
+    ndOrNDIs = map (noteDurOrNoteDurs2NoteDurOrNoteDurIs s) ndOrNDTups
+    ndOrNDIsDiffs = snd . mapAccumL accumIDiffs 0 ndOrNDIs
+--}
+
 -- To determine the overall ordering of a list of list of Maybe PitOctOrPitOcts,
 -- sum the diffs of each list of Maybe PitOctOrPitOcts and compare with 0.
 mPitOctOrPitOctsssToOrd :: Scale -> [[Maybe PitOctOrPitOcts]] -> Ordering

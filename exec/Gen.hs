@@ -1,12 +1,11 @@
 {-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 -- Gen(erate) lilypond output given the name of a config YAML
 -- file and a top-level target or chain of up to four components
 -- e.g. title.group.section.voice assuming that the YAML structure
--- is a list of GroupConfig from src/ConfigData.hs.  Optionally,
--- specify a seed for the random number generator.
+-- is a list of GroupConfig and etc. from src/ConfigData.hs.
+-- Optionally, specify a seed for the random number generator.
 -- Note: all voices must be mono voices only, e.g. each Voice
 -- contains a single NE.NonEmpty VoiceEvent, e.g. PitchedVoice,
 -- PercussionVoice (TBD), or SplitStaffVoice.

@@ -66,6 +66,30 @@ executable gen
                      , yaml
   ghc-options:       -Wall -Werror -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns -fno-warn-orphans -haddock
 
+executable exp
+  hs-source-dirs:      exec
+  main-is:             Exp.hs
+  default-language:    Haskell2010
+  default-extensions:
+  build-depends:       base
+                     , aeson
+                     , containers
+                     , directory
+                     , extra
+                     , free
+                     , lens
+                     , lens-aeson
+                     , music
+                     , optparse-applicative
+                     , protolude
+                     , random
+                     , split
+                     , splitmix
+                     , text
+                     , transformers
+                     , yaml
+  ghc-options:       -Wall -Werror -fwarn-incomplete-patterns -fwarn-incomplete-uni-patterns -fno-warn-orphans -haddock
+
 executable aff
   hs-source-dirs:      exec
   main-is:             Aff.hs

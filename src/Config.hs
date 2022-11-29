@@ -79,6 +79,12 @@ instance FromConfig (NE.NonEmpty (Maybe PitOct,Duration)) where
 
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))) where
   parseConfig = mkParseConfig (mkPs (mkPs (pM pPitOctOrPitOcts)))
+  
+instance FromConfig (NE.NonEmpty PitOct) where
+  parseConfig = mkParseConfig (mkPs pPitOct)
+  
+instance FromConfig (NE.NonEmpty (NE.NonEmpty PitOct)) where
+  parseConfig = mkParseConfig (mkPs (mkPs pPitOct))
 
 instance FromConfig Scale where
   parseConfig = mkParseConfig (Scale <$> mkPs parsePitch)
