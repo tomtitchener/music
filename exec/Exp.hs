@@ -120,9 +120,9 @@ verifyConfigData cd@ConfigData{..}
 cfgValue2ConfigData :: String -> Driver ConfigData
 cfgValue2ConfigData pre =
   (ConfigData
-   <$> (searchConfigParam (pre <> "nDurOrNDurTups") <&> map nDOrNDTup2Arrs . NE.toList)
-   <*> (searchConfigParam (pre <> "xposePitOctss")  <&> nes2arrs)
-   <*> (searchConfigParam (pre <> "startPitOcts")   <&> NE.toList))
+   <$> (searchConfigParam (pre <> ".nDurOrNDurTups") <&> map nDOrNDTup2Arrs . NE.toList)
+   <*> (searchConfigParam (pre <> ".xposePitOctss")  <&> nes2arrs)
+   <*> (searchConfigParam (pre <> ".startPitOcts")   <&> NE.toList))
   <&> verifyConfigData
 
 cfgInfo2Voice :: String -> ConfigData -> PitOct -> Driver Voice
@@ -130,7 +130,8 @@ cfgInfo2Voice pre ConfigData{..} pitOct = do
   keySig <- searchConfigParam  (pre <> ".common.key")
   scale  <- searchMConfigParam (pre <> ".common.scale") <&> fromMaybe (keySig2Scale M.! keySig)
   instr  <- searchConfigParam  (pre <> ".common.instr")
-  pure $ SplitStaffVoice instr (NE.fromList $ nDOrNDTup2VEs <$> ndurOrNDurTups scale)
+  dyn    <- searchConfigParam  (pre <> ".common.dyn")
+  pure $ SplitStaffVoice instr (tagFirstSoundDynamic dyn . NE.fromList $ nDOrNDTup2VEs <$> ndurOrNDurTups scale)
   where
     ndurOrNDurTups scale = head $ xposeFromNoteDurOrNoteDurTupss scale pitOct [_cfgNDurOrNDurTups]
   

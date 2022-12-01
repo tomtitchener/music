@@ -152,8 +152,13 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty NoteDurOrNoteDurNETup)) where
 instance FromConfig (NE.NonEmpty NoteDurOrNoteDurNETup) where
   parseConfig = mkParseConfig (mkPs parseNoteDurOrNoteDurTup)
 
+-- To allow DurationVal that exceeds maximum value in Lily:durationSyms of a dotted whole note,
+-- allow either simple duration of one of durationSyms OR list of durationSym which get summed
+-- into DurationVal.
 parseDurationVal :: Parser DurationVal
-parseDurationVal = duration2DurationVal <$> parseDuration
+parseDurationVal = try  (duration2DurationVal <$> parseDuration) <|>
+                        (mkDurationVal . getDurSum . sumDurs . NE.toList <$> mkPs parseDuration)
+                      --(mkDurationVal  . foldr1 (+) . NE.map dur2DurVal <$> mkPs parseDuration)
 
 parseDurOrDurTup :: Parser DurValOrDurTuplet
 parseDurOrDurTup = try (Left <$> parseDurationVal) <|> (Right <$> parseDurTup)
@@ -162,7 +167,7 @@ parseDurTup :: Parser DurTuplet
 parseDurTup = (DurTuplet <$> (char '(' *> int)
                          <*> (char ',' *> int)
                          <*> (char ',' *> parseDuration)
-                         <*> (char ',' *> mkPs (parseDuration <&> duration2DurationVal) <* char ')'))
+                         <*> (char ',' *> mkPs parseDurationVal <* char ')'))
               <&> verifyDurTuplet
 
 instance FromConfig (NE.NonEmpty Int) where

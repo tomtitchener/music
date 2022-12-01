@@ -179,8 +179,9 @@ duration2DurationVal = mkDurationVal . dur2DurVal
 durationVal2Durations :: DurationVal -> [Duration]
 durationVal2Durations = durSum2Durs . DurationSum . fromVal
 
-durationVal2Duration :: DurationVal -> Duration
-durationVal2Duration = durVal2Dur "durationVal2Duration" . fromVal
+-- Deprecated:  DurationVal may have values longer than longest value in Lily:durationVals.
+-- durationVal2Duration :: DurationVal -> Duration
+-- durationVal2Duration = durVal2Dur "durationVal2Duration" . fromVal
 
 zDurSum :: DurationSum
 zDurSum = 0
