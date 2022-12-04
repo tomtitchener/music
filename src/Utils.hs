@@ -5,11 +5,14 @@
 module Utils where
 
 
-import Data.Bifunctor (bimap, second)
+import Data.Bifunctor (second)
+import Control.Lens hiding (both)
+import Data.Foldable
 import Data.List hiding (transpose)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
 import Data.Maybe
+import Data.Sequence (adjust', fromList)
 import Data.Tuple.Extra (uncurry3, first3, third3)
 
 import Types
@@ -45,7 +48,7 @@ octToIx (lo,hi) o = fromMaybe errmsg (elemIndex o octaves)
 
 -- What's the Octave for an index given an Octave range?
 ixToOct :: Scale -> (Octave,Octave) -> Int -> Octave
-ixToOct Scale{..} (lo,hi) ix = [lo..hi] !! (ix `div` length _scPitches)
+ixToOct Scale{..} (lo,hi) ix' = [lo..hi] !! (ix' `div` length _scPitches)
 
 -- What's the index for a (Pitch,Oct) given a Scale and assuming an absolute Octave range?
 -- TBD: is -4 really necessary?  It's there to match with original implementation.  But in
@@ -120,6 +123,9 @@ accumNDOrNDTup (s,prev) (Right (mIntOrIntss,durTup,accents)) = ((s,po),Right (mP
 
 xposeFromNoteDurOrNoteDurTupss :: Scale -> PitOct -> [[NoteDurOrNoteDurTup]] -> [[NoteDurOrNoteDurTup]]
 xposeFromNoteDurOrNoteDurTupss s start = snd . mapAccumL (mapAccumL accumNDOrNDTup) (s,start) . noteDurOrNoteDurss2NoteDurOrNoteDurIsDiffss s
+
+xposeFromNoteDurOrNoteDurTups :: Scale -> PitOct -> [NoteDurOrNoteDurTup] -> [NoteDurOrNoteDurTup]
+xposeFromNoteDurOrNoteDurTups s po ndTups = head (xposeFromNoteDurOrNoteDurTupss s po [ndTups])
 
 {--
 -- Abandoned ndOrNDIsDiffs
@@ -441,8 +447,8 @@ mkTuplet mPOOrPOs tup@DurTuplet{..} accents
     mPOOrPOs'   = take cntDurs mPOOrPOs -- may return < cntDurs (Maybe PitOctOrPitOcts)
     accents'    = take cntDurs accents -- always returns cntDurs Accent
     
-nDOrNDTup2VEs :: NoteDurOrNoteDurTup -> VoiceEvent
-nDOrNDTup2VEs = either tup2NoteChordOrRest tup2Tuplet
+nDOrNDTup2VE :: NoteDurOrNoteDurTup -> VoiceEvent
+nDOrNDTup2VE = either tup2NoteChordOrRest tup2Tuplet
   where
     tup2NoteChordOrRest (mPOOrPOs, durVal,accent)  = mkNoteChordOrRest mPOOrPOs durVal accent
     tup2Tuplet          (mPOOrPOss,durTup,accents) = snd $ mkTuplet mPOOrPOss durTup accents
@@ -555,6 +561,66 @@ keySig2Scale = M.fromList [(cMajKeySig     ,cMajScale)
                           ,(bMajKeySig     ,bMajScale)
                           ,(bNatMinKeySig  ,bNatMinScale)
                           ]
+
+isVeSound :: VoiceEvent -> Bool
+isVeSound VeNote {}    = True
+isVeSound VeRhythm {}  = True
+isVeSound VeTuplet {}  = True
+isVeSound VeChord {}   = True
+isVeSound VeTremolo {} = True
+isVeSound _            = False
+
+isVeRest :: VoiceEvent -> Bool
+isVeRest VeRest {} = True
+isVeRest _         = False
+
+tagFirstSoundDynamic :: Dynamic -> [VoiceEvent] -> [VoiceEvent]
+tagFirstSoundDynamic dyn ves = maybe ves (\i -> tagCtrlForIdx (CtrlDynamic dyn) i ves) $ findIndex isVeSound ves
+
+-- offset is length duration in 128th notes of swell
+-- if positive, then duration from the beginning of [VoiceEvent]
+-- if negative, then duration from the end of [VoiceEvent]
+-- dynamic always goes with first sound in [VoiceEvent]
+tagSwell :: Swell -> Int -> [VoiceEvent] -> Maybe Dynamic -> [VoiceEvent]    
+tagSwell swell off ves mDyn = 
+  case findIndexForOffset off ves of
+    Just i  -> if off >= 0
+               then tagCtrlForIdx (CtrlSwell swell) 0 $ maybe ves (\dyn -> tagCtrlForIdx (CtrlDynamic dyn) i ves) mDyn
+               else tagCtrlForIdx (CtrlSwell swell) i $ maybe ves (\dyn -> tagCtrlForIdx (CtrlDynamic dyn) (length ves - 1) ves) mDyn
+    Nothing -> error $ "tag " <> show swell <> " bad offset " <> show off <> " for events " <> show ves
+
+findIndexForOffset :: Int -> [VoiceEvent] -> Maybe Int
+findIndexForOffset off ves
+  | 0 <= off  = inner off 0 0 ves
+  | otherwise = inner off' 0 0 ves
+  where
+    inner o pos i (v:vs) = if pos >= o then Just i else inner o (pos + ve2DurVal v) (succ i) vs
+    inner _ _   _ []     = Nothing
+    off' = off + ves2DurVal ves
+
+tagCtrlForIdx :: Control -> Int -> [VoiceEvent] -> [VoiceEvent]
+tagCtrlForIdx ctrl idx = toList . adjust' (tagControl ctrl) idx . fromList 
+
+tagControl :: Control -> VoiceEvent -> VoiceEvent
+tagControl ctrl ve@VeNote{}   = ve & veNote . noteCtrls %~ swapControl ctrl
+tagControl ctrl ve@VeRest{}   = ve & veRest . restCtrls %~ swapControl ctrl
+tagControl ctrl ve@VeRhythm{} = ve & veRhythm . rhythmCtrls %~ swapControl ctrl
+tagControl ctrl ve@VeTuplet{} = ve & veTuplet . tupNotes %~ (\notes -> tagControl ctrl (NE.head notes) NE.:| NE.tail notes)
+tagControl ctrl ve@VeChord{}  = ve & veChord . chordCtrls %~ swapControl ctrl
+tagControl ctrl (VeTremolo nt@NoteTremolo{})  = VeTremolo (nt & ntrNote . noteCtrls %~ swapControl ctrl)
+tagControl ctrl (VeTremolo ct@ChordTremolo{})  = VeTremolo (ct & ctrLeftChord . chordCtrls %~ swapControl ctrl)
+tagControl _ ve              = error $ "tagControl: unexpected VoiceEvent: " <> show ve
+
+swapControl :: Control -> [Control] -> [Control]
+swapControl ctrl = (:) ctrl . filter (not . isSameControl ctrl) 
+
+isSameControl :: Control -> Control -> Bool
+isSameControl CtrlAccent {}     CtrlAccent {}     = True
+isSameControl CtrlDynamic {}    CtrlDynamic {}    = True
+isSameControl CtrlSwell {}      CtrlSwell {}      = True
+isSameControl CtrlSustain {}    CtrlSustain {}    = True
+isSameControl CtrlAnnotation {} CtrlAnnotation {} = True
+isSameControl _                 _                 = False
 
 -- Put more Scale instances here as needed.
 

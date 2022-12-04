@@ -37,6 +37,7 @@ module Main where
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
+import Data.Biapplicative 
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
 import qualified Data.Yaml as Y
@@ -101,29 +102,21 @@ main =  do
   gen <- getStdGen
   void . liftIO $ runReaderT (runDriver (cfg2ExpVoiceScore _optTarget (show gen))) (initEnv config (show gen))
 
+-- First pass:  transpose (treble,bass) pairs in _cfgNDurOrNDurTupsPr via (treble,bass) pairs in _cfgStartPitOcts
 data ConfigData =
   ConfigData {
-  _cfgNDurOrNDurTups :: [NoteDurOrNoteDurTup]
-  ,_cfgXPosePitOctss :: [[PitOct]] -- one per voice, same length
-  ,_cfgStartPitOcts  :: [PitOct]   -- one per voice, same length
+  _cfgNDurOrNDurTupsPr :: ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]) -- same durations?
+  ,_cfgStartPitOcts    :: [(PitOct,PitOct)]
   }
   deriving Show
 
-verifyConfigData :: ConfigData -> ConfigData
-verifyConfigData cd@ConfigData{..}
-  | l1  == l2 = cd
-  | otherwise = error $ "ConfigData length _cfgXPosePitOctss " <> show l1 <> " <> length _cfgStartPitOcts" <> show l2
-  where
-    l1 = length _cfgXPosePitOctss
-    l2 = length _cfgStartPitOcts
-
 cfgValue2ConfigData :: String -> Driver ConfigData
 cfgValue2ConfigData pre =
-  (ConfigData
-   <$> (searchConfigParam (pre <> ".nDurOrNDurTups") <&> map nDOrNDTup2Arrs . NE.toList)
-   <*> (searchConfigParam (pre <> ".xposePitOctss")  <&> nes2arrs)
-   <*> (searchConfigParam (pre <> ".startPitOcts")   <&> NE.toList))
-  <&> verifyConfigData
+  ConfigData
+  <$> (searchConfigParam (pre <> ".nDurOrNDurTupsPr") <&> bimap ndOrNDNETups2ndOrNDTups ndOrNDNETups2ndOrNDTups
+  <*> (searchConfigParam (pre <> ".startPitOcts") <&> NE.toList)
+  where
+    ndOrNDNETups2ndOrNDTups = map nDOrNDTup2Arrs . NE.toList
 
 cfgInfo2Voice :: String -> ConfigData -> PitOct -> Driver Voice
 cfgInfo2Voice pre ConfigData{..} pitOct = do
@@ -131,9 +124,39 @@ cfgInfo2Voice pre ConfigData{..} pitOct = do
   scale  <- searchMConfigParam (pre <> ".common.scale") <&> fromMaybe (keySig2Scale M.! keySig)
   instr  <- searchConfigParam  (pre <> ".common.instr")
   dyn    <- searchConfigParam  (pre <> ".common.dyn")
-  pure $ SplitStaffVoice instr (tagFirstSoundDynamic dyn . NE.fromList $ nDOrNDTup2VEs <$> ndurOrNDurTups scale)
+  pure KeyboardVoice instr (bimap (y dyn) (y dyn) (mkPr scale))
   where
-    ndurOrNDurTups scale = head $ xposeFromNoteDurOrNoteDurTupss scale pitOct [_cfgNDurOrNDurTups]
+    y d = NE.fromList . tagFirstSoundDynamic d
+    mkPr s  = map (\pitOctsPr -> bimap (f s) (f s) pitOctsPr <<*>> _cfgNDOrNDurTupsPr) _cfgStartPitOcts
+    f s nDOrNDTups pitOcts = xposeFromNoteDurOrNoteDurTups s pitOcts nDOrNDTups
+  -- KeyboardVoice has (NonEmpty VoiceEvent,NonEmpty VoiceEvent) for treble, bass
+  -- _cfgNDurOrNDurTupsPr has ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]) to map via [(PitOct,PitOct)]
+  -- to ([VoiceEvent],[VoiceEvent]) via xposeFromNoteDurOrNoteDurTupss.
+  -- Individual step is bimap of Scale -> PitOct [[NoteDurOrNoteDurTup]] -> [[NoteDurOrNoteDurTup]]
+  -- that's stripped down to [NoteDurOrNoteDurTup] (or else write xposeFromNoteDurOrNoteDurTups derived
+  -- from xposeFromNoteDurOrNoteDurTupss), is concatenated to single [NoteDurOrNoteDurTup] and mapped
+  -- to VoiceEvent visa nDOrNDTup2VE and than passed to NE.fromList
+  --
+  -- fmap across _cfgStartPitOcts so individual input is (PitOct,PitOct), context is ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup])
+  -- what to do with multiple (,) inputs?  Outer bimap should be over (PitOct,PitOct), meaning inner function starts with PitOct.
+  -- Ugh, then I want association of head of ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]), which can't be an inner bimap.
+  -- What I have as inputs is two pairs, (PitOct,PitOct) -> ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]) -> ([VoiceEvent],[VoiceEvent])
+  -- that I can accumulate to ([[VoiceEvent]],[[VoiceEvent]]) and then concat back to ([VoiceEvent],[VoiceEvent]), including tagging with dyn.
+  -- So I have to pairs as inputs that maybe I just want to dissect as (po1,po2) and etc.?  Then I can have a common routine that gives
+  -- [VoiceEvent] output
+  --
+  -- Aha, but what I really want is <<*>> from Data.Biapplicative, which is going to look like
+  -- bimap f f (PitOct,PitOct) <<*>> ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]) where
+  -- where
+  --   f = fmap NDOrNDTup2VE . xposeFromNoteDurOrNoteDurTups s
+  -- f :: Scale -> PitOct -> [NoteDurOrNoteDurTup] -> [VoiceEvent]
+  -- f = map nDOrNDTup2VE . xposeFromNoteDurOrNoteDurTups
+  -- and that's inside a map over [(PitOct,PitOct)] yielding a [([VoiceEvent],[VoiceEvent])] that gets
+  -- concatenated to be ([VoiceEvent],[VoiceEvent]) where each gets tagged with dyn.
+  -- 
+  -- pure $ KeyboardVoice instr (NE.fromList . tagFirstSoundDynamic dyn $ nDOrNDTup2VE <$> ndurOrNDurTups scale)
+  -- where
+  --   ndurOrNDurTups scale = head $ xposeFromNoteDurOrNoteDurTupss scale pitOct [_cfgNDurOrNDurTupsPr]
   
 cfgData2Voices :: String -> Tempo -> TimeSignature -> ConfigData -> Driver [Voice]
 cfgData2Voices pre tempo timeSig cfgData@ConfigData{..} = 

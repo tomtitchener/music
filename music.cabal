@@ -73,6 +73,7 @@ executable exp
   default-extensions:
   build-depends:       base
                      , aeson
+                     , bifunctors
                      , containers
                      , directory
                      , extra

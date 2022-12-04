@@ -152,6 +152,9 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty NoteDurOrNoteDurNETup)) where
 instance FromConfig (NE.NonEmpty NoteDurOrNoteDurNETup) where
   parseConfig = mkParseConfig (mkPs parseNoteDurOrNoteDurTup)
 
+instance FromConfig (NE.NonEmpty NoteDurOrNoteDurNETup,NE.NonEmpty NoteDurOrNoteDurNETup) where
+  parseConfig = mkParseConfig (pPr (mkPs parseNoteDurOrNoteDurTup) (mkPs parseNoteDurOrNoteDurTup))
+
 -- To allow DurationVal that exceeds maximum value in Lily:durationSyms of a dotted whole note,
 -- allow either simple duration of one of durationSyms OR list of durationSym which get summed
 -- into DurationVal.

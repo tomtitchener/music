@@ -1,0 +1,25 @@
+# exp.yml
+#
+exp:
+  common:
+    tempo:       (60,4)
+    key:         c major
+    instr:       acoustic grand
+    time:        (4,4)
+    dyn:         mp
+  # [NoteDurOrNoteDurTup]:
+  # [NoteDur]:  [chord, rest, note, note]
+  #   ((((c,0),(e,0)),4,>),(r,8,-),((a,-1),8,>),((c,0),4,>))
+  # nDurOrNDurTups:  ((((g,2),(c,1),(c,-1),(f,-2)),2,~),(((c,2),(g,1),(g,-1),(f,-2)),2,~))
+  # Pair, (treble,bass) -> ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]]
+  nDurOrNDurTupsPr: (((((g,2),(c,1)),2,~),(((c,2),(g,1)),2,~)),
+                     ((((c,-1),(f,-2)),2,~),(((g,-1),(f,-2)),2,~)))
+  # [PitOct]
+  # ((g,1),(cis,0))
+  startPitOcts: ((c,0),(a,-1))
+#
+# Issues:
+#
+# * Lilypond renders with extra stave below, given low pitches of notes (midi plays ok).
+#   Probably want explicit config saying treble vs. bass, change to KeybaordVoice.
+#
