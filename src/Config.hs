@@ -70,6 +70,9 @@ instance FromConfig (NE.NonEmpty (NE.NonEmpty Octave)) where
 
 instance FromConfig PitOct where
   parseConfig = mkParseConfig pPitOct
+  
+instance FromConfig (NE.NonEmpty (PitOct,PitOct)) where
+  parseConfig = mkParseConfig (mkPs pPitOctPr)
 
 instance FromConfig Range where
   parseConfig = mkParseConfig pPitOctPr 

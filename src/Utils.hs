@@ -13,7 +13,7 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
 import Data.Maybe
 import Data.Sequence (adjust', fromList)
-import Data.Tuple.Extra (uncurry3, first3, third3)
+import Data.Tuple.Extra (first, uncurry3, first3, third3)
 
 import Types
 
@@ -576,6 +576,28 @@ isVeRest _         = False
 
 tagFirstSoundDynamic :: Dynamic -> [VoiceEvent] -> [VoiceEvent]
 tagFirstSoundDynamic dyn ves = maybe ves (\i -> tagCtrlForIdx (CtrlDynamic dyn) i ves) $ findIndex isVeSound ves
+
+tagTempo :: Tempo -> [Voice] -> [Voice]
+tagTempo tempo (v1:rest) = tagAVoiceEvent (VeTempo tempo) v1:rest
+tagTempo _ vs = vs
+
+-- Tag just one of NE.NonEmpty VoiceEvent in a Voice.
+tagAVoiceEvent :: VoiceEvent -> Voice -> Voice
+tagAVoiceEvent ve PitchedVoice {..}                  = PitchedVoice _ptvInstrument (ve NE.<| _ptvVoiceEvents)
+tagAVoiceEvent ve PercussionVoice {..}               = PercussionVoice _pcvInstrument (ve NE.<| _pcvVoiceEvents)
+tagAVoiceEvent ve KeyboardVoice {..}                 = KeyboardVoice _kbvInstrument (first (ve NE.<|) _kbvVoiceEvents)
+tagAVoiceEvent ve (PolyVoice instr (ves NE.:| vess)) = PolyVoice instr ((ve NE.<| ves) NE.:| vess)
+tagAVoiceEvent ve SplitStaffVoice {..}               = SplitStaffVoice _ssvInstrument (ve NE.<| _ssvVoiceEvents)
+tagAVoiceEvent ve (VoiceGroup (v1' NE.:| r))         = VoiceGroup (tagAVoiceEvent ve v1' NE.:| r)
+
+-- Add VoiceEvent to beginning of all NE.NonEmpty VoiceEvent in a Voice.
+tagVoiceEvent ::  VoiceEvent -> Voice -> Voice
+tagVoiceEvent ve PitchedVoice {..}                  = PitchedVoice _ptvInstrument (ve NE.<| _ptvVoiceEvents)
+tagVoiceEvent ve PercussionVoice {..}               = PercussionVoice _pcvInstrument (ve NE.<| _pcvVoiceEvents)
+tagVoiceEvent ve KeyboardVoice {..}                 = KeyboardVoice _kbvInstrument (bimap (ve NE.<|) (ve NE.<|) _kbvVoiceEvents)
+tagVoiceEvent ve (PolyVoice instr vess)             = PolyVoice instr (NE.map (ve NE.<|) vess)
+tagVoiceEvent ve SplitStaffVoice {..}               = SplitStaffVoice _ssvInstrument (ve NE.<| _ssvVoiceEvents)
+tagVoiceEvent ve (VoiceGroup voices)                = VoiceGroup (NE.map (tagVoiceEvent ve) voices)
 
 -- offset is length duration in 128th notes of swell
 -- if positive, then duration from the beginning of [VoiceEvent]

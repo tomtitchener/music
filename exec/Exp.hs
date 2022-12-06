@@ -1,5 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- Gen(erate) lilypond output given the name of a config YAML
 -- file and top-level target.
@@ -37,20 +38,20 @@ module Main where
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
-import Data.Biapplicative 
+import Data.Biapplicative
+import Data.List (foldl1)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as M
 import qualified Data.Yaml as Y
 import Options.Applicative
-import Prelude (String, error, show, head)
-import Protolude hiding (print, show, to, second, head)
+import Prelude (String, error, show)
+import Protolude hiding (print, show, to, second, head, (<<*>>))
 import System.Directory (doesFileExist)
 import System.Random
 import System.Random.Internal
 import System.Random.SplitMix
 
 import Driver
-import Compose
 import Types
 import Utils
 
@@ -110,34 +111,77 @@ data ConfigData =
   }
   deriving Show
 
-cfgValue2ConfigData :: String -> Driver ConfigData
-cfgValue2ConfigData pre =
+prefix2ConfigData :: String -> Driver ConfigData
+prefix2ConfigData pre =
   ConfigData
-  <$> (searchConfigParam (pre <> ".nDurOrNDurTupsPr") <&> bimap ndOrNDNETups2ndOrNDTups ndOrNDNETups2ndOrNDTups
+  <$> (searchConfigParam (pre <> ".nDurOrNDurTupsPr") <&> bimap ndOrNDNETups2ndOrNDTups ndOrNDNETups2ndOrNDTups)
   <*> (searchConfigParam (pre <> ".startPitOcts") <&> NE.toList)
   where
     ndOrNDNETups2ndOrNDTups = map nDOrNDTup2Arrs . NE.toList
 
-cfgInfo2Voice :: String -> ConfigData -> PitOct -> Driver Voice
-cfgInfo2Voice pre ConfigData{..} pitOct = do
-  keySig <- searchConfigParam  (pre <> ".common.key")
+cfgInfo2Voice :: String -> ConfigData -> Driver Voice
+cfgInfo2Voice pre ConfigData{..} = do
+  keySig  <- searchConfigParam (pre <> ".common.key")
   scale  <- searchMConfigParam (pre <> ".common.scale") <&> fromMaybe (keySig2Scale M.! keySig)
   instr  <- searchConfigParam  (pre <> ".common.instr")
   dyn    <- searchConfigParam  (pre <> ".common.dyn")
-  pure KeyboardVoice instr (bimap (y dyn) (y dyn) (mkPr scale))
+  pure $ KeyboardVoice instr (neVEsPr scale dyn)
   where
-    y d = NE.fromList . tagFirstSoundDynamic d
-    mkPr s  = map (\pitOctsPr -> bimap (f s) (f s) pitOctsPr <<*>> _cfgNDOrNDurTupsPr) _cfgStartPitOcts
-    f s nDOrNDTups pitOcts = xposeFromNoteDurOrNoteDurTups s pitOcts nDOrNDTups
+    -- What I have:
+    --  * Scale
+    --  * Dynamic
+    --  * ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup])
+    --  * [(PitOct,PitOct)]
+    -- Outer function:
+    --  of :: Dynamic -> Scale -> (PitOct,PitOct) -> ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]) -> (NonEmpty VoiceEvent,NonEmpty VoiceEvent)
+    -- first step 
+    f0 :: Scale -> ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]) -> [(PitOct,PitOct)] -> [([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup])]
+    f0 scale ndONDTsPr poPrs = f1 scale ndONDTsPr <$> poPrs
+    -- first step inner routine:
+    f1 :: Scale -> ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]) -> (PitOct,PitOct) -> ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup])
+    f1 scale ndONDTsPr poPr = bimap (xposeFromNoteDurOrNoteDurTups scale) (xposeFromNoteDurOrNoteDurTups scale) poPr <<*>> ndONDTsPr
+    -- First step: [([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup])] -> ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup])
+    --   which is  [([a],[a])] -> ([a],[a]) as foldl1 (\(a,b) (c,d) -> (a<>c,b<>d))
+    f2 :: [([a],[a])] -> ([a],[a])
+    -- f2 = foldl1 (\(a,b) (c,d) -> (a<>c,b<>d))
+    f2 = foldl1 (\pr1 pr2 -> bimap (<>) (<>) pr1 <<*>> pr2)
+    -- Second step:  ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]) -> ([VoiceEvent],[VoiceEvent])
+    --   which is bimap (map nDOrNDTup2VE) (map nDOrNDTup2VE)
+    f3 :: ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]) -> ([VoiceEvent],[VoiceEvent])
+    f3 = bimap (map nDOrNDTup2VE) (map nDOrNDTup2VE)
+    -- Fourth step:  Dynamic -> ([VoiceEvent],[VoiceEvent]) -> (NonEmpty VoiceEvent,NonEmpty VoiceEvent)
+    --   which is bimap (NEfromList . tagFirstSoundDynamic d) (NEfromList . tagFirstSoundDynamic d)
+    f4 :: Dynamic -> ([VoiceEvent],[VoiceEvent]) -> (NonEmpty VoiceEvent,NonEmpty VoiceEvent)
+    f4 dyn = bimap (NE.fromList . tagFirstSoundDynamic dyn) (NE.fromList . tagFirstSoundDynamic dyn)
+    --
+    neVEsPr :: Scale -> Dynamic -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent)
+    neVEsPr scale dyn = neVesPr
+      where
+        ndOrNDTupPrs :: [([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup])] = f0 scale _cfgNDurOrNDurTupsPr _cfgStartPitOcts
+        ndOrNDTupPr  ::  ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup])  = f2 ndOrNDTupPrs
+        vesPr        :: ([VoiceEvent],[VoiceEvent])                     = f3 ndOrNDTupPr
+        neVesPr      :: (NonEmpty VoiceEvent,NonEmpty VoiceEvent)       = f4 dyn vesPr
+        
+    -- -- Procedure:
+    -- --   * make separate functions and verify the types all work when they're pipelined
+    -- --   * find places to combine via Biapplicative <<*>> and/or inner function composition
+    -- y :: Dynamic -> ([VoiceEvent],[VoiceEvent]) -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent)
+    -- y d = NE.fromList . tagFirstSoundDynamic d . bimap nDOrNDTup2VE nDOrNDTup2VE 
+    -- -- This yields [([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup])],
+    -- -- Needs to be turned into ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]),
+    -- -- maybe through foldl1 (\(a,b) (c,d) -> (a<>c,b<>d))
+    -- mkPr :: Scale -> ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup])
+    -- mkPr s  = map (\pitOctsPr -> bimap (f s) (f s) pitOctsPr <<*>> _cfgNDurOrNDurTupsPr) _cfgStartPitOcts
+    -- squashPrs :: [([a],[a])] -> ([a],[a])
+    -- squashPrs = foldl1 (\(a,b) (c,d) -> (a<>c,b<>d))
+    -- f :: Scale -> PitOct -> [NoteDurOrNoteDurTup] -> [NoteDurOrNoteDurTup]
+    -- f s pitOcts nDOrNDTups = xposeFromNoteDurOrNoteDurTups s pitOct nDOrNDTups
+    
   
-cfgData2Voices :: String -> Tempo -> TimeSignature -> ConfigData -> Driver [Voice]
-cfgData2Voices pre tempo timeSig cfgData@ConfigData{..} = 
-  traverse (cfgInfo2Voice pre cfgData) _cfgStartPitOcts <&> groupAndTrimDursAndAddTempo tempo timeSig 
-
 -- Expects top-level keys for tempo, time signature and key signature, assuming all voices are the same.
 cfg2ExpVoiceScore :: String -> String -> Driver ()
 cfg2ExpVoiceScore pre gen = do
-  tempo   <- searchConfigParam (pre <> ".common.tempo")
+  keySig  <- searchConfigParam (pre <> ".common.key")
   timeSig <- searchConfigParam (pre <> ".common.time")
-  voices <- cfgValue2ConfigData pre >>= cfgData2Voices pre tempo timeSig <&> groupAndTrimDursAndAddTempo tempo timeSig 
-  writeScore ("./" <> pre <> ".ly") $ Score pre gen (NE.fromList voices)
+  voice <- (prefix2ConfigData pre >>= cfgInfo2Voice pre) <&> tagVoiceEvent (VeTimeSignature timeSig) . tagVoiceEvent (VeKeySignature keySig)
+  writeScore ("./" <> pre <> ".ly") $ Score pre gen (NE.fromList [voice])

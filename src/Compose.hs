@@ -1280,15 +1280,3 @@ mkVesTotDur timeSig maxLen vesLen ves =
     addLen  = if maxLen > vesLen then (maxLen - vesLen) + remBar else remBar
     spacerOrRest = if not (null ves) && isSpacer (last ves) then VeSpacer . (\dur -> Spacer dur NoDynamic "") else VeRest . (`Rest` [])
 
-tagTempo :: Tempo -> [Voice] -> [Voice]
-tagTempo tempo (v1:rest) = tagVoice v1:rest
-  where
-    tagVoice ::  Voice -> Voice
-    tagVoice PitchedVoice {..}                  = PitchedVoice _ptvInstrument (VeTempo tempo NE.<| _ptvVoiceEvents)
-    tagVoice PercussionVoice {..}               = PercussionVoice _pcvInstrument (VeTempo tempo NE.<| _pcvVoiceEvents)
-    tagVoice KeyboardVoice {..}                 = KeyboardVoice _kbvInstrument (first (VeTempo tempo NE.<|) _kbvVoiceEvents)
-    tagVoice (PolyVoice instr (ves NE.:| vess)) = PolyVoice instr ((VeTempo tempo NE.<| ves) NE.:| vess)
-    tagVoice SplitStaffVoice {..}               = SplitStaffVoice _ssvInstrument (VeTempo tempo NE.<| _ssvVoiceEvents)
-    tagVoice (VoiceGroup (v1' NE.:| r))         = VoiceGroup (tagVoice v1' NE.:| r)
-tagTempo _ vs = vs
-
