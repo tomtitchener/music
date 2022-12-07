@@ -78,20 +78,31 @@ data Swell = Crescendo | Decrescendo | Espressivo | SwellStop
 data Sustain = SustainOn | SustainOff 
   deriving (Eq, Ord, Show, Enum, Bounded)
 
+data Sostenuto = SostenutoOn | SostenutoOff 
+  deriving (Eq, Ord, Show, Enum, Bounded)
+
 data Slur = SlurOn | SlurOff 
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 data Control =
-    CtrlAccent     { _ctrlAccent     :: Accent }
-  | CtrlDynamic    { _ctrlDynamic    :: Dynamic }
-  | CtrlSwell      { _ctrlSwell      :: Swell }
-  | CtrlSustain    { _ctrlSustain    :: Sustain }
-  | CtrlSlur       { _ctrlSlur       :: Slur }
-  | CtrlAnnotation { _ctrlAnnotation :: String }
+    CtrlAccent     { _ctrlAccent     :: Accent    }
+  | CtrlDynamic    { _ctrlDynamic    :: Dynamic   }
+  | CtrlSwell      { _ctrlSwell      :: Swell     }
+  | CtrlSustain    { _ctrlSustain    :: Sustain   }
+  | CtrlSostenuto  { _ctrlSostenuto  :: Sostenuto }
+  | CtrlSlur       { _ctrlSlur       :: Slur      }
+  | CtrlAnnotation { _ctrlAnnotation :: String    }
   deriving (Eq, Ord, Show)
 
+data Pan    = Pan Float    deriving (Eq,Ord,Show) -- [-1.0 .. 1.0]
+data Reverb = Reverb Float deriving (Eq,Ord,Show) -- [0.0 .. 1.0]
+data Chorus = Chorus Float deriving (Eq,Ord,Show) -- [0.0 .. 1.0]
+
 data MidiControl =
-    MidiCtrlAccent  { _mctrlAccent  :: Accent }
+    MidiCtrlPan     { _mctrlPan     :: Pan     }
+  | MidiCtrlReverb  { _mctrlReverb  :: Reverb  }
+  | MidiCtrlChorus  { _mctrlChorus  :: Chorus  }
+  | MidiCtrlAccent  { _mctrlAccent  :: Accent  }
   | MidiCtrlDynamic { _mctrlDynamic :: Dynamic }
   deriving (Eq, Ord, Show)
 

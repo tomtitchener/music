@@ -92,6 +92,7 @@ deriving instance Generic Duration
 deriving instance Generic Dynamic
 deriving instance Generic Swell
 deriving instance Generic Sustain
+deriving instance Generic Sostenuto
 deriving instance Generic Slur
 deriving instance Generic KeySignature
 deriving instance Generic Mode
@@ -140,6 +141,10 @@ instance Arbitrary Sustain where
   arbitrary = genericArbitrary
   shrink = genericShrink
   
+instance Arbitrary Sostenuto where
+  arbitrary = genericArbitrary
+  shrink = genericShrink
+  
 instance Arbitrary Slur where
   arbitrary = genericArbitrary
   shrink = genericShrink
@@ -149,6 +154,7 @@ instance Arbitrary Control where
                     ,CtrlDynamic    <$> arbitrary
                     ,CtrlSwell      <$> arbitrary
                     ,CtrlSustain    <$> arbitrary
+                    ,CtrlSostenuto  <$> arbitrary
                     ,CtrlSlur       <$> arbitrary
                     ,CtrlAnnotation <$> elements ["a","b","c"]]
 

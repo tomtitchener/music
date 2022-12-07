@@ -18,6 +18,7 @@ import Data.Maybe (fromMaybe, catMaybes)
 import Data.Natural (Natural)
 import Data.String.Interpolation (endline, str)
 import Text.Parsec
+import Text.Parsec.Number (floating)
 import Text.Parsec.String (Parser)
 import Safe (headMay)
 
@@ -205,6 +206,91 @@ parseSustain = choice (zipWith mkParser sustainSyms sustainVals)
 instance FromLily Sustain where
   parseLily = mkParseLily parseSustain
 
+---------------
+-- Sostenuto --
+---------------
+
+sostenutoSyms :: [String]
+sostenutoSyms = ["\\sostenutoOn","\\sostenutoOff"]
+
+sostenutoVals :: [Sostenuto]
+sostenutoVals = [SostenutoOn,SostenutoOff]
+
+instance ToLily Sostenuto where
+  toLily = mkToLily "sostenuto" sostenutoVals sostenutoSyms
+
+parseSostenuto :: Parser Sostenuto
+parseSostenuto = choice (zipWith mkParser sostenutoSyms sostenutoVals)
+
+instance FromLily Sostenuto where
+  parseLily = mkParseLily parseSostenuto
+
+-----------
+-- Float --
+-----------
+
+-- WTF, Text.Parsec.Number 'floating' doesn't do negative floats?
+-- See https://mail.haskell.org/pipermail/haskell-cafe/2002-August/003280.html
+data Sign      = Positive | Negative
+
+applySign          :: Num a => Sign -> a -> a
+applySign Positive =  id
+applySign Negative =  negate
+               
+sign  :: Parser Sign
+sign  =  do { void (char '-')
+            ; return Negative
+            }
+     <|> do { void (char '+')
+            ; return Positive
+            }
+     <|> return Positive
+
+myFloating :: Parser Float
+myFloating =  do { s   <- sign
+                 ; fl  <- floating
+                 ; pure (applySign s fl)
+                 }
+
+---------
+-- Pan --
+---------
+
+instance ToLily Pan where
+  toLily (Pan f) = "\\set Staff.midiPanPosition = #" <> show f <> " "
+
+parsePan :: Parser Pan
+parsePan = Pan <$> (string "\\set Staff.midiPanPosition = #" *> myFloating <* string " ")
+
+instance FromLily Pan where
+  parseLily = mkParseLily parsePan
+
+------------
+-- Reverb --
+------------
+
+instance ToLily Reverb where
+  toLily (Reverb f) = "\\set Staff.midiReverbPosition = #" <> show f <> " "
+
+parseReverb :: Parser Reverb
+parseReverb = Reverb <$> (string "\\set Staff.midiReverbPosition = #" *> myFloating <* string " ")
+
+instance FromLily Reverb where
+  parseLily = mkParseLily parseReverb
+
+------------
+-- Chorus --
+------------
+
+instance ToLily Chorus where
+  toLily (Chorus f) = "\\set Staff.midiChorusPosition = #" <> show f <> " "
+
+parseChorus :: Parser Chorus
+parseChorus = Chorus <$> (string "\\set Staff.midiChorusPosition = #" *> floating <* string " ")
+
+instance FromLily Chorus where
+  parseLily = mkParseLily parseChorus
+
 ----------
 -- Slur --
 ----------
@@ -233,6 +319,7 @@ instance ToLily Control where
   toLily CtrlDynamic{..}    = toLily _ctrlDynamic
   toLily CtrlSwell{..}      = toLily _ctrlSwell
   toLily CtrlSustain{..}    = toLily _ctrlSustain
+  toLily CtrlSostenuto{..}  = toLily _ctrlSostenuto
   toLily CtrlSlur{..}       = toLily _ctrlSlur
   toLily CtrlAnnotation{..} = mkAnnotation _ctrlAnnotation
 
@@ -240,6 +327,7 @@ parseControl :: Parser Control
 parseControl = choice [try (CtrlAccent     <$> parseOnlyAccent)
                       ,try (CtrlDynamic    <$> parseOnlyDynamic)
                       ,try (CtrlSustain    <$> parseSustain)
+                      ,try (CtrlSostenuto  <$> parseSostenuto)
                       ,try (CtrlSlur       <$> parseSlur)
                       ,try (CtrlSwell      <$> parseSwell)
                       ,try (CtrlAnnotation <$> parseOnlyAnnotation)]
@@ -248,11 +336,17 @@ instance FromLily Control where
   parseLily = mkParseLily parseControl
 
 instance ToLily MidiControl where
+  toLily MidiCtrlPan{..}     = "\\tag #'midi " <> toLily _mctrlPan
+  toLily MidiCtrlChorus{..}  = "\\tag #'midi " <> toLily _mctrlChorus
+  toLily MidiCtrlReverb{..}  = "\\tag #'midi " <> toLily _mctrlReverb
   toLily MidiCtrlAccent{..}  = "\\tag #'midi " <> toLily _mctrlAccent
   toLily MidiCtrlDynamic{..} = "\\tag #'midi " <> toLily _mctrlDynamic
 
 parseMidiControl :: Parser MidiControl
-parseMidiControl = choice [try (MidiCtrlAccent <$> (string "\\tag #'midi " *> parseOnlyAccent))
+parseMidiControl = choice [try (MidiCtrlPan     <$> (string "\\tag #'midi " *> parsePan))
+                          ,try (MidiCtrlReverb  <$> (string "\\tag #'midi " *> parseReverb))
+                          ,try (MidiCtrlChorus  <$> (string "\\tag #'midi " *> parseChorus))
+                          ,try (MidiCtrlAccent  <$> (string "\\tag #'midi " *> parseOnlyAccent))
                           ,try (MidiCtrlDynamic <$> (string "\\tag #'midi " *> parseOnlyDynamic))]
 
 instance FromLily MidiControl where
