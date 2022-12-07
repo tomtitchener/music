@@ -124,39 +124,13 @@ cfgInfo2Voice pre ConfigData{..} = do
   scale  <- searchMConfigParam (pre <> ".common.scale") <&> fromMaybe (keySig2Scale M.! keySig)
   instr  <- searchConfigParam  (pre <> ".common.instr")
   dyn    <- searchConfigParam  (pre <> ".common.dyn")
-  pure $ KeyboardVoice instr (neVEsPr' scale dyn _cfgNDurOrNDTupsPr _cfgStartPitOctsPrs)
+  pure $ KeyboardVoice instr (neVEsPr scale dyn)
   where
-    -- goes over [(PitOct,PitOct)] from (PitOct,PitOct) and ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]) to [([NoteDurOrNoteDurTup]),([NoteDurOrNoteDurTup])]
-    -- f1 scale poPr = both (xposeFromNoteDurOrNoteDurTups scale) poPr <<*>> _cfgNDurOrNDurTupsPr
-    -- this takes [([NoteDurOrNoteDurTup]),([NoteDurOrNoteDurTup])] to ([NoteDurOrNoteDurTup]),([NoteDurOrNoteDurTup])
-    --f2            = both concat . unzip
-    -- this takes ([NoteDurOrNoteDurTup]),([NoteDurOrNoteDurTup]) to ([VoiceEvent]),([VoiceEvent])
-    -- f3            = both (map nDOrNDTup2VE)
-    -- this takes ([VoiceEvent]),([VoiceEvent]) to ([VoiceEvent]),([VoiceEvent])
-    --f4 dyn = both (NE.fromList . tagFirstSoundDynamic dyn . concatMap nDOrNDTup2VE . unzip)
-    f1 scale dyn poPr = both (NE.fromList . tagFirstSoundDynamic dyn . concatMap nDOrNDTup2VE . unzip . xposeFromNoteDurOrNoteDurTups scale) poPr <<*>> _cfgNDurOrNDurTupsPr
-    neVEsPr scale dyn = f1 scale <$> _cfgStartPitOctsPrs
-    -- Overall pipeline goes from PitOct -> [VoiceEvent] via intermediate stages
-    -- PitOct -> [[NoteDurOrNoteDurTup]] -> [NoteDurOrNoteDurTup] -> [VoiceEvent] -> [VoiceEvent] -> NE.NonEmpty VoiceEvent
-    
-    -- f2, f3, and f4 can be combined into both (NE.fromList . tagFirstSoundDynamic dyn . map nDOrNDTup2VE . concat) . unzip
-    -- goes from [[NoteDurOrNoteDurTup]] -> [VoiceEvent]
-    -- nDOrNDTupss2VEs dyn = NE.fromList . tagFirstSoundDynamic dyn . map nDOrNDTup2VE . concat
-    -- next, need input of [[NoteDurOrNoteDurTup]]
-    --
--- xposeFromNoteDurOrNoteDurTups :: Scale -> PitOct -> [NoteDurOrNoteDurTup] -> [NoteDurOrNoteDurTup]
-
--- xposeNDOrNDTupsByPitOctsToVEs :: Scale -> [NoteDurOrNoteDurTup] -> [PitOct] -> [VoiceEvent]    
--- xposeNDOrNDTupsByPitOctstoVEs scale  = concat .  map (flip (xposeFromNoteDurOrNoteDurTups scale))
-
--- tagVoiceEvents2NEVEs :: Dynamic -> [VoiceEvent] -> NE.NonEmpty VoiceEvent
--- tagVoiceEvents2NEVEs dyn = NE.fromList . tagFirstSoundDynamic dyn
-
--- genNEVEs :: Scale -> Dynamic -> [NoteDurOrNoteDurTup] -> [PitOct] -> NE.NonEmpty VoiceEvent
--- genNEVEs scale dyn = tagVoiceEvents2NEVEs dyn . xposeNDOrNDTupsByPitOcts2NEVEs scale
-
--- genVEsPr :: Scale -> Dynamic -> ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]) -> [(PitOct,PitOct)] -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent)
--- genVEsPr scale dyn (ndOrNDTupsL,ndOrNDTupsR) = map (poPr -> both (genVEs scale dyn )) 
+    f1 :: Scale -> (PitOct,PitOct) -> ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup])
+    f1 scale poPr = both (xposeFromNoteDurOrNoteDurTups scale) poPr <<*>> _cfgNDurOrNDurTupsPr
+    f2 :: Dynamic -> [([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup])] -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent)
+    f2  dyn       = both (NE.fromList . tagFirstSoundDynamic dyn . map nDOrNDTup2VE . concat) . unzip
+    neVEsPr scale dyn = f2 dyn (f1 scale <$> _cfgStartPitOctsPrs)
 
 -- Expects top-level keys for tempo, time signature and key signature, assuming all voices are the same.
 cfg2ExpVoiceScore :: String -> String -> Driver ()
