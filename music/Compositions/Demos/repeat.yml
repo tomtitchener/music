@@ -175,6 +175,7 @@ alter:
     key:         c major
     instr:       marimba
     time:        (6,8)
+    voiceType:  splitstaff
   group:
     grtype: neutral
     section1: # A
@@ -188,7 +189,6 @@ alter:
         # pattern shifts every four bars
         durval: int 384
         vctype: repeat
-        voicetype:  splitstaff
       voice1:
         mPitOctsss: (((g,0),(g,1)),((b,0),(b,1)),((c,1),(b,1),(a,0),(a,1)))
         durss:      ((8,8,16,16,8,4,8,8,8,8)) # 20 16ths
