@@ -84,6 +84,12 @@ data Sostenuto = SostenutoOn | SostenutoOff
 data Slur = SlurOn | SlurOff 
   deriving (Eq, Ord, Show, Enum, Bounded)
 
+-- Strong Sustain and Sostenuto dampening, no
+-- sympathetic resonating effect of a real piano.
+-- Sustain and Sostenuto Off indications are at
+-- start of next note or rest.  To sustain to end
+-- of bar at last bar, omit Off control.
+
 data Control =
     CtrlAccent     { _ctrlAccent     :: Accent    }
   | CtrlDynamic    { _ctrlDynamic    :: Dynamic   }
@@ -94,9 +100,13 @@ data Control =
   | CtrlAnnotation { _ctrlAnnotation :: String    }
   deriving (Eq, Ord, Show)
 
+-- Pan is the only control effective in both APPlayMidi and Logic.
+-- Reverb and Chorus add some headspace with APPlayMidi but Logic ignores them.
+-- Midi controls can associate with Staff or PianoStaff.
+
 data Pan    = Pan Float    deriving (Eq,Ord,Show) -- [-1.0 .. 1.0]
-data Reverb = Reverb Float deriving (Eq,Ord,Show) -- [0.0 .. 1.0]
-data Chorus = Chorus Float deriving (Eq,Ord,Show) -- [0.0 .. 1.0]
+data Reverb = Reverb Float deriving (Eq,Ord,Show) -- [0.0  .. 1.0]
+data Chorus = Chorus Float deriving (Eq,Ord,Show) -- [0.0  .. 1.0]
 
 data MidiControl =
     MidiCtrlPan     { _mctrlPan     :: Pan     }
@@ -274,6 +284,9 @@ type PitOctOrNEPitOcts =  Either PitOct (NonEmpty PitOct)
 
 type PitOctOrPitOcts = Either PitOct [PitOct]
 
+-- Left is rest, Right is note
+type RestDurValOrNoteDurVal = Either DurationVal DurationVal
+
 type Range = (PitOct,PitOct)
 
 -- What's parsed from YAML file into SectionConfigExp type
@@ -282,6 +295,7 @@ type NoteRestOrChordNETuple = (Maybe PitOctOrNEPitOcts,DurationVal,Accent)
 
 type TupletNETuple = (NonEmpty (Maybe PitOctOrNEPitOcts),DurTuplet,NonEmpty Accent)
 
+-- TBD: NoteDur is poor name choice for Left where you can have a Rest as well, and etc.
 type NoteDurOrNoteDurNETup = Either NoteRestOrChordNETuple TupletNETuple
 
 -- Equivalents with NonEmpty replaced by []

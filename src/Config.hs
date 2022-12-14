@@ -80,8 +80,19 @@ instance FromConfig Range where
 instance FromConfig (NE.NonEmpty (Maybe PitOct,Duration)) where
   parseConfig = mkParseConfig (mkPs (pPr (pM pPitOct) parseDuration))
 
+-- List of Either PitOct (NE.NonEmty PitOct) for note or chord motto, no rests.
+instance FromConfig (NE.NonEmpty PitOctOrNEPitOcts) where
+  parseConfig = mkParseConfig (mkPs pPitOctOrPitOcts)
+  
+-- List of Either PitOct (NE.NonEmty PitOct) for list of note or chord motto, no rests.
+instance FromConfig (NE.NonEmpty (NE.NonEmpty PitOctOrNEPitOcts)) where
+  parseConfig = mkParseConfig (mkPs (mkPs pPitOctOrPitOcts))
+
 instance FromConfig (NE.NonEmpty (NE.NonEmpty (Maybe PitOctOrNEPitOcts))) where
   parseConfig = mkParseConfig (mkPs (mkPs (pM pPitOctOrPitOcts)))
+
+instance FromConfig (NE.NonEmpty PitOctOrNEPitOcts,NE.NonEmpty  PitOctOrNEPitOcts) where
+  parseConfig = mkParseConfig (pPr (mkPs pPitOctOrPitOcts) (mkPs pPitOctOrPitOcts))
   
 instance FromConfig (NE.NonEmpty PitOct) where
   parseConfig = mkParseConfig (mkPs pPitOct)
@@ -158,13 +169,22 @@ instance FromConfig (NE.NonEmpty NoteDurOrNoteDurNETup) where
 instance FromConfig (NE.NonEmpty NoteDurOrNoteDurNETup,NE.NonEmpty NoteDurOrNoteDurNETup) where
   parseConfig = mkParseConfig (pPr (mkPs parseNoteDurOrNoteDurTup) (mkPs parseNoteDurOrNoteDurTup))
 
+instance FromConfig (NE.NonEmpty RestDurValOrNoteDurVal,NE.NonEmpty RestDurValOrNoteDurVal) where
+  parseConfig = mkParseConfig (pPr (mkPs pRestDurValOrNoteDurVal) (mkPs pRestDurValOrNoteDurVal))
+  
+instance FromConfig (NE.NonEmpty (NE.NonEmpty RestDurValOrNoteDurVal,NE.NonEmpty RestDurValOrNoteDurVal)) where
+  parseConfig = mkParseConfig (mkPs (pPr (mkPs pRestDurValOrNoteDurVal) (mkPs pRestDurValOrNoteDurVal)))
+
+-- Left is for Rest signaled via leading 'r', Left is for Note e.g. (8,8,r8,16,16)
+pRestDurValOrNoteDurVal :: Parser RestDurValOrNoteDurVal
+pRestDurValOrNoteDurVal = try (Left <$> (char 'r' *> parseDurationVal)) <|> (Right <$> parseDurationVal)
+
 -- To allow DurationVal that exceeds maximum value in Lily:durationSyms of a dotted whole note,
 -- allow either simple duration of one of durationSyms OR list of durationSym which get summed
 -- into DurationVal.
 parseDurationVal :: Parser DurationVal
 parseDurationVal = try  (duration2DurationVal <$> parseDuration) <|>
                         (mkDurationVal . getDurSum . sumDurs . NE.toList <$> mkPs parseDuration)
-                      --(mkDurationVal  . foldr1 (+) . NE.map dur2DurVal <$> mkPs parseDuration)
 
 parseDurOrDurTup :: Parser DurValOrDurTuplet
 parseDurOrDurTup = try (Left <$> parseDurationVal) <|> (Right <$> parseDurTup)

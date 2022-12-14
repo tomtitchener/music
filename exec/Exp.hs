@@ -39,6 +39,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
 import Data.Biapplicative
 import qualified Data.List.NonEmpty as NE
+import Data.List.Utils
 import qualified Data.Map.Strict as M
 import Data.Tuple.Extra (both)
 import qualified Data.Yaml as Y
@@ -85,6 +86,10 @@ opts :: ParserInfo Options
 opts = info (helper <*> options)
             (header "gen")
 
+name2Cfg2ScoreFuns ::[(String,String -> String -> Driver ())]
+name2Cfg2ScoreFuns = [("txt",cfg2TxtExpVoiceScore)
+                     ,("pulse",cfg2PulseExpVoiceScore)]
+
 main :: IO ()
 main =  do
   Options{..} <- execParser opts
@@ -100,43 +105,74 @@ main =  do
         let stdGen = StdGen { unStdGen = smGen }
         setStdGen stdGen
   gen <- getStdGen
-  void . liftIO $ runReaderT (runDriver (cfg2ExpVoiceScore _optTarget (show gen))) (initEnv config (show gen))
+  let cfg2ScoreFun = snd $ fromMaybe (error $ "no match for " <> _optTarget) $ find ((flip startswith) _optTarget . fst) name2Cfg2ScoreFuns
+  void . liftIO $ runReaderT (runDriver (cfg2ScoreFun _optTarget (show gen))) (initEnv config (show gen))
 
--- First pass:  transpose (treble,bass) pairs in _cfgNDurOrNDurTupsPr via (treble,bass) pairs in _cfgStartPitOcts
+
+-- pairs for keyboard voices: (left-hand,right-hand)
 data ConfigData =
   ConfigData {
-  _cfgNDurOrNDurTupsPr :: ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]) -- same durations?
-  ,_cfgStartPitOctsPrs :: [(PitOct,PitOct)]
+  _cfgSustainDynamic        :: Dynamic
+  ,_cfgSustainNotes         :: ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]) -- same durations!
+  ,_cfgSustainXPosePitches  :: [(PitOct,PitOct)]
+  ,_cfgStaccatoDynamic      :: Dynamic
+  ,_cfgStaccatoPitches      :: ([PitOctOrPitOcts],[PitOctOrPitOcts])
+  ,_cfgStaccatoRhythms      :: ([RestDurValOrNoteDurVal],[RestDurValOrNoteDurVal])
+  ,_cfgStaccatoXPosePitches :: [(PitOct,PitOct)]
   }
   deriving Show
 
 prefix2ConfigData :: String -> Driver ConfigData
 prefix2ConfigData pre =
   ConfigData
-  <$> (searchConfigParam (pre <> ".nDurOrNDurTupsPr") <&> both ndOrNDNETups2ndOrNDTups)
-  <*> (searchConfigParam (pre <> ".startPitOcts") <&> NE.toList)
-  where
-    ndOrNDNETups2ndOrNDTups = map nDOrNDTup2Arrs . NE.toList
+  <$> (searchConfigParam (pre <> ".sustain.dyn"))
+  <*> (searchConfigParam (pre <> ".sustain.notesPr")       <&> both (map nDOrNDTup2Arrs . NE.toList))
+  <*> (searchConfigParam (pre <> ".sustain.startPitOcts")  <&> NE.toList)
+  <*> (searchConfigParam (pre <> ".staccato.dyn"))
+  <*> (searchConfigParam (pre <> ".staccato.notesPr")      <&> both (map pOOrNEPOs2pOOrPOs . NE.toList))
+  <*> (searchConfigParam (pre <> ".staccato.rhythmsPr")    <&> both NE.toList)
+  <*> (searchConfigParam (pre <> ".staccato.startPitOcts") <&> NE.toList)
 
-cfgInfo2Voice :: String -> ConfigData -> Driver Voice
-cfgInfo2Voice pre ConfigData{..} = do
-  keySig  <- searchConfigParam (pre <> ".common.key")
+cfgInfo2Voice :: String -> Dynamic -> ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]) -> [(PitOct,PitOct)] -> Driver Voice
+cfgInfo2Voice pre dyn notes pitOctPrs = do
+  keySig <- searchConfigParam (pre <> ".common.key")
   scale  <- searchMConfigParam (pre <> ".common.scale") <&> fromMaybe (keySig2Scale M.! keySig)
   instr  <- searchConfigParam  (pre <> ".common.instr")
-  dyn    <- searchConfigParam  (pre <> ".common.dyn")
-  pure $ KeyboardVoice instr (neVEsPr scale dyn)
+  pure $ KeyboardVoice instr (neVEsPr scale)
   where
     f1 :: Scale -> (PitOct,PitOct) -> ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup])
-    f1 scale poPr = both (xposeFromNoteDurOrNoteDurTups scale) poPr <<*>> _cfgNDurOrNDurTupsPr
-    f2 :: Dynamic -> [([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup])] -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent)
-    f2  dyn       = both (NE.fromList . tagFirstSoundDynamic dyn . map nDOrNDTup2VE . concat) . unzip
-    neVEsPr scale dyn = f2 dyn (f1 scale <$> _cfgStartPitOctsPrs)
+    f1 scale poPr = both (xposeFromNoteDurOrNoteDurTups scale) poPr <<*>> notes
+    f2 :: [([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup])] -> (NE.NonEmpty VoiceEvent,NE.NonEmpty VoiceEvent)
+    f2  = both (NE.fromList . tagFirstSoundDynamic dyn . map nDOrNDTup2VE . concat) . unzip
+    neVEsPr scale = f2 (f1 scale <$> pitOctPrs)
 
 -- Expects top-level keys for tempo, time signature and key signature, assuming all voices are the same.
-cfg2ExpVoiceScore :: String -> String -> Driver ()
-cfg2ExpVoiceScore pre gen = do
-  keySig  <- searchConfigParam (pre <> ".common.key")
+cfg2TxtExpVoiceScore :: String -> String -> Driver ()
+cfg2TxtExpVoiceScore pre gen = do
+  keySig  <- searchConfigParam (pre <> ".common.key") -- TBD: per-voice?
   tempo   <- searchConfigParam (pre <> ".common.tempo")
   timeSig <- searchConfigParam (pre <> ".common.time")
-  voice <- (prefix2ConfigData pre >>= cfgInfo2Voice pre) <&> tagAVoiceEvent (VeTempo tempo) . tagVoiceEvent (VeTimeSignature timeSig) . tagVoiceEvent (VeKeySignature keySig)
-  writeScore ("./" <> pre <> ".ly") $ Score pre gen (NE.fromList [voice])
+  ConfigData{..} <- prefix2ConfigData pre
+  let
+    tagVoice = tagAVoiceEvent (VeTempo tempo) . tagVoiceEvent (VeTimeSignature timeSig) . tagVoiceEvent (VeKeySignature keySig)
+    -- looking for pair with max lengths for p air of resulting (treble,bass) of ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup])
+    -- numNotesPr = both (\ps rs = max (length ps) (length rs))  _cfgStaccatoPitches <<*>> _cfgStaccatoRhythms
+    -- though really should be taking something like sum of durations to equal other voice?
+    numNotesPr = both (curry (uncurry max . bimap length length)) _cfgStaccatoPitches <<*>> _cfgStaccatoRhythms
+    -- tbd: take while length is less than length of sust voice
+    -- problem here is _cfgStaccatoPitches is actually pair ([PitOctOrPitOcts],[PitOctOrPitOcts]) and so is
+    -- _cfgStaccatoRhythms [(RestDurValOrNoteDurVal,RestDurValOrNoteDurVal)], and what I need is a both of 
+    -- this function across via biapplicative operator: <<*>>
+    staccatoNotes = both (\numNotes pitches rhythms -> take numNotes . snd $ mapAccumL mapAccumF pitches rhythms) numNotesPr <<*>> (both cycle _cfgStaccatoPitches) <<*>> (both cycle _cfgStaccatoRhythms)
+  sustVoice <- cfgInfo2Voice pre _cfgSustainDynamic _cfgSustainNotes _cfgSustainXPosePitches <&> tagVoice
+  stacVoice <- cfgInfo2Voice pre _cfgStaccatoDynamic staccatoNotes _cfgStaccatoXPosePitches <&> tagVoice
+  writeScore ("./" <> pre <> ".ly") $ Score pre gen (NE.fromList [sustVoice,stacVoice])
+  where
+    mapAccumF :: [PitOctOrPitOcts] -> RestDurValOrNoteDurVal -> ([PitOctOrPitOcts],NoteDurOrNoteDurTup)
+    mapAccumF (poOrPO:poOrPOs) (Left durVal)  = ((poOrPO:poOrPOs),Left (Nothing,durVal,Staccatissimo))
+    mapAccumF (poOrPO:poOrPOs) (Right durVal) = (poOrPOs,Left (Just poOrPO,durVal,Staccatissimo))
+    mapAccumF x _ = error $ "cfg2ExpVoiceScore gen unexpected [PitOctOrPitOcts]: " <> show (take 10 x)
+
+
+cfg2PulseExpVoiceScore :: String -> String -> Driver ()
+cfg2PulseExpVoiceScore _ _ = pure ()

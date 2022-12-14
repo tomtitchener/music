@@ -252,6 +252,15 @@ myFloating =  do { s   <- sign
                  ; pure (applySign s fl)
                  }
 
+-- TBD: Pan, Reverb, Chorus
+--      PianoStaff vs. Staff.
+--      Break out from grouping with a note, rhythm, or chord
+--      Going to be a list of controls per Voice up to VoiceGroup,
+--      with special treatment for KeyboardVoice SplitStaffVoice, PolyVoice.
+--      These three shouldn't change over a piece.
+--      During parsing, going to be optional blob where nothing is empty list.
+--      Create new StaffControl type for these three.
+
 ---------
 -- Pan --
 ---------

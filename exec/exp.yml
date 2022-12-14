@@ -1,24 +1,24 @@
-# exp.yml
+# exp.yml:  be careful not to title a .ly file exp.ly, which messes with the build of Exp.hs.
 #
-exp:
+
+# Two dissimilar textures.
+txt1:
   common:
     tempo:       (60,4)
     key:         c major
     instr:       acoustic grand
     time:        (4,4)
-    dyn:         pp
-  # [NoteDurOrNoteDurTup]:
-  # [NoteDur]:  [chord, rest, note, note]
-  #   ((((c,0),(e,0)),4,>),(r,8,-),((a,-1),8,>),((c,0),4,>))
-  # nDurOrNDurTups:  ((((g,2),(c,1),(c,-1),(f,-2)),2,~),(((c,2),(g,1),(g,-1),(f,-2)),2,~))
-  # Pair, (treble,bass) -> ([NoteDurOrNoteDurTup],[NoteDurOrNoteDurTup]]
-  nDurOrNDurTupsPr: (((((e,2),(c,1)),1,~),(((b,1),(g,1)),1,~)),((((c,-1),(f,-2)),1,~),(((g,-1),(e,-2)),1,~)))
-  # [PitOct]
-  # ((g,1),(cis,0))
-  startPitOcts: (((c,0),(a,-1)),((a,-1),(c,0)))
-#
-# Issues:
-#
-# * Lilypond renders with extra stave below, given low pitches of notes (midi plays ok).
-#   Probably want explicit config saying treble vs. bass, change to KeybaordVoice.
-#
+  # first keyboard voice, soft slow chords, thirds and sixths
+  # tbd: assign different pans per voice, with just two can throw at extremes #-1.0 and #1.0
+  sustain:
+    dyn: p
+    notesPr: (((((e,2),(c,1)),2,~),(((b,1),(g,1)),2,~)),((((c,-1),(f,-2)),2,~),(((g,-1),(e,-2)),2,~)))
+    startPitOcts: (((c,0),(a,-1)),((a,-1),(c,0)))
+  # second keyboard voice, repeated brief fourths
+  staccato:
+    dyn: ppp
+    notesPr: ((((f,0),(c,0))),(((g,0),(d,0))))
+    rhythmsPr: ((32,32,r8,32,r8,32,32,32),(32,r8.,32,32,32,r4))
+    startPitOcts: (((c,0),(c,0)),((c,1),(c,-1)),((a,1),(e,-1)),((d,2),(b,-1)),((c,1),(c,0)))
+    
+    

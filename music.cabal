@@ -80,6 +80,7 @@ executable exp
                      , free
                      , lens
                      , lens-aeson
+                     , MissingH
                      , music
                      , optparse-applicative
                      , protolude
